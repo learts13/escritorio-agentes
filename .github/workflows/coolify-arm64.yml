@@ -2,7 +2,7 @@ name: Coolify ARM64
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/coolify-arm64]
     paths:
       - Dockerfile
       - .dockerignore
@@ -16,7 +16,7 @@ on:
       - ferramentas/smoke-coolify.sh
       - .github/workflows/coolify-arm64.yml
   pull_request:
-    branches: [main]
+    branches: [main, feat/coolify-arm64]
     paths:
       - Dockerfile
       - .dockerignore
