@@ -7,6 +7,7 @@ on:
       - feat/coolify-arm64
     paths:
       - .github/upstream-release
+      - .github/workflows/sync-upstream.yml
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
