@@ -1,6 +1,12 @@
 name: Sync official release
 
 on:
+  push:
+    branches:
+      - main
+      - feat/coolify-arm64
+    paths:
+      - .github/upstream-release
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
@@ -22,41 +28,80 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
           fetch-depth: 0
 
-      - name: Find and validate the latest official stable release
+      - name: Determine the deployment branch
+        id: target
+        env:
+          DEPLOY_BRANCH: feat/coolify-arm64
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            target="$GITHUB_REF_NAME"
+          else
+            target="$DEPLOY_BRANCH"
+          fi
+          case "$target" in
+            main|feat/coolify-arm64) ;;
+            *) echo "Unsupported deployment branch: $target" >&2; exit 1 ;;
+          esac
+          git fetch origin "refs/heads/$target:refs/remotes/origin/$target"
+          echo "branch=$target" >> "$GITHUB_OUTPUT"
+          echo "Deployment branch: $target" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Find and validate an official stable release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
         run: |
           set -euo pipefail
-          release="$(gh api repos/HelbertMoura/escritorio-agentes/releases/latest)"
-          tag="$(jq -r '.tag_name' <<<"$release")"
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+            release="$(gh api repos/HelbertMoura/escritorio-agentes/releases/latest)"
+            tag="$(jq -r '.tag_name' <<<"$release")"
+          else
+            tag="$(git show "origin/$TARGET_BRANCH:.github/upstream-release" | tr -d '[:space:]')"
+            release="$(gh api "repos/HelbertMoura/escritorio-agentes/releases/tags/$tag")"
+          fi
           [[ "$tag" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]]
           jq -e --arg tag "$tag" '.tag_name == $tag and .draft == false and .prerelease == false' <<<"$release"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Official release: $tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "Official stable release: $tag" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Merge the release into a review branch
         id: merge
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
         run: |
           set -euo pipefail
           git remote add upstream https://github.com/HelbertMoura/escritorio-agentes.git
           git fetch --no-tags upstream "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          git fetch origin main
-          if git merge-base --is-ancestor "$RELEASE_TAG" origin/main; then
+          base="origin/$TARGET_BRANCH"
+          base_pin="$(git show "$base:.github/upstream-release" | tr -d '[:space:]')"
+          already_in_base=false
+          if git merge-base --is-ancestor "$RELEASE_TAG" "$base"; then
+            already_in_base=true
+          fi
+          if [[ "$already_in_base" == true && "$base_pin" == "$RELEASE_TAG" ]]; then
             echo "updated=false" >> "$GITHUB_OUTPUT"
-            echo "The official release is already included in main." >> "$GITHUB_STEP_SUMMARY"
+            echo "This release is already present in $TARGET_BRANCH." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           branch="sync-upstream/$RELEASE_TAG"
-          git switch --create "$branch" origin/main
-          git merge --no-ff --no-edit "$RELEASE_TAG"
+          git switch --create "$branch" "$base"
+          if [[ "$already_in_base" != true ]]; then
+            git merge --no-ff --no-edit "$RELEASE_TAG"
+          fi
+          current_pin="$(tr -d '[:space:]' < .github/upstream-release)"
+          if [[ "$current_pin" != "$RELEASE_TAG" ]]; then
+            printf '%s\n' "$RELEASE_TAG" > .github/upstream-release
+            git add .github/upstream-release
+            git commit -m "Pin official release $RELEASE_TAG"
+          fi
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "updated=true" >> "$GITHUB_OUTPUT"
 
@@ -94,27 +139,7 @@ jobs:
           set -euo pipefail
           remote="$(git ls-remote --heads origin "$BRANCH")"
           if [[ -n "$remote" ]]; then
-            expected="${remote%%
-      - name: Open or update upstream review PR
-        if: steps.merge.outputs.updated == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.merge.outputs.branch }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          pr="$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')"
-          if [[ -z "$pr" ]]; then
-            cat > /tmp/pr-body.md <<EOF
-          This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into this fork.
-
-          The merged ARM64 image passed the Compose configuration check and the persistent-volume smoke test. Review and merge this PR to update the Coolify source branch.
-          EOF
-            gh pr create --base main --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
-          else
-            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "The official release $RELEASE_TAG passed ARM64 build and smoke checks. Review this PR before Coolify updates from main."
-          fi
-\t'*}"
+            expected="${remote%%$'\t'*}"
             git push --force-with-lease="refs/heads/$BRANCH:$expected" origin "HEAD:refs/heads/$BRANCH"
           else
             git push origin "HEAD:refs/heads/$BRANCH"
@@ -125,17 +150,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.merge.outputs.branch }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-          pr="$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')"
+          pr="$(gh pr list --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
           if [[ -z "$pr" ]]; then
             cat > /tmp/pr-body.md <<EOF
-          This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into this fork.
+          This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into $TARGET_BRANCH.
 
-          The merged ARM64 image passed the Compose configuration check and the persistent-volume smoke test. Review and merge this PR to update the Coolify source branch.
+          The merged ARM64 image passed the Compose configuration check and persistent-volume smoke test. Review and merge this PR to update the Coolify deployment branch.
           EOF
-            gh pr create --base main --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
+            gh pr create --base "$TARGET_BRANCH" --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
           else
-            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "The official release $RELEASE_TAG passed ARM64 build and smoke checks. Review this PR before Coolify updates from main."
+            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "Official release $RELEASE_TAG passed ARM64 build and smoke checks. Review before updating $TARGET_BRANCH."
           fi
