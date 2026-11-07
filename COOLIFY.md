@@ -62,6 +62,8 @@ O `times.json` começa com o exemplo do repositório. Ajuste os nomes e identifi
 
 O volume nomeado `escritorio_dados` guarda os tokens OAuth, usuários, sessões, logo, placar e personalizações. Atualizar ou recriar o container mantém o volume. Não use uma opção do Coolify/Docker que remova volumes ao excluir o recurso.
 
+Se você já instalou pelo `instalar.sh`, os dados em `/var/lib/escritorio` e o `times.json` em `/opt/escritorio` não migram sozinhos para o volume Docker. Copie-os para o volume antes de trocar a rota da Tailscale ou remover o serviço antigo; mantenha o serviço antigo até validar o login e a conexão no container.
+
 O workflow **Coolify ARM64** compila e verifica a imagem em um runner ARM64 quando há mudanças relevantes ou um PR. Ele não publica imagem em um registry: o Coolify constrói diretamente do fork.
 
 O workflow **Sync official release** verifica diariamente a versão estável do repositório original. Quando encontra uma versão nova, tenta mesclá-la em uma branch, compila e faz o smoke test ARM64. Só depois abre um PR para revisão. Após revisar e mesclar esse PR em `main`, o Coolify pode atualizar pelo webhook do GitHub ou pela checagem de atualizações do recurso.
