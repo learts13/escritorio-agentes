@@ -1,0 +1,36 @@
+services:
+  escritorio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    environment:
+      AGENTES_ORG: ${AGENTES_ORG:?Configure AGENTES_ORG no Coolify}
+      ESCRITORIO_BASE: ${ESCRITORIO_BASE:?Configure ESCRITORIO_BASE com a URL HTTPS da Tailscale}
+      ESCRITORIO_FONTE: ${ESCRITORIO_FONTE:-https://github.com/learts13/escritorio-agentes}
+      ESCRITORIO_BIND: "0.0.0.0"
+      ESCRITORIO_PORTA: "737"
+      ESCRITORIO_DADOS: /var/lib/escritorio
+      ESCRITORIO_TIMES: /var/lib/escritorio/times.json
+      ESCRITORIO_INTERVALO: "30"
+    ports:
+      - "127.0.0.1:${COOLIFY_HOST_PORT:-7372}:737"
+    volumes:
+      - escritorio_dados:/var/lib/escritorio
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.20
+    pids_limit: 64
+
+volumes:
+  escritorio_dados:
