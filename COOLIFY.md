@@ -68,6 +68,6 @@ O workflow **Coolify ARM64** compila e verifica a imagem em um runner ARM64 quan
 
 O arquivo `.github/upstream-release` guarda a tag estável selecionada, por exemplo `v2026.11.06`. Se você atualizar essa tag e fizer commit em `feat/coolify-arm64`, o workflow **Sync official release** é acionado: valida a release oficial, mescla o código, compila e faz o smoke test ARM64. Se passar, abre um PR para `feat/coolify-arm64`; depois de mesclar esse PR, o Coolify pode atualizar pelo webhook do GitHub ou pela checagem de atualizações do recurso.
 
-O mesmo workflow também verifica diariamente a release estável mais recente e abre o PR quando encontra uma nova. O agendamento diário só fica ativo depois que o workflow estiver na branch padrão `main), então primeiro será preciso integrar o PR inicial #1. Ele acompanha releases publicadas, não cada commit ainda não lançado do autor.
+O mesmo workflow também verifica diariamente a release estável mais recente e abre o PR quando encontra uma nova. O agendamento diário só fica ativo depois que o workflow estiver na branch padrão `main`, então primeiro será preciso integrar o PR inicial #1. Ele acompanha releases publicadas, não cada commit ainda não lançado do autor.
 
 Para o workflow poder abrir PRs, em GitHub vá a **Settings → Actions → General** e permita que workflows criem pull requests. Conflitos com mudanças do upstream interrompem a sincronização automática; nesse caso, resolva o conflito em um PR antes de atualizar o deploy.
