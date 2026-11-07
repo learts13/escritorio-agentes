@@ -1,0 +1,68 @@
+name: Coolify ARM64
+
+on:
+  push:
+    branches: [main, feat/coolify-arm64]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - escritorio.py
+      - acesso.py
+      - social.py
+      - planta.py
+      - times.exemplo.json
+      - static/**
+      - ferramentas/smoke-coolify.sh
+      - .github/workflows/coolify-arm64.yml
+  pull_request:
+    branches: [main, feat/coolify-arm64]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - escritorio.py
+      - acesso.py
+      - social.py
+      - planta.py
+      - times.exemplo.json
+      - static/**
+      - ferramentas/smoke-coolify.sh
+      - .github/workflows/coolify-arm64.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coolify-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Compose configuration
+        run: |
+          AGENTES_ORG=00000000-0000-0000-0000-000000000000 \
+          ESCRITORIO_BASE=https://smoke.example.ts.net \
+          docker compose -f compose.yaml config --quiet
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build ARM64 image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: escritorio-agentes:arm64-smoke
+          cache-from: type=gha,scope=escritorio-coolify-arm64
+          cache-to: type=gha,mode=max,scope=escritorio-coolify-arm64
+
+      - name: Smoke test server and persistent volume
+        run: bash ferramentas/smoke-coolify.sh escritorio-agentes:arm64-smoke

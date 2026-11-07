@@ -13,6 +13,8 @@
 ![No build step](https://img.shields.io/badge/front--end-vanilla%20JS%20%2B%20canvas-f7df1e?labelColor=1a1a1d)
 [![Made for agentes.chat](https://img.shields.io/badge/made%20for-agentes.chat-f5b83d?labelColor=1a1a1d)](https://agentes.chat)
 
+**Docker / Coolify on ARM64:** see the [private deployment guide](./COOLIFY.md).
+
 <picture>
   <source media="(prefers-reduced-motion: reduce)" srcset="./docs/screenshots/01-escritorio-dia.png">
   <img src="./docs/demo.gif" alt="Animated demo of the office in demo mode, with fictional agents: the pixel-art map by day with agents walking and working, the camera zooming in on an agent with a '?' question bubble, then the pointer moves to a request in the Waiting for you list (one click takes you to that agent). Short captions in Portuguese explain each step." width="900">

@@ -45,6 +45,7 @@ MCP = os.environ.get("AGENTES_MCP", "https://app.agentes.chat/mcp")
 EMISSOR = os.environ.get("AGENTES_EMISSOR", "https://app.agentes.chat")
 BASE = os.environ.get("ESCRITORIO_BASE", "http://127.0.0.1:7371").rstrip("/")
 PORTA = int(os.environ.get("ESCRITORIO_PORTA", "7371"))
+BIND = os.environ.get("ESCRITORIO_BIND", "127.0.0.1").strip()
 ORG = os.environ.get("AGENTES_ORG", "").strip().lower()  # id da organização no agentes.chat; obrigatório no main()
 TIMES = os.environ.get("ESCRITORIO_TIMES", os.path.join(os.path.dirname(os.path.abspath(__file__)), "times.json"))
 DADOS = os.environ.get("ESCRITORIO_DADOS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "dados"))
@@ -1849,6 +1850,8 @@ class Servidor(ThreadingHTTPServer):
 
 
 def main():
+    if BIND not in ("127.0.0.1", "0.0.0.0"):
+        sys.exit("ESCRITORIO_BIND precisa ser 127.0.0.1 ou 0.0.0.0")
     if BASE.startswith("http://") and not BASE.startswith("http://127.0.0.1"):
         sys.exit("ESCRITORIO_BASE precisa ser https (ou http://127.0.0.1 para teste local)")
     if BASE.startswith("https://") and not 1 <= PORTA < 1024:
@@ -1864,7 +1867,7 @@ def main():
     cred = Credenciais(ARQ_TOKEN)
     leitor = Leitor(cred)
     leitor.start()
-    srv = Servidor(("127.0.0.1", PORTA), Pagina)  # a Tailscale (serve) publica só na rede privada
+    srv = Servidor((BIND, PORTA), Pagina)  # no Docker, a publicação do host fica limitada a 127.0.0.1
     srv.cred, srv.leitor, srv.acesso = cred, leitor, contas
     srv.conversas = Conversas(leitor)
     srv.respostas = Respostas(leitor, srv.conversas)
@@ -1878,7 +1881,7 @@ def main():
     if cl:
         srv.clima = Clima(cl["lat"], cl["lon"], cl["cidade"])
         srv.clima.start()
-    log(evento="inicio", versao=VERSAO, onde=f"127.0.0.1:{PORTA}", base=BASE)
+    log(evento="inicio", versao=VERSAO, onde=f"{BIND}:{PORTA}", base=BASE)
     srv.serve_forever()
 
 
