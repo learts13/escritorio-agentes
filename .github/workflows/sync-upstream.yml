@@ -90,7 +90,35 @@ jobs:
         if: steps.merge.outputs.updated == 'true'
         env:
           BRANCH: ${{ steps.merge.outputs.branch }}
-        run: git push --force-with-lease origin "HEAD:$BRANCH"
+        run: |
+          set -euo pipefail
+          remote="$(git ls-remote --heads origin "$BRANCH")"
+          if [[ -n "$remote" ]]; then
+            expected="${remote%%
+      - name: Open or update upstream review PR
+        if: steps.merge.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr" ]]; then
+            cat > /tmp/pr-body.md <<EOF
+          This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into this fork.
+
+          The merged ARM64 image passed the Compose configuration check and the persistent-volume smoke test. Review and merge this PR to update the Coolify source branch.
+          EOF
+            gh pr create --base main --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
+          else
+            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "The official release $RELEASE_TAG passed ARM64 build and smoke checks. Review this PR before Coolify updates from main."
+          fi
+\t'*}"
+            git push --force-with-lease="refs/heads/$BRANCH:$expected" origin "HEAD:refs/heads/$BRANCH"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
 
       - name: Open or update upstream review PR
         if: steps.merge.outputs.updated == 'true'
