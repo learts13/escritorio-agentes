@@ -1,0 +1,113 @@
+name: Sync official release
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-escritorio-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync-test-pr:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Find and validate the latest official stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release="$(gh api repos/HelbertMoura/escritorio-agentes/releases/latest)"
+          tag="$(jq -r '.tag_name' <<<"$release")"
+          [[ "$tag" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]]
+          jq -e --arg tag "$tag" '.tag_name == $tag and .draft == false and .prerelease == false' <<<"$release"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Official release: $tag" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Merge the release into a review branch
+        id: merge
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/HelbertMoura/escritorio-agentes.git
+          git fetch --no-tags upstream "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git fetch origin main
+          if git merge-base --is-ancestor "$RELEASE_TAG" origin/main; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "The official release is already included in main." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="sync-upstream/$RELEASE_TAG"
+          git switch --create "$branch" origin/main
+          git merge --no-ff --no-edit "$RELEASE_TAG"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Compose configuration
+        if: steps.merge.outputs.updated == 'true'
+        run: |
+          AGENTES_ORG=00000000-0000-0000-0000-000000000000 \
+          ESCRITORIO_BASE=https://smoke.example.ts.net \
+          docker compose -f compose.yaml config --quiet
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        if: steps.merge.outputs.updated == 'true'
+
+      - name: Build merged ARM64 image
+        if: steps.merge.outputs.updated == 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: escritorio-agentes:upstream-smoke
+          cache-from: type=gha,scope=escritorio-coolify-arm64
+          cache-to: type=gha,mode=max,scope=escritorio-coolify-arm64
+
+      - name: Smoke test merged server and volume
+        if: steps.merge.outputs.updated == 'true'
+        run: bash ferramentas/smoke-coolify.sh escritorio-agentes:upstream-smoke
+
+      - name: Push tested branch
+        if: steps.merge.outputs.updated == 'true'
+        env:
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        run: git push --force-with-lease origin "HEAD:$BRANCH"
+
+      - name: Open or update upstream review PR
+        if: steps.merge.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr" ]]; then
+            cat > /tmp/pr-body.md <<EOF
+          This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into this fork.
+
+          The merged ARM64 image passed the Compose configuration check and the persistent-volume smoke test. Review and merge this PR to update the Coolify source branch.
+          EOF
+            gh pr create --base main --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
+          else
+            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "The official release $RELEASE_TAG passed ARM64 build and smoke checks. Review this PR before Coolify updates from main."
+          fi
