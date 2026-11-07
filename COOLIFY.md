@@ -12,7 +12,7 @@ Este fork pode ser compilado no próprio servidor ARM64 pelo Coolify. A imagem r
 ## Criar o recurso
 
 1. No Coolify, crie um recurso de aplicação a partir do repositório GitHub `learts13/escritorio-agentes`.
-2. Use a branch `main) e o arquivo Compose `compose.yaml`. O próprio Coolify vai construir a imagem pelo Dockerfile do repositório.
+2. Use a branch `main` e o arquivo Compose `compose.yaml`. O próprio Coolify vai construir a imagem pelo Dockerfile do repositório.
 3. Configure estas variáveis de ambiente no recurso:
 
    | Variável | Valor |
@@ -20,7 +20,7 @@ Este fork pode ser compilado no próprio servidor ARM64 pelo Coolify. A imagem r
    | `AGENTES_ORG` | UUID da organização no agentes.chat |
    | `ESCRITORIO_BASE` | URL HTTPS MagicDNS da VPS, sem barra no final |
    | `ESCRITORIO_FONTE` | `https://github.com/learts13/escritorio-agentes` |
-   | `COOLIFY_HOST_PORT` | `7372), ou outra porta livre no host |
+   | `COOLIFY_HOST_PORT` | `7372`, ou outra porta livre no host |
 
    O arquivo `.env.coolify.example` serve de referência. Não use uma URL pública do proxy do Coolify: o acesso deve passar pelo Tailscale Serve.
 
@@ -42,9 +42,9 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:7372
 sudo tailscale serve status
 ```
 
-Acesse `https://<nome-magicdns-da-vps>/) pela tailnet. A porta 7372 não fica aberta para a internet. Se a porta 443 ou a rota raiz já publicar outro serviço, não substitua essa configuração; escolha uma porta HTTPS livre do Tailscale Serve e use exatamente a mesma URL em `ESCRITORIO_BASE`.
+Acesse `https://<nome-magicdns-da-vps>/` pela tailnet. A porta 7372 não fica aberta para a internet. Se a porta 443 ou a rota raiz já publicar outro serviço, não substitua essa configuração; escolha uma porta HTTPS livre do Tailscale Serve e use exatamente a mesma URL em `ESCRITORIO_BASE`.
 
-O aplicativo exige `ESCRITORIO_PORTA` abaixo de 1024 porque sua URL externa usa HTTPS. Dentro do container, ele recebe a capacidade mínima `NET_BIND_SERVICE); no host, o Compose limita a publicação a `127.0.0.1`.
+O aplicativo exige `ESCRITORIO_PORTA` abaixo de 1024 porque sua URL externa usa HTTPS. Dentro do container, ele recebe a capacidade mínima `NET_BIND_SERVICE`; no host, o Compose limita a publicação a `127.0.0.1`.
 
 ## Primeiro acesso e conexão
 
