@@ -746,13 +746,13 @@ const Efeitos = (() => {
   // ---------------- datas comemorativas
   function festaChao(c, festa) { // objetos temáticos espalhados (sem depender de profundidade)
     if (!festa) return;
-    const rec = P.salas[0], L = P.lounge, coz = P.baixo[2];
+    const rec = P.salas[0], L = P.lounge, coz = P.baixo[2], k = festa.tema || festa.chave;   // data própria: as peças do tema dela
     const pontos = [[rec.px + rec.pw - 34, rec.py + rec.ph - 6], [L.px + L.pw - 30, L.chao + 26], [L.px + 30, L.chao + 26], [coz.px + 66, coz.py + coz.ph - 6]];
     const itens = { natal: ["arvore_natal", "presentes", "arvore_natal", "presentes"], halloween: ["abobora", "abobora2", "abobora", "abobora2"], pascoa: ["ovos", "coelho", "ovos", "coelho"],
       chines: ["lanterna", "lanterna", "lanterna", "lanterna"], junina: [null, "fogueira", null, null], anonovo: ["champanhe", "champanhe", "champanhe", null],
-      carnaval: ["mascara", "mascara", null, null], diwali: ["diwali", "diwali", "diwali", "diwali"] }[festa.chave] || [];
+      carnaval: ["mascara", "mascara", null, null], diwali: ["diwali", "diwali", "diwali", "diwali"] }[k] || [];
     itens.forEach((n, i) => { const s = n && tam(n); if (s) spr(c, n, pontos[i][0] - s[2] / 2, pontos[i][1] - s[3]); });
-    if (festa.chave === "junina") { const s = tam("fogueira"); if (s) spr(c, "fogueira", P.predioRet.x + 120, P.predioRet.y - 12 - s[3]); }
+    if (k === "junina") { const s = tam("fogueira"); if (s) spr(c, "fogueira", P.predioRet.x + 120, P.predioRet.y - 12 - s[3]); }
   }
 
   function festaAr(c, festa, t, dt, ceu) { // pisca-pisca, bandeirinhas, fogos, morcegos, confete, corações

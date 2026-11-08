@@ -6,7 +6,8 @@ O servidor decide amizades, eventos e brigas com o dado real de quem está livre
 para todos; o navegador só encena. Livre é quem está na leitura e sem tarefa: quem trabalha ou espera a pessoa nunca
 entra em evento nem em briga. Fica só na memória (sem rede nem disco): reiniciar o serviço volta todo mundo à base.
 A exceção é o placar semanal do ringue (fatia 1c): quem lê e grava o dados/placar.json é o escritorio.py (ler_placar e o
-guardar que ele passa); aqui só se conta, se vira a semana e se serializa. Nada aqui chama o agentes.chat.
+guardar que ele passa); aqui só se conta, se vira a semana e se serializa. As brigas e as greves também vão para o
+jornal da semana (jornal.py), pelo contar_jornal que o escritorio.py passa. Nada aqui chama o agentes.chat.
 """
 import collections
 import datetime
@@ -123,15 +124,17 @@ def campeao(placar):
 class Social(threading.Thread):
     """O diretor: um passo por minuto com a leitura do Leitor e a config pública. Tudo sob uma trava; o GET só lê."""
 
-    def __init__(self, leitor, config, log, fuso, aleatorio=None, guardar=None, placar=None):
+    def __init__(self, leitor, config, log, fuso, aleatorio=None, guardar=None, placar=None, contar_jornal=None):
         """guardar(bytes) grava o placar.json (o gravar() atômico do escritorio.py); placar é o que o ler_placar() leu
-        ao subir (validado, ou None), alinhado à semana no primeiro passo."""
+        ao subir (validado, ou None), alinhado à semana no primeiro passo. contar_jornal(tipo, instante) leva ao jornal
+        cada briga que terminou e cada greve que começou."""
         super().__init__(daemon=True)
         self.leitor, self.config, self.log, self.fuso = leitor, config, log, fuso
         self.rng = aleatorio or random.Random()
         self.trava = threading.Lock()
         self.erros = set()   # tipos de erro que já foram para o log
         self.guardar, self.carregado, self.falhou_gravar = guardar, placar, False
+        self.contar_jornal = contar_jornal
         self._zerar()
 
     def _zerar(self):
@@ -262,6 +265,8 @@ class Social(threading.Thread):
                                      "pazes": c["fim"] + self.rng.randint(PAZES_DE, PAZES_ATE)})
             self.fim_ultima = c["fim"]
             self._contar(c)
+            if self.contar_jornal:
+                self.contar_jornal("briga", c["fim"])
         if agora >= c["fim"] + VISIVEL:
             self.cena = None
 
@@ -485,6 +490,8 @@ class Social(threading.Thread):
             self.cena = {"id": secrets.token_urlsafe(6), "tipo": "greve", "participantes": grupo,
                          "motivo": self.rng.randrange(1000), "inicio": agora, "ate": ate, "origem": "auto"}
             self.greves_hoje += 1
+            if self.contar_jornal:
+                self.contar_jornal("greve", agora)
 
     # ------------------------------------------------------------ o que as rotas usam
 

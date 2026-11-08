@@ -30,11 +30,11 @@ start_container() {
     --env ESCRITORIO_BASE=https://smoke.example.ts.net \
     --env ESCRITORIO_BIND=0.0.0.0 \
     --env ESCRITORIO_PORTA=737 \
-    --env ESCRITORIO_DADOS=/var/lib/escritorio \
-    --env ESCRITORIO_TIMES=/var/lib/escritorio/times.json \
+    --env ESCRITORIO_DADOS=/dados \
+    --env ESCRITORIO_TIMES=/dados/times.json \
     --env ESCRITORIO_FONTE=https://github.com/learts13/escritorio-agentes \
     --publish 127.0.0.1::737 \
-    --volume "$volume":/var/lib/escritorio \
+    --volume "$volume":/dados \
     "$image" >/dev/null
 }
 
@@ -54,9 +54,9 @@ wait_for_login() {
 
 start_container
 wait_for_login
-docker exec "$container" python3 -B -I -c 'from pathlib import Path; Path("/var/lib/escritorio/.smoke-persist").write_text("ok")'
+docker exec "$container" python3 -B -I -c 'from pathlib import Path; Path("/dados/.smoke-persist").write_text("ok")'
 docker rm -f "$container" >/dev/null
 start_container
 wait_for_login
-docker exec "$container" python3 -B -I -c 'from pathlib import Path; assert Path("/var/lib/escritorio/.smoke-persist").read_text() == "ok"'
+docker exec "$container" python3 -B -I -c 'from pathlib import Path; assert Path("/dados/.smoke-persist").read_text() == "ok"'
 echo "Imagem ARM64 iniciou como UID 10001, serviu /entrar e manteve os dados após recriação do container."

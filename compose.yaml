@@ -12,13 +12,13 @@ services:
       ESCRITORIO_FONTE: ${ESCRITORIO_FONTE:-https://github.com/learts13/escritorio-agentes}
       ESCRITORIO_BIND: "0.0.0.0"
       ESCRITORIO_PORTA: "737"
-      ESCRITORIO_DADOS: /var/lib/escritorio
-      ESCRITORIO_TIMES: /var/lib/escritorio/times.json
+      ESCRITORIO_DADOS: /dados
+      ESCRITORIO_TIMES: /dados/times.json
       ESCRITORIO_INTERVALO: "30"
     ports:
       - "127.0.0.1:${COOLIFY_HOST_PORT:-7372}:737"
     volumes:
-      - escritorio_dados:/var/lib/escritorio
+      - escritorio_dados:/dados
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

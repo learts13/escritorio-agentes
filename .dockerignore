@@ -1,9 +1,14 @@
-**
-!Dockerfile
+# Lista de permissão: a imagem leva só o que o serviço usa. Nunca dados/, times.json, tokens, .git, .previa/ nem
+# .baseline/, mesmo quando construída de uma pasta que tem tudo isso.
+*
 !escritorio.py
 !acesso.py
 !social.py
 !planta.py
-!times.exemplo.json
+!ajustes.py
+!jornal.py
+!avisos.py
+!vapid.py
+!novidades.py
+!CHANGELOG.pt-BR.md
 !static/
-!static/**

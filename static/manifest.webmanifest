@@ -1,0 +1,19 @@
+{
+  "name": "Escritório",
+  "short_name": "Escritório",
+  "description": "O time de agentes ao vivo, num escritório em pixel art.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f0f0e",
+  "theme_color": "#0f0f0e",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone-mascara-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Modo TV", "short_name": "TV", "description": "A câmera passeia sozinha e corre para as novidades", "url": "./?tv=1" }
+  ]
+}

@@ -22,7 +22,7 @@ const Personalizar = (() => {
   }
   function aviso(t, tipo) { const a = $("m-aviso"); a.textContent = t; a.className = "aviso-form" + (tipo ? ` ${tipo}` : ""); }
 
-  // paleta pronta: rádios de verdade (teclado e leitor de tela); a mesma no Personalizar e nas boas-vindas
+  // paleta pronta: rádios de verdade (teclado e leitor de tela); a mesma no Personalizar e no assistente
   function montarPaleta(p, grupo, aoEscolher) {
     if (p.childElementCount) return;
     p.setAttribute("role", "radiogroup"); p.setAttribute("aria-label", "Cores sugeridas");
@@ -225,41 +225,7 @@ const Personalizar = (() => {
   zona.addEventListener("drop", ev => { ev.preventDefault(); zona.classList.remove("sobre"); escolherLogo(ev.dataTransfer.files[0]); });
   $("m-remover").addEventListener("click", () => { esquecerLogo(); tirarLogo = true; mostrarLogo(LOGO_PADRAO); mudou(); });
 
-  // Boas-vindas: enquanto o nome ainda é o de exemplo (marca_exemplo), uma vez por sessão, pergunta nome, cor e logo
-  // (opcional). Salva pelo mesmo caminho do Personalizar (/api/logo e /api/marca); "Pular" deixa tudo para depois.
-  function boasVindas(cfg) {
-    const d = $("boas-vindas");
-    if (!cfg || cfg.marca_exemplo !== true || (window.Brincar && Brincar.demo) || !d.showModal) return;
-    try { if (sessionStorage.getItem("escritorio:boas-vindas")) return; sessionStorage.setItem("escritorio:boas-vindas", "1"); } catch (e) { /* sem armazenamento: mostra mesmo assim */ }
-    let cor = cfg.cor || PALETA[0][0], salvou = false;
-    montarPaleta($("bv-paleta"), "bv-paleta", c => { cor = c; aplicarCor(c); });   // a página mostra a cor na hora
-    d.addEventListener("close", () => { if (!salvou) { aplicarCor(cfg.cor || PALETA[0][0]); $("principal").focus({ preventScroll: true }); } });   // pulou (ou Esc): volta a cor de antes e o foco vai ao conteúdo
-    for (const i of document.querySelectorAll("#bv-paleta input")) i.checked = i.value.toLowerCase() === cor.toLowerCase();
-    const avisoBv = (t, tipo) => { const a = $("bv-aviso"); a.textContent = t; a.className = "aviso-form" + (tipo ? ` ${tipo}` : ""); };
-    $("bv-logo").addEventListener("change", () => {
-      const f = $("bv-logo").files[0], erro = f ? erroDoLogo(f) : "";
-      if (erro) $("bv-logo").value = "";
-      $("bv-logo-nome").textContent = f && !erro ? f.name : "Nenhuma imagem escolhida";
-      avisoBv(erro, erro ? "ruim" : "");
-    });
-    $("bv-pular").addEventListener("click", () => d.close());
-    $("form-bv").addEventListener("submit", async ev => {
-      ev.preventDefault();
-      if (!$("bv-empresa").reportValidity()) return;
-      const bt = $("bv-salvar"), f = $("bv-logo").files[0];
-      bt.disabled = true; bt.textContent = "Salvando…";
-      let logoFoi = false;
-      try {
-        if (f) { await enviar("/api/logo", f, f.type); logoFoi = true; }
-        await enviar("/api/marca", JSON.stringify({ empresa: $("bv-empresa").value.trim(), cor }), "application/json");
-        salvou = true; avisoBv("Pronto. Recarregando para aplicar…", "ok"); setTimeout(() => location.reload(), 600);
-      } catch (e) {
-        bt.disabled = false; bt.textContent = "Salvar";
-        avisoBv(`Não salvou${logoFoi ? " o nome e a cor (o logo já foi)" : ""}: ${e.message}. Tente de novo ou pule e faça depois em Personalizar.`, "ruim");
-      }
-    });
-    d.showModal(); $("bv-empresa").focus();
-  }
-  return { abrir, boasVindas };
+  // o assistente de instalação (assistente.js) usa a mesma paleta, a mesma conferência do logo e o mesmo envio
+  return { abrir, montarPaleta, erroDoLogo, enviar, PALETA };
 })();
 window.Personalizar = Personalizar;

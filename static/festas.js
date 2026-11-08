@@ -1,5 +1,6 @@
-// Datas comemorativas automáticas: decide pela data de hoje (fuso de Brasília) qual festa
-// está valendo e o que muda no escritório: enfeites, chapéu dos agentes, falas e fogos.
+// Datas comemorativas: decide pela data de hoje (fuso de Brasília) qual festa está valendo e o que muda
+// no escritório: enfeites, chapéu dos agentes, falas e fogos. Vale a primeira data própria (Personalizar,
+// /api/config "festas") que cobre o dia; sem nenhuma, a festa do calendário que não foi desligada.
 // ?data=2026-12-25 simula outra data.
 "use strict";
 
@@ -32,6 +33,42 @@ const Festas = (() => {
     trabalho:    { nome: "Dia do Trabalho", cores: ["#ef4444", "#f8fafc"], enfeites: ["bandeirinhas"], chapeu: null, falas: ["Feriado! Até os agentes descansam", "Dia do trabalho… e a gente trabalhando 😅"] },
   };
 
+  // catálogo fechado de temas das datas próprias: os das 13 festas e um genérico nas cores da marca
+  const GENERICO = { nome: "Festa", enfeites: ["confete", "bandeirinhas"], chapeu: "festa", falas: ["Hoje é dia de festa! 🎉", "Tem bolo na cozinha", "Parabéns pra nós!"] };
+  const ANUAL = /^(\d{2})-(\d{2})$/, UNICA = /^(\d{4})-(\d{2})-(\d{2})$/;
+  let proprias = [], desligadas = new Set(), corMarca = "#f5b83d";
+
+  const temaDe = k => (Object.hasOwn(FESTAS, k) ? k : "generico");   // tema desconhecido vira o genérico
+  function tema(k) { return temaDe(k) === "generico" ? { ...GENERICO, cores: [corMarca, "#f8fafc", "#facc15"] } : FESTAS[k]; }
+  function temas() { return ["generico", ...Object.keys(FESTAS)].map(k => ({ chave: k, ...tema(k) })); }
+
+  // config.festas do servidor (já validada lá; aqui só não deixa um valor torto quebrar o mapa) e a cor da marca
+  function configurar(cfg, cor) {
+    if (typeof cor === "string" && /^#[0-9a-f]{6}$/i.test(cor)) corMarca = cor;
+    const c = cfg && typeof cfg === "object" ? cfg : {}, texto = t => typeof t === "string" && t.length > 0;
+    proprias = (Array.isArray(c.proprias) ? c.proprias : []).filter(p => p && texto(p.nome) && texto(p.data) && (ANUAL.test(p.data) || UNICA.test(p.data)))
+      .slice(0, 24).map(p => ({ nome: p.nome, data: p.data, dias: Number.isInteger(p.dias) && p.dias >= 1 && p.dias <= 14 ? p.dias : 1,
+        tema: typeof p.tema === "string" ? p.tema : "generico", falas: Array.isArray(p.falas) ? p.falas.filter(texto).slice(0, 3) : [] }));
+    desligadas = new Set((Array.isArray(c.desligadas) ? c.desligadas : []).filter(k => typeof k === "string"));
+  }
+
+  // início (ms UTC) da data própria no ano y, ou null: a anual vale todo ano (29/02 só nos bissextos), a única só no ano dela
+  function inicio(p, y) {
+    const u = UNICA.exec(p.data), a = ANUAL.exec(p.data);
+    if (u && +u[1] !== y) return null;
+    const m = +(u ? u[2] : a[1]), d = +(u ? u[3] : a[2]), ms = utc(y, m, d), t = new Date(ms);
+    return t.getUTCMonth() + 1 === m && t.getUTCDate() === d ? ms : null;   // 31/04 ou 29/02 fora do bissexto não existem
+  }
+  // a primeira data própria que cobre o dia, de data até data + dias - 1 (a do ano anterior também: festa que vira o ano)
+  function propria(y, m, d) {
+    const dt = utc(y, m, d);
+    for (const p of proprias) for (const ano of [y, y - 1]) {
+      const ini = inicio(p, ano);
+      if (ini != null && entre(dt, ini, ini + (p.dias - 1) * DIA)) return p;
+    }
+    return null;
+  }
+
   function hoje() {
     const sim = new URLSearchParams(location.search).get("data");
     if (sim && /^\d{4}-\d{2}-\d{2}$/.test(sim)) { const [y, m, d] = sim.split("-").map(Number); return { y, m, d }; }
@@ -44,8 +81,10 @@ const Festas = (() => {
   const DIA = 86400000;
 
   function ativa() {
-    const { y, m, d } = hoje(), k = chave(y, m, d);
-    return k ? { chave: k, ...FESTAS[k] } : null;
+    const { y, m, d } = hoje(), p = propria(y, m, d);
+    if (p) { const t = tema(p.tema); return { chave: "propria", tema: temaDe(p.tema), ...t, nome: p.nome, falas: p.falas.length ? p.falas : t.falas }; }
+    const k = chave(y, m, d);
+    return k && !desligadas.has(k) ? { chave: k, ...FESTAS[k] } : null;
   }
 
   // qual festa vale no dia (ou null)
@@ -71,11 +110,11 @@ const Festas = (() => {
     return k;
   }
 
-  // Um dia de cada festa no ano, para o menu de simulação: [{ chave, nome, data: "AAAA-MM-DD" }] na ordem do FESTAS.
+  // Um dia de cada festa do calendário no ano: [{ chave, nome, data: "AAAA-MM-DD" }] na ordem do FESTAS.
   // Parte do dia típico (25/12, 24/06 de São João, 31/10...) e procura o mais perto que o chave() reconhece:
   // assim uma festa que cai dentro de outra (o Ano Novo Chinês de 2026 no Carnaval) sai num dia em que ela vale.
   // Festa sem dia no ano (Ano Novo Chinês ou Diwali fora das tabelas) fica de fora.
-  function lista(ano) {
+  function embutidas(ano) {
     const y = Math.floor(Number(ano)), r = [];
     if (!(y >= 1583 && y <= 9999)) return r;   // calendário gregoriano
     const ini = utc(y, 1, 1), fim = utc(y, 12, 31), dia = md => utc(y, +md.slice(0, 2), +md.slice(3)), pas = pascoa(y).getTime();
@@ -94,8 +133,15 @@ const Festas = (() => {
     }
     return r;
   }
+  // o menu de simulação: as festas do calendário que estão ligadas e o primeiro dia de cada data própria no ano
+  function lista(ano) {
+    const y = Math.floor(Number(ano)), r = embutidas(y).filter(f => !desligadas.has(f.chave));
+    if (!(y >= 1583 && y <= 9999)) return r;
+    proprias.forEach((p, i) => { const ini = inicio(p, y); if (ini != null) r.push({ chave: `propria-${i}`, nome: p.nome, data: new Date(ini).toISOString().slice(0, 10) }); });
+    return r;
+  }
 
-  return { ativa, pascoa, lista };
+  return { ativa, pascoa, lista, embutidas, temas, tema, configurar };
 })();
 
 window.Festas = Festas;
