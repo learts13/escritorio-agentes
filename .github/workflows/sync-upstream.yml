@@ -122,7 +122,17 @@ jobs:
             git add .github/upstream-release
             git commit -m "Pin official release $RELEASE_TAG"
           fi
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          # The official Dockerfile prepares /dados with the app user's ownership. Keep the existing volume key.
+          if [[ -f compose.yaml && -f ferramentas/smoke-coolify.sh ]]; then
+            sed -i 's|/var/lib/escritorio|/dados|g' compose.yaml ferramentas/smoke-coolify.sh
+            git add compose.yaml ferramentas/smoke-coolify.sh
+            if ! git diff --cached --quiet; then
+              git commit -m "Use official /dados path for Coolify volume"
+            fi
+            echo "Coolify data volume uses /dados; named volume key is preserved." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+                    echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "updated=true" >> "$GITHUB_OUTPUT"
 
       - name: Validate Compose configuration
