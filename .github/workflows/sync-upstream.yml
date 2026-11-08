@@ -57,7 +57,7 @@ jobs:
           TARGET_BRANCH: ${{ steps.target.outputs.branch }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             release="$(gh api repos/HelbertMoura/escritorio-agentes/releases/latest)"
             tag="$(jq -r '.tag_name' <<<"$release")"
           else
