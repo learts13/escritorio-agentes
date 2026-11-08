@@ -102,10 +102,10 @@ jobs:
               :
             else
               conflicts="$(git diff --name-only --diff-filter=U)"
-              expected="$(printf '%s\\n' .dockerignore Dockerfile escritorio.py)"
+              expected="$(printf '%s\n' .dockerignore Dockerfile escritorio.py)"
               if [[ "$conflicts" != "$expected" ]]; then
                 echo "Unexpected upstream merge conflicts:" >&2
-                printf '%s\\n' "$conflicts" >&2
+                printf '%s\n' "$conflicts" >&2
                 exit 1
               fi
               # The official release now ships Docker support and overlaps the fork's earlier Docker adaptation.
