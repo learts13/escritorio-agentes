@@ -26,6 +26,21 @@ const Avatar = (() => {
 
   function px(c, x, y, cor, w = 1, h = 1) { c.fillStyle = cor; c.fillRect(x, y, w, h); }
 
+  // paleta pelo nome (agentes) ou por uma cor #rrggbb (visitantes, cor vinda do servidor): claro, escuro e contorno misturados
+  const HEX = /^#[0-9a-f]{6}$/i, porHex = new Map();
+  function paleta(cor) {
+    if (Object.hasOwn(CORES, cor)) return CORES[cor];
+    if (!HEX.test(cor || "")) return CORES.graphite;
+    let p = porHex.get(cor);
+    if (!p) {
+      const rgb = [1, 3, 5].map(i => parseInt(cor.slice(i, i + 2), 16));
+      const mistura = (alvo, k) => `rgb(${rgb.map(v => Math.round(v + (alvo - v) * k)).join(",")})`;
+      p = { base: cor, claro: mistura(255, 0.38), escuro: mistura(0, 0.3), contorno: mistura(0, 0.7) };
+      porHex.set(cor, p);
+    }
+    return p;
+  }
+
   function corpo(c, p, costas) {
     const { x, y, w, h } = CORPO;
     px(c, x + 2, y, p.contorno, w - 4, 1);             // topo
@@ -101,6 +116,10 @@ const Avatar = (() => {
       case "bow":
         px(c, CORPO.x + CORPO.w - 6, topo - 2, "#ff5fa2", 3, 3); px(c, CORPO.x + CORPO.w - 2, topo - 2, "#ff5fa2", 3, 3);
         px(c, CORPO.x + CORPO.w - 3, topo - 1, "#c2185b"); break;
+      case "cracha":   // visitante: crachá branco com a faixa vermelha, preso no peito (de costas, só a alça)
+        if (costas) { px(c, cx - 4, topo + 1, "#2b2b34", 8, 1); break; }
+        px(c, cx, topo + 7, "#2b2b34"); px(c, cx - 2, topo + 8, "#f4f4f0", 5, 4); px(c, cx - 2, topo + 8, "#e0524a", 5, 1);
+        px(c, cx - 1, topo + 10, "#9a9aa6", 3, 1); break;
     }
   }
 
@@ -162,7 +181,7 @@ const Avatar = (() => {
   function quadroNovo(aparencia, pose, olha, f, piscando) {
     const cv = document.createElement("canvas"); cv.width = TAM; cv.height = TAM;
     const c = cv.getContext("2d");
-    const pal = CORES[aparencia.color] || CORES.graphite, costas = olha === "cima";
+    const pal = paleta(aparencia.color), costas = olha === "cima";
     if (pose === "andando") pes(c, pal, f);
     corpo(c, pal, costas);
     if (pose === "sentado_chao") {   // sentado no chão (greve): os pés aparecem dos dois lados, de pernas cruzadas
@@ -249,7 +268,7 @@ const Avatar = (() => {
     let h = 0; for (const ch of handle || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const cores = Object.keys(CORES), olhosTipos = ["happy", "sleepy", "round", "wide", "dots"];
     const acess = ["crown", "hat", "headphones", "headset", "flower", "antenna", "cap", "bow", ""];
-    return { color: cores[h % cores.length], eyes: olhosTipos[(h >> 3) % olhosTipos.length], accessory: acess[(h >> 6) % acess.length] };
+    return { color: cores[h % cores.length], eyes: olhosTipos[(h >>> 3) % olhosTipos.length], accessory: acess[(h >>> 6) % acess.length] };
   }
 
   return { desenhar: desenharAvatar, boneco, padrao: aparenciaPadrao, TAM, CORES, POSES };

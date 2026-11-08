@@ -63,6 +63,10 @@ input:focus { outline: 2px solid var(--destaque); outline-offset: 1px; border-co
 .parceria a:hover { color: #f2f2f3; text-decoration-color: currentColor; }
 .parceria a:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
 @media (pointer: coarse) { .parceria a { min-height: 44px; padding: 0 8px; } }
+/* aviso.html (erros do Conectar): ali os links são as ações da página, então o alvo é de 44 px também com mouse.
+   Só dentro do cartão: o rodapé de parceria do /entrar fica fora dele e não muda */
+.cartao > .parceria { margin: 4px 0 0; font-size: 14px; }
+.cartao > .parceria a { min-height: 44px; padding: 0 10px; }
 /* primeiro acesso: "Onde encontro o código?" discreto, embaixo do campo */
 .onde { margin: -2px 0 0; font-size: 14px; color: #a1a1aa; }
 .onde summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: #d4d4d8; text-decoration: underline; text-underline-offset: 3px;

@@ -1,3 +1,4 @@
+import ast
 import collections
 import contextlib
 import datetime
@@ -9,6 +10,7 @@ import os
 import random
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -29,13 +31,26 @@ with open(os.environ["ESCRITORIO_TIMES"], "w", encoding="utf-8") as _f:
     json.dump({"conversas": "ler"}, _f)
 os.environ["AGENTES_ORG"] = "00000000-0000-4000-8000-000000000000"  # org fictícia
 import acesso  # noqa: E402
+import avisos  # noqa: E402
 import escritorio as e  # noqa: E402
 import social  # noqa: E402
 from acesso import Acesso  # noqa: E402
 
-AG = [{"id": "a1", "name": "Pixel", "handle": "pixel", "role": "Conteúdo"},
+
+def tearDownModule():   # a pasta de dados da suíte não fica para trás no %TEMP%
+    shutil.rmtree(PASTA, ignore_errors=True)
+
+
+AG =[{"id": "a1", "name": "Pixel", "handle": "pixel", "role": "Conteúdo"},
       {"id": "a2", "name": "Órbita", "handle": "agent-orbita-qa-acme", "role": "QA"}]  # agentes fictícios
 ORG_URL = f"https://app.agentes.chat/org/{e.ORG}/c/11111111-2222-4333-8444-555555555555"
+# arquivos da lista fechada que chegam com o land do floor das telas (uau-telas); até lá, o servidor responde 404
+PWA = {"manifest.webmanifest", "sw.js", "icone-180.png", "icone-192.png", "icone-512.png", "icone-mascara-512.png"}
+DO_FRONT = {"tv.js", "jornal.js", "timelapse.js", "avisar.js", "novidades.js"} | PWA
+
+
+def servidos():
+    return [n for n in e.ARQUIVOS if n not in DO_FRONT or os.path.isfile(os.path.join(e.ESTATICO, n))]
 
 
 class Rotulo(unittest.TestCase):
@@ -299,6 +314,7 @@ DEMAIS = "tentativas demais; espere alguns minutos"
 class AcessoUnidade(unittest.TestCase):
     def setUp(self):
         self.pasta = tempfile.mkdtemp(prefix="acesso-")
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
         self.a = Acesso(self.pasta)
 
     def codigo(self):
@@ -330,6 +346,11 @@ class AcessoUnidade(unittest.TestCase):
             self.assertNotIn(tok, f.read())  # no disco só vai o hash do token
         self.a.sair(tok)
         self.assertIsNone(self.a.sessao(tok))
+
+    def test_senha_com_surrogate_sozinho_e_senha_errada(self):
+        self.a.criar_primeiro(self.codigo(), "dono", "senha-bem-grande")
+        with self.assertRaises(PermissionError):   # e não UnicodeEncodeError
+            self.a.conferir("dono", "\ud800")
 
     def test_hash_de_senha_no_disco(self):
         self.a.criar_primeiro(self.codigo(), "dono", "senha-bem-grande")
@@ -614,6 +635,25 @@ class Http(unittest.TestCase):
         for rota in ("/escritorio.py", "/../escritorio.py", "/static/app.js", "/dados/oauth.json", "/entrar.html", "/acesso.py"):
             self.assertEqual(self.req(rota, cab)[0], 404, rota)
 
+    def test_visitantes_no_estado(self):
+        """Cada sessão vê as outras como visitantes anônimos, nunca a si mesma; ?invisivel=1 não marca presença."""
+        antes, self.srv.visitantes = getattr(self.srv, "visitantes", None), e.Visitantes()
+        try:
+            um, dois, tv = self.entrar(), self.entrar(), self.entrar()
+            ver = lambda cab, q="": json.loads(self.req("/api/estado" + q, cab)[1])["visitantes"]
+            self.assertEqual(ver(um), [])   # sozinho
+            outro = ver(dois)   # o "dois" vê o "um"
+            self.assertEqual(len(outro), 1)
+            self.assertRegex(outro[0]["id"], r"\A[0-9a-f]{8}\Z")
+            self.assertIn(outro[0]["cor"], e.CORES_VISITANTE)
+            self.assertEqual(set(outro[0]), {"id", "cor"})   # sem usuário, aparelho nem nada da sessão
+            sessao_um = um["Cookie"].partition("=")[2]
+            self.assertNotIn(outro[0]["id"], sessao_um + hashlib.sha256(sessao_um.encode()).hexdigest())   # nem pedaço
+            self.assertEqual(len(ver(tv, "?invisivel=1")), 2)   # a TV vê os dois...
+            self.assertEqual(ver(um), [v for v in ver(tv, "?invisivel=1") if v != outro[0]])   # ...e ninguém vê a TV
+        finally:
+            self.srv.visitantes = antes
+
     def test_marca_e_logo(self):
         cab = {**self.entrar(), "Origin": self.base}
         st, corpo, _ = self.req("/api/marca", {**cab, "Content-Type": "application/json"}, json.dumps({"empresa": "Acme", "cor": "#112233"}).encode())
@@ -698,7 +738,7 @@ class Http(unittest.TestCase):
 
     def test_scripts_com_login_tipo_e_cache(self):
         cab = self.entrar()
-        for nome, tipo in e.ARQUIVOS.items():
+        for nome in servidos():
             if not nome.endswith(".js"):
                 continue
             st, corpo, h = self.req("/" + nome, cab)
@@ -708,6 +748,18 @@ class Http(unittest.TestCase):
                 self.assertEqual(corpo, f.read(), nome)   # inteiro, mesmo com a escrita em blocos
         for rota in ("/fontes/OFL-figtree-silkscreen.txt", "/tema/", "/tema/../app.js"):   # fora da lista fechada
             self.assertEqual(self.req(rota, cab)[0], 404, rota)
+        for nome in set(e.ARQUIVOS) - set(servidos()):   # da lista e ainda fora da pasta: 404, sem derrubar a conexão
+            self.assertEqual(self.req("/" + nome, cab)[0], 404, nome)
+
+    def test_pwa_sem_login(self):
+        """O manifesto, o sw.js e os ícones são públicos (o navegador busca o manifesto sem cookie), com o tipo certo."""
+        self.assertLessEqual(PWA, e.PUBLICOS)
+        for nome in PWA:
+            st, _, h = self.req("/" + nome)
+            if nome in servidos():
+                self.assertEqual((st, h["Content-Type"]), (200, e.ARQUIVOS[nome]), nome)
+            else:
+                self.assertEqual(st, 404, nome)   # antes do land das telas: 404, e não o /entrar
 
     def test_scripts_sem_login_vao_para_entrar(self):
         for nome in e.ARQUIVOS:
@@ -736,7 +788,7 @@ class Http(unittest.TestCase):
 class Estaticos(unittest.TestCase):
     def test_scripts_classicos_sem_modulos_nem_workers(self):
         # as páginas carregam só <script src> clássico: import/export ou Worker trariam código que os testes daqui não leem
-        for nome in e.ARQUIVOS:
+        for nome in servidos():
             if nome.endswith(".js"):
                 with open(os.path.join(e.ESTATICO, nome), encoding="utf-8") as f:
                     self.assertNotRegex(f.read(), r"\bimport\s*[({'\"*]|\bexport\s|\bWorker\b|importScripts", nome)
@@ -746,7 +798,7 @@ class Estaticos(unittest.TestCase):
         proibidos = (r"\beval\s*\(", r"\bnew\s+Function\b", r"\bdocument\.write", r"\bset(?:Timeout|Interval)\s*\(\s*['\"`]")
         for rx, exemplo in zip(proibidos, ("eval (x)", "new Function('a')", "document.writeln(x)", "setTimeout( `go()`, 9)")):
             self.assertRegex(exemplo, rx)
-        for nome in e.ARQUIVOS:
+        for nome in servidos():
             if nome.endswith(".js"):
                 with open(os.path.join(e.ESTATICO, nome), encoding="utf-8") as f:
                     js = f.read()
@@ -757,13 +809,15 @@ class Estaticos(unittest.TestCase):
         # todo <script src>, <link href> e <img src> local das páginas tem que estar em ARQUIVOS e existir no disco;
         # o que a tela de login carrega tem que ser público (sem sessão, o resto vira redirecionamento para /entrar)
         ref = re.compile(r"<(?:script|link|img)\b[^>]*?\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']", re.I)
-        for pagina, publico in (("index.html", False), ("entrar.html", True), ("construir.html", False)):
+        for pagina, publico in (("index.html", False), ("entrar.html", True), ("construir.html", False), ("aviso.html", True)):
             with open(os.path.join(e.ESTATICO, pagina), encoding="utf-8") as f:
                 html = f.read()
             if pagina == "entrar.html":
                 html = e.pagina_login().decode()   # o que o navegador recebe, com os {{...}} preenchidos
             locais = [u for u in ref.findall(html) if not re.match(r"[a-z][a-z0-9+.-]*:|//|#", u, re.I)]
             self.assertTrue(locais, pagina)
+            if pagina == "aviso.html":   # servida em /oauth/conectar e /oauth/retorno: caminho relativo viraria /oauth/...
+                self.assertEqual([u for u in locais if not u.startswith("/")], [], pagina)
             versoes = set()
             for u in locais:
                 nome = u.split("?")[0].lstrip("/")
@@ -790,6 +844,27 @@ class Estaticos(unittest.TestCase):
                 self.assertTrue(os.path.isfile(os.path.join(e.ESTATICO, nome)), f"{folha}: {nome} não existe")
                 if publico:
                     self.assertIn(nome, e.PUBLICOS, f"{folha} carrega {u}, que exige login")
+
+class Visitantes(unittest.TestCase):
+    """A presença fica só na memória, com teto, validade de 45 s e um id que não leva de volta à sessão."""
+    def test_validade_teto_e_chave_da_subida(self):
+        v = e.Visitantes()
+        v.ver("a", 1000)
+        self.assertEqual(len(v.ver("b", 1000)), 1)
+        self.assertEqual(len(v.ver("c", 1000 + e.VISITANTE_VALIDADE - 1)), 2)   # a e b ainda valem
+        self.assertEqual(len(v.ver("c", 1000 + e.VISITANTE_VALIDADE)), 0)   # venceram: só o próprio c
+        self.assertEqual(len(v.ver("c", 1000 + e.VISITANTE_VALIDADE)), 0)   # a mesma sessão é uma marca só
+        v.ver("d", 2000, marcar=False)
+        self.assertEqual(len(v.ver("c", 2000)), 0)   # invisível não marca
+        self.assertEqual(len(v.ver(None, 2000)), 1)   # sem sessão (a prévia) só olha
+        for i in range(e.VISITANTES_MAX + 10):
+            v.ver(f"s{i}", 3000)
+        self.assertEqual(len(v.visto), e.VISITANTES_MAX)   # lotado: sessão nova não entra
+        self.assertEqual(len(v.ver("s0", 3000)), e.VISITANTES_MAX - 1)   # quem já estava continua
+        um, outro = e.Visitantes(), e.Visitantes()
+        um.ver("a", 0); outro.ver("a", 0)
+        self.assertNotEqual(um.ver(None, 0), outro.ver(None, 0))   # a mesma sessão, outra subida: outro id
+
 
 class Envio(unittest.TestCase):
     class Saida:   # o socket do navegador: aceita os cabeçalhos e o 1º bloco, depois falha
@@ -1713,6 +1788,7 @@ class OAuthFalso(ThreadingHTTPServer):
         self.registros, self.trocas, self.revogados = [], [], []
         self.token = (200, {"access_token": "AC-novo", "refresh_token": "RF-novo", "expires_in": 3600, "scope": "read write"})
         self.revoga = 200
+        self.registro = 201   # 400: o registro recusa o endereço de retorno
 
 
 class PaginaOAuth(BaseHTTPRequestHandler):
@@ -1724,7 +1800,9 @@ class PaginaOAuth(BaseHTTPRequestHandler):
         srv = self.server
         if self.path == "/api/oauth/register":
             srv.registros.append(json.loads(corpo))
-            st, obj = 201, {"client_id": f"cliente-{len(srv.registros)}"}
+            st, obj = srv.registro, {"client_id": f"cliente-{len(srv.registros)}"}
+            if st >= 300:
+                obj = {"error": "invalid_redirect_uri", "error_description": "<script>x</script> evil.example"}
         elif self.path == "/api/oauth/token":
             srv.trocas.append({k: v[0] for k, v in urllib.parse.parse_qs(corpo.decode()).items()})
             st, obj = srv.token
@@ -1916,6 +1994,794 @@ def porta_livre():
         return k.getsockname()[1]
 
 
+HOSTIL = "<script>alert(1)</script> entre em evil.example"   # o que o agentes.chat poderia mandar de ruim
+
+
+class ConexaoLeitor(unittest.TestCase):
+    """C1.1 a C1.3: o "conexao" do /api/estado sai do resultado da leitura; 401, 402 e 403 viram "recusada", com o
+    código e a mensagem nossa, e esperam como as falhas; o acordar() tira a leitura da espera."""
+    def leitor(self, token="t"):
+        class Cred:
+            def token(self):
+                return token
+        l = e.Leitor(Cred())
+        l.mcp = Orcamento.Mcp(AG, [])
+        return l
+
+    def test_cada_resultado_da_leitura_vira_um_estado(self):
+        l = self.leitor(None)
+        self.assertEqual(l.foto()["conexao"], "carregando")   # antes da primeira leitura
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(l.ciclo(1_000_000.0), e.INTERVALO)   # sem token: nada sai para o agentes.chat
+        self.assertEqual((l.foto()["conexao"], l.foto()["erro"]), ("sem_conexao", e.SEM_CONEXAO))
+        l = self.leitor()
+        l.ciclo(1_000_000.0)
+        self.assertEqual((l.foto()["conexao"], l.foto()["erro"], len(l.foto()["agentes"])), ("conectado", None, 2))
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            l.mcp.falha = e.PermissaoNegada(e.texto_recusa(403), 403)
+            esperas = [l.ciclo(1_000_100.0 + i) for i in range(4)]
+            self.assertEqual(esperas, [30, 60, 120, 240])   # recusada: espera crescente, e não os 30 s de sempre
+            self.assertEqual((l.foto()["conexao"], len(l.foto()["agentes"])), ("recusada", 2))   # a última leitura fica
+            self.assertIn("HTTP 403", l.foto()["erro"])
+            self.assertIsNone(l.mcp.sessao)   # a próxima tentativa começa uma sessão nova
+            l.mcp.falha = e.Limitado("60")
+            l.ciclo(1_000_200.0)
+            self.assertEqual(l.foto()["conexao"], "pausa")
+            self.assertEqual(l.ciclo(1_000_210.0), 50)   # a pausa continua valendo, sem chamar o MCP
+            l.pausa_ate, l.mcp.falha = 0, OSError("rede")
+            l.ciclo(1_000_300.0)
+            self.assertEqual((l.foto()["conexao"], l.foto()["erro"]), ("falha", e.FALHA_LEITURA))
+            l.mcp.falha = None
+            l.ciclo(1_000_400.0)
+        self.assertEqual(l.foto()["conexao"], "conectado")
+        self.assertIn('"resultado": "recusada", "http": 403', saida.getvalue())
+
+    def test_mcp_401_402_403_com_codigo_e_sem_o_corpo_de_fora(self):
+        antes = e._abrir
+        try:
+            for st in (401, 402, 403):
+                e._abrir = lambda req, st=st: (st, {}, HOSTIL.encode())
+                with self.assertRaises(e.PermissaoNegada) as x:
+                    e.ClienteMCP(None)._post({"jsonrpc": "2.0", "id": 1, "method": "tools/call"}, "t")
+                self.assertEqual(x.exception.http, st)
+                self.assertIn(f"HTTP {st}", str(x.exception))
+                self.assertNotIn("evil", str(x.exception))
+            for st in (500, 400):   # controle: o resto continua falha de rede ou de MCP, e não recusa
+                e._abrir = lambda req, st=st: (st, {}, b"")
+                with self.assertRaises(RuntimeError) as x:
+                    e.ClienteMCP(None)._post({"jsonrpc": "2.0", "id": 1, "method": "tools/call"}, "t")
+                self.assertNotIsInstance(x.exception, e.PermissaoNegada)
+        finally:
+            e._abrir = antes
+
+    def test_acordar_tira_a_leitura_da_espera(self):
+        class Leitor(e.Leitor):
+            def ciclo(self, agora=None):
+                self.voltas.append(time.monotonic())
+                return 3600
+        l = Leitor(None)
+        l.voltas = []
+        l.start()
+
+        def espera(n, segundos):   # até a n-ésima leitura, ou o tempo acabar
+            fim = time.monotonic() + segundos
+            while len(l.voltas) < n and time.monotonic() < fim:
+                time.sleep(0.01)
+        espera(1, 5)
+        espera(2, 0.3)
+        self.assertEqual(len(l.voltas), 1)   # controle: sem o acordar(), a segunda leitura espera a hora inteira
+        l.acordar()
+        espera(2, 5)
+        self.assertEqual(len(l.voltas), 2)
+        espera(3, 0.3)
+        self.assertEqual(len(l.voltas), 2)   # um acordar() vale uma leitura só
+
+
+class Conectar(unittest.TestCase):
+    """C1.5 e C1.6: o /oauth/conectar e o /oauth/retorno de verdade contra o OAuth falso. Cada erro vira a página
+    aviso.html com texto nosso, sem o error_description nem o corpo que veio; a volta certa acorda o leitor."""
+    @classmethod
+    def setUpClass(cls):
+        class Leitor:
+            acordou = 0
+
+            def foto(self):
+                return {**e.resumir(AG, []), "atualizado": None, "erro": None, "conexao": "sem_conexao"}
+
+            def acordar(self):
+                self.acordou += 1
+        cls.pasta = tempfile.mkdtemp(prefix="escritorio-conectar-")
+        cls.oauth = OAuthFalso()
+        threading.Thread(target=cls.oauth.serve_forever, daemon=True).start()
+        cls.srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
+        cls.srv.leitor, cls.srv.acesso = Leitor(), Acesso(cls.pasta)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+        with open(os.path.join(cls.pasta, "codigo-primeiro-acesso.txt")) as f:
+            codigo = f.read().strip()
+        cls.srv.acesso.criar_primeiro(codigo, "dono", "senha-bem-grande")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.oauth.shutdown()
+        shutil.rmtree(cls.pasta, ignore_errors=True)
+
+    def setUp(self):
+        self.antes = e.BASE, e.EMISSOR, e.TIMES
+        e.BASE, e.EMISSOR = self.base, "http://127.0.0.1:%d" % self.oauth.server_address[1]
+        e.TIMES = os.path.join(self.pasta, "times.json")
+        with open(e.TIMES, "w", encoding="utf-8") as f:
+            json.dump({"conversas": "ler"}, f)
+        self.srv.cred = e.Credenciais(os.path.join(self.pasta, "oauth.json"))
+        self.oauth.registro, self.oauth.token = 201, (200, {"access_token": "AC-novo", "refresh_token": "RF-novo", "scope": "read"})
+        self.saida = io.StringIO()
+        self.log = contextlib.redirect_stdout(self.saida)
+        self.log.__enter__()
+        self.cab = Http.entrar(self)
+
+    def tearDown(self):
+        self.log.__exit__(None, None, None)
+        for segredo in ("AC-", "RF-", "evil"):   # o log nunca leva token nem o texto que veio de fora
+            self.assertNotIn(segredo, self.saida.getvalue())
+        e.BASE, e.EMISSOR, e.TIMES = self.antes
+
+    req = Http.req
+
+    def pagina(self, rota, status):
+        st, corpo, h = self.req(rota, self.cab)
+        self.assertEqual((st, h["Content-Type"]), (status, "text/html; charset=utf-8"), rota)
+        texto = corpo.decode()
+        self.assertNotIn("evil", texto); self.assertNotIn("<script", texto)
+        self.assertIn('href="/oauth/conectar"', texto); self.assertIn('href="/"', texto)
+        return texto
+
+    def conectar(self):
+        st, _, h = self.req("/oauth/conectar", self.cab)
+        self.assertEqual(st, 302)
+        return urllib.parse.parse_qs(urllib.parse.urlsplit(h["Location"]).query)["state"][0]
+
+    def test_volta_certa_conecta_e_acorda_o_leitor(self):
+        antes = self.srv.leitor.acordou
+        self.srv.jornal = e.Jornal(e.log, e.FUSO)   # com uma contagem da conta anterior
+        self.addCleanup(delattr, self.srv, "jornal")
+        self.srv.jornal.ler([("terminou", "agente-velho")], {"tarefas": []}, time.time())
+        self.srv.avisos = avisos.Avisos("CHAVE", lambda endpoint, agora: "", e.log, e.FUSO)   # e um aviso da conta anterior
+        self.addCleanup(delattr, self.srv, "avisos")
+        self.srv.avisos.transicoes([("pediu_aprovacao", "agente-velho", "r-velho")], {"agentes": []}, time.time())
+        estado = self.conectar()
+        st, _, h = self.req(f"/oauth/retorno?code=codigo-secreto&state={estado}", self.cab)
+        self.assertEqual((st, h["Location"]), (302, "/"))
+        self.assertEqual(self.srv.jornal.publico(time.time(), {"agente-velho"})["semana"]["agentes"], [])   # zerado
+        self.assertEqual(self.srv.avisos.publico(), {"aviso": None})
+        self.assertEqual((self.srv.cred.token(), self.srv.leitor.acordou), ("AC-novo", antes + 1))
+        texto = self.pagina(f"/oauth/retorno?code=codigo-secreto&state={estado}", 400)   # o mesmo state de novo
+        self.assertIn("venceu (vale 10 minutos) ou já foi usado", texto)
+        self.assertEqual(self.srv.leitor.acordou, antes + 1)   # a volta que falhou não acorda
+
+    def test_registro_recusado_e_sem_rede(self):
+        self.oauth.registro = 400
+        texto = self.pagina("/oauth/conectar", 502)
+        self.assertIn(f"recusou o endereço de retorno {self.base}/oauth/retorno", texto)
+        for st, esperado in ((401, "recusou o registro do app (HTTP 401)"), (403, "(HTTP 403)"), (429, "pediu uma pausa")):
+            self.oauth.registro = st   # outro 4xx não é o endereço: a página não pode apontar a causa errada
+            texto = self.pagina("/oauth/conectar", 502)
+            self.assertIn(esperado, texto, st)
+            self.assertNotIn("endereço de retorno", texto, st)
+        e.EMISSOR = "http://127.0.0.1:9"   # porta fechada: rede fora
+        self.assertIn("alcança https://app.agentes.chat", self.pagina("/oauth/conectar", 502))
+        self.srv.cred = None   # a prévia (sem credenciais) cai na mesma página
+        self.assertIn("alcança https://app.agentes.chat", self.pagina("/oauth/conectar", 502))
+
+    def test_troca_recusada_e_escopo_a_mais(self):
+        for st in (400, 401):
+            self.oauth.token = (st, {"error": "invalid_grant", "error_description": HOSTIL})
+            texto = self.pagina(f"/oauth/retorno?code=codigo-secreto&state={self.conectar()}", 400)
+            self.assertIn("não aceitou a autorização", texto)
+        self.oauth.token = (500, {"error_description": HOSTIL})
+        self.assertIn("(HTTP 500)", self.pagina(f"/oauth/retorno?code=codigo-secreto&state={self.conectar()}", 400))
+        self.oauth.token = (200, {"access_token": "AC-demais", "refresh_token": "RF-demais", "scope": "read write manage"})
+        texto = self.pagina(f"/oauth/retorno?code=codigo-secreto&state={self.conectar()}", 400)
+        self.assertIn("acesso diferente do pedido", texto)
+        self.assertIsNone(self.srv.cred.token())
+
+    def test_error_do_consentimento_sem_a_descricao(self):
+        desc = urllib.parse.quote(HOSTIL)
+        texto = self.pagina(f"/oauth/retorno?error=access_denied&error_description={desc}&state=s", 400)
+        self.assertIn("A autorização foi recusada.", texto)
+        self.assertIn("(código: algo_novo)", self.pagina("/oauth/retorno?error=algo_novo", 400))
+        for codigo in (urllib.parse.quote(HOSTIL), "Maiusculo", "x" * 41):   # fora de [a-z_]{1,40}: sem código
+            texto = self.pagina(f"/oauth/retorno?error={codigo}", 400)
+            self.assertIn("O agentes.chat recusou a conexão. Tente de novo.", texto)
+            self.assertNotIn("código:", texto)
+        self.assertIn('"codigo": "outro"', self.saida.getvalue())
+
+    def test_entrar_por_outro_endereco_mostra_o_certo_sem_ecoar_o_origin(self):
+        corpo = urllib.parse.urlencode({"usuario": "dono", "senha": "senha-bem-grande"}).encode()
+        for rota in ("/entrar", "/primeiro-acesso"):
+            st, html, h = self.req(rota, {"Origin": "https://outro-endereco.example"}, corpo)
+            self.assertEqual((st, h["Content-Type"], h.get("Set-Cookie")), (403, "text/html; charset=utf-8", None), rota)
+            self.assertIn(f"Abra pelo endereço configurado: {self.base}", html.decode())
+            self.assertNotIn("outro-endereco", html.decode())
+        self.assertEqual(self.req("/sair", {"Origin": "https://outro-endereco.example"}, b"")[1], "Origem não permitida.".encode())
+
+
+class Rede(unittest.TestCase):
+    """C1.7 e o ESCRITORIO_BIND: a BASE é só origem; 0.0.0.0 só com a BASE definida, e aí a porta é a do container."""
+    def test_base_so_origem(self):
+        for base in ("https://escritorio.exemplo.com", "https://escritorio.exemplo.com:8443", "http://127.0.0.1:7381"):
+            self.assertIsNone(e.erro_rede(base, "127.0.0.1", 737, True), base)
+        for base in ("https://escritorio.exemplo.com/", "https://escritorio.exemplo.com/app", "https://Escritorio.exemplo.com",
+                     "HTTPS://escritorio.exemplo.com", "https://escritorio.exemplo.com:443", "http://127.0.0.1:80",
+                     "https://escritorio.exemplo.com?x=1", "https://escritorio.exemplo.com#x", "https://eu@escritorio.exemplo.com",
+                     "https://escritorio.exemplo.com:99999", "https://escritorio.exemplo.com:x", "ftp://escritorio.exemplo.com",
+                     "escritorio.exemplo.com", "https://"):
+            self.assertIn("só a origem", e.erro_rede(base, "127.0.0.1", 737, True) or "", base)
+        self.assertIn("precisa ser https", e.erro_rede("http://escritorio.exemplo.com", "127.0.0.1", 737, True))
+
+    def test_bind(self):
+        self.assertIn("ESCRITORIO_BIND", e.erro_rede("https://escritorio.exemplo.com", "::", 737, True))
+        self.assertIn("ESCRITORIO_BIND", e.erro_rede("https://escritorio.exemplo.com", "192.168.0.10", 737, True))
+        self.assertIn("1024", e.erro_rede("https://escritorio.exemplo.com", "127.0.0.1", 7371, True))   # fora do container
+        self.assertIsNone(e.erro_rede("https://escritorio.exemplo.com", "0.0.0.0", 7371, True))   # a porta é do container
+        self.assertIsNone(e.erro_rede("http://127.0.0.1:7381", "0.0.0.0", 7371, True))   # teste local do container
+        self.assertIn("defina ESCRITORIO_BASE", e.erro_rede("http://127.0.0.1:7371", "0.0.0.0", 7371, False))
+
+    def test_main_recusa_antes_de_subir(self):
+        antes = e.BASE, e.BIND, e.ORG
+        try:
+            for base, bind in (("https://escritorio.exemplo.com/", "127.0.0.1"), ("https://escritorio.exemplo.com", "0.0.0.1")):
+                e.BASE, e.BIND, e.ORG = base, bind, ""   # sem org: numa regressão, para na org em vez de subir
+                with self.assertRaises(SystemExit) as c:
+                    e.main()
+                self.assertNotIn("AGENTES_ORG", str(c.exception.code), base)
+        finally:
+            e.BASE, e.BIND, e.ORG = antes
+
+
+class Configuracoes(unittest.TestCase):
+    """P1.1: POST /api/clima e /api/festas no molde do /api/planta (Origin estrito, sessão, JSON, teto, tudo ou nada,
+    rev) e a junção no /api/config: tela > times.json > padrão."""
+    @classmethod
+    def setUpClass(cls):
+        class Clima:
+            acordou = 0
+
+            def acordar(self):
+                self.acordou += 1
+
+            def foto(self):
+                return None
+        cls.pasta = tempfile.mkdtemp(prefix="escritorio-config-")
+        cls.srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
+
+        class Leitor:
+            def foto(self):
+                return {**e.resumir(AG, []), "atualizado": None, "erro": None}
+        cls.srv.leitor, cls.srv.cred, cls.srv.acesso, cls.srv.clima = Leitor(), None, Acesso(cls.pasta), Clima()
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+        with open(os.path.join(cls.pasta, "codigo-primeiro-acesso.txt")) as f:
+            codigo = f.read().strip()
+        cls.srv.acesso.criar_primeiro(codigo, "dono", "senha-bem-grande")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        shutil.rmtree(cls.pasta, ignore_errors=True)
+
+    def setUp(self):
+        self.antes = e.BASE, e.TIMES, e.ARQ_CLIMA, e.ARQ_FESTAS, e.ARQ_EQUIPE
+        e.BASE, e.TIMES = self.base, os.path.join(self.pasta, "times.json")
+        e.ARQ_CLIMA, e.ARQ_FESTAS = os.path.join(self.pasta, "clima.json"), os.path.join(self.pasta, "festas.json")
+        e.ARQ_EQUIPE = os.path.join(self.pasta, "equipe.json")
+        for arq in (e.ARQ_CLIMA, e.ARQ_FESTAS, e.ARQ_EQUIPE, e.TIMES):
+            if os.path.exists(arq):
+                os.unlink(arq)
+        self.saida = io.StringIO()
+        self.log = contextlib.redirect_stdout(self.saida)
+        self.log.__enter__()
+        self.cab = Http.entrar(self)
+        self.js = {**self.cab, "Origin": self.base, "Content-Type": "application/json"}
+
+    def tearDown(self):
+        self.log.__exit__(None, None, None)
+        self.assertNotIn("Recife", self.saida.getvalue())   # o log nunca leva a cidade
+        e.BASE, e.TIMES, e.ARQ_CLIMA, e.ARQ_FESTAS, e.ARQ_EQUIPE = self.antes
+
+    req = Http.req
+
+    def post(self, rota, corpo, cab=None):
+        dados = corpo if isinstance(corpo, bytes) else json.dumps(corpo).encode()
+        st, resp, _ = self.req(rota, self.js if cab is None else cab, dados)
+        return st, json.loads(resp) if resp else None
+
+    def config(self):
+        return json.loads(self.req("/api/config", self.cab)[1])
+
+    def test_barreiras_das_duas_rotas(self):
+        for rota, bom in (("/api/clima", {"clima": None}), ("/api/festas", {"rev": 0, "proprias": [], "desligadas": []}),
+                          ("/api/equipe", {"rev": 0, "times": [], "aparencia": {}})):
+            with self.subTest(rota=rota):
+                dados = json.dumps(bom).encode()
+                self.assertEqual(self.req(rota, {**self.js, "Origin": "https://outro.exemplo"}, dados)[0], 403)
+                self.assertEqual(self.req(rota, {**self.js, "Origin": "null"}, dados)[0], 403)
+                sem_origin = {k: v for k, v in self.js.items() if k != "Origin"}
+                self.assertEqual(self.req(rota, {**sem_origin, "Referer": self.base + "/"}, dados)[0], 403)   # sem Referer
+                self.assertEqual(self.req(rota, {**self.js, "Content-Type": "text/plain"}, dados)[0], 415)
+                self.assertEqual(self.req(rota, {"Origin": self.base, "Content-Type": "application/json"}, dados)[0], 401)
+                teto = {"/api/clima": e.CLIMA_BYTES, "/api/festas": e.FESTAS_BYTES, "/api/equipe": e.EQUIPE_BYTES}[rota]
+                grande = dados[:-1] + b" " * teto + b"}"   # JSON válido, acima do teto
+                self.assertEqual(self.req(rota, self.js, grande)[0], 400)
+                arquivo = {"/api/clima": e.ARQ_CLIMA, "/api/festas": e.ARQ_FESTAS, "/api/equipe": e.ARQ_EQUIPE}[rota]
+                self.assertFalse(os.path.exists(arquivo))
+                self.assertEqual(self.req(rota, self.js, dados)[0], 200)   # controle: o mesmo pedido, com tudo certo
+
+    def test_clima_tela_arquivo_e_nenhum(self):
+        acordou = self.srv.clima.acordou
+        cfg = self.config()
+        self.assertEqual((cfg["clima"], cfg["ajustes"]["clima"], cfg["ajustes"]["clima_arquivo"]), (None, "nenhum", False))
+        with open(e.TIMES, "w", encoding="utf-8") as f:
+            json.dump({"clima": {"cidade": "Natal", "lat": -5.79, "lon": -35.21}}, f)
+        cfg = self.config()
+        self.assertEqual((cfg["clima"]["cidade"], cfg["ajustes"]["clima"], cfg["ajustes"]["clima_arquivo"]), ("Natal", "arquivo", True))
+        st, r = self.post("/api/clima", {"clima": {"cidade": "Recife", "lat": -8.0476, "lon": -34.877}})
+        self.assertEqual((st, r), (200, {"clima": {"cidade": "Recife", "lat": -8.05, "lon": -34.88}, "origem": "tela"}))
+        self.assertEqual((self.config()["clima"]["cidade"], self.srv.clima.acordou), ("Recife", acordou + 1))
+        st, r = self.post("/api/clima", {"clima": None})   # "sem clima" pela tela vale mais que o times.json
+        self.assertEqual((st, r), (200, {"clima": None, "origem": "tela"}))
+        self.assertEqual((self.config()["clima"], self.config()["ajustes"]["clima_arquivo"]), (None, True))
+        st, r = self.post("/api/clima", {"limpar": True})   # volta ao times.json
+        self.assertEqual((st, r["origem"], r["clima"]["cidade"]), (200, "arquivo", "Natal"))
+        self.assertFalse(os.path.exists(e.ARQ_CLIMA))
+        self.assertEqual(self.srv.clima.acordou, acordou + 3)
+
+    def test_config_v_no_estado_muda_com_a_configuracao(self):
+        """Modo TV: o config_v muda quando um arquivo de configuração aparece, some ou muda (mtime ou tamanho)."""
+        v = lambda: json.loads(self.req("/api/estado", self.cab)[1])["config_v"]
+        v0 = v()
+        self.assertRegex(v0, r"\A[0-9a-f]{12}\Z")
+        self.assertEqual(v(), v0)   # nada mudou, o mesmo valor
+        self.assertEqual(self.post("/api/clima", {"clima": {"cidade": "Recife", "lat": -8.05, "lon": -34.88}})[0], 200)
+        v1 = v()
+        self.assertNotEqual(v1, v0)
+        st = os.stat(e.ARQ_CLIMA)   # o mesmo tamanho com outro mtime (o conteúdo não é lido)
+        os.utime(e.ARQ_CLIMA, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+        self.assertNotIn(v(), (v0, v1))
+        self.assertEqual(self.post("/api/clima", {"limpar": True})[0], 200)   # apagou o clima.json: volta ao de antes
+        self.assertEqual(v(), v0)
+        with open(e.TIMES, "w", encoding="utf-8") as f:   # o times.json editado à mão também conta
+            f.write("{}")
+        self.assertNotEqual(v(), v0)
+
+    def test_config_v_cobre_os_sete_arquivos(self):
+        """Cada um dos 7 arquivos muda o config_v: aparecer, mudar só o mtime e sumir (volta ao valor de antes)."""
+        v = lambda: json.loads(self.req("/api/estado", self.cab)[1])["config_v"]
+        for arq in (e.TIMES, e.ARQ_MARCA, e.ARQ_LOGO, e.ARQ_PLANTA, e.ARQ_CLIMA, e.ARQ_FESTAS, e.ARQ_EQUIPE):
+            with self.subTest(arq=os.path.basename(arq)):
+                antes, existia = v(), os.path.exists(arq)
+                if existia:
+                    st = os.stat(arq)
+                    os.utime(arq, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+                else:
+                    open(arq, "wb").close()
+                self.assertNotEqual(v(), antes)
+                if not existia:
+                    os.remove(arq)
+                    self.assertEqual(v(), antes)
+
+    def test_clima_recusa_sem_ecoar_e_sem_gravar(self):
+        acordou = self.srv.clima.acordou
+        cidade = {"cidade": "Recife", "lat": -8.05, "lon": -34.88}
+        crus = [b'{"clima": {"cidade": "Recife", "lat": NaN, "lon": 1}}', b'{"clima": {"cidade": "Recife", "lat": Infinity, "lon": 1}}',
+                b'{"clima": {"cidade": "Recife", "lat": -Infinity, "lon": 1}}', b'{"clima": {"cidade": "Recife", "lat": 1e400, "lon": 1}}']
+        corpos = [{"clima": {**cidade, "lat": True}}, {"clima": {**cidade, "lon": 181}}, {"clima": {**cidade, "lat": "1"}},
+                  {"clima": {**cidade, "cidade": "<b>Recife</b>" * 6}}, {"clima": cidade, "limpar": True}, {"limpar": False},
+                  {"limpar": 1}, {"clima": [cidade]}, {}, ["clima"]]
+        for corpo in crus + corpos:
+            with self.subTest(corpo=corpo):
+                st, r = self.post("/api/clima", corpo)
+                self.assertEqual(st, 400)
+                self.assertNotIn("Recife", json.dumps(r)); self.assertIn("mensagem", r)
+        self.assertFalse(os.path.exists(e.ARQ_CLIMA))
+        self.assertEqual(self.srv.clima.acordou, acordou)   # recusa não acorda o clima
+        self.assertEqual(self.post("/api/clima", {"clima": cidade})[0], 200)   # controle
+
+    def test_festas_rev_e_conteudo(self):
+        data = {"nome": "Aniversário", "data": "02-29", "dias": 2, "tema": "generico", "falas": ["Parabéns!"]}
+        st, r = self.post("/api/festas", {"rev": 0, "proprias": [data], "desligadas": ["halloween"]})
+        self.assertEqual((st, r["rev"]), (200, 1))
+        cfg = self.config()
+        self.assertEqual((cfg["festas"], cfg["ajustes"]["rev"]["festas"]),
+                         ({"proprias": [data], "desligadas": ["halloween"]}, 1))
+        st, r = self.post("/api/festas", {"rev": 0, "proprias": [], "desligadas": []})   # outra tela salvou antes
+        self.assertEqual((st, r["erro"], r["rev"]), (409, "rev", 1))
+        self.assertEqual(self.config()["festas"]["desligadas"], ["halloween"])
+        st, r = self.post("/api/festas", {"rev": 1, "proprias": [data, {**data, "nome": "Recife", "data": "02-30"}], "desligadas": []})
+        self.assertEqual((st, r["mensagem"][:23]), (400, "Data 2: data inválida ("))
+        self.assertNotIn("Recife", r["mensagem"])
+        st, r = self.post("/api/festas", b'{"rev": 1, "proprias": [], "desligadas": [], "x": NaN}')
+        self.assertEqual(st, 400)
+        self.assertEqual(self.post("/api/festas", {"rev": 1, "proprias": [], "desligadas": []})[0], 200)
+        self.assertEqual(self.config()["ajustes"]["rev"]["festas"], 2)
+        self.assertIn('"resultado": "salvas"', self.saida.getvalue())
+
+    def test_festas_ilegivel_vale_como_vazio_com_uma_linha_de_log(self):
+        with open(e.ARQ_FESTAS, "w", encoding="utf-8") as f:
+            f.write('{"v": 1, "rev": 3, "proprias": [{"nome": "X"}], "desligadas": []}')
+        for _ in range(3):
+            cfg = self.config()
+            self.assertEqual((cfg["festas"], cfg["ajustes"]["rev"]["festas"]), ({"proprias": [], "desligadas": []}, 0))
+        self.assertEqual(self.saida.getvalue().count('"evento": "festas", "resultado": "arquivo_invalido"'), 1)
+        self.assertEqual(self.post("/api/festas", {"rev": 0, "proprias": [], "desligadas": []})[0], 200)   # regrava
+
+    def test_busca_sem_sessao(self):
+        self.assertEqual(self.req("/api/clima/busca?q=Recife")[0], 401)
+
+    def test_equipe_substitui_o_times_json_e_volta(self):
+        with open(e.TIMES, "w", encoding="utf-8") as f:
+            json.dump({"times": [{"nome": "Antigo", "agentes": ["pixel"]}], "aparencia": {"pixel": {"color": "rose", "eyes": "dots"}}}, f)
+        cfg = self.config()
+        self.assertEqual(([t["nome"] for t in cfg["times"]], cfg["ajustes"]["equipe"], cfg["ajustes"]["rev"]["equipe"]),
+                         (["Antigo"], "arquivo", 0))
+        time_ = {"nome": "Dev", "tipo": "mesas", "cor": None, "icone": "codigo", "parede": 1, "piso": 3,
+                 "agentes": ["agent-orbita-qa-acme"]}
+        visual = {"agent-orbita-qa-acme": {"color": "teal", "eyes": "happy", "accessory": "crown"}}
+        st, r = self.post("/api/equipe", {"rev": 0, "times": [time_], "aparencia": visual})
+        self.assertEqual((st, r), (200, {"rev": 1, "origem": "tela"}))
+        cfg = self.config()   # substitui inteiros: o time e a aparência do times.json saem
+        self.assertEqual((cfg["times"], cfg["aparencia"], cfg["ajustes"]["equipe"], cfg["ajustes"]["rev"]["equipe"]),
+                         ([time_], visual, "tela", 1))
+        self.assertEqual(e.config_publica()["times"], [time_])   # a vida social e o prédio veem pela mesma junção
+        st, r = self.post("/api/equipe", {"rev": 0, "times": [], "aparencia": {}})
+        self.assertEqual((st, r["erro"], r["rev"]), (409, "rev", 1))
+        st, r = self.post("/api/equipe", {"rev": 1, "times": [time_, {**time_, "nome": "dev", "agentes": []}], "aparencia": {}})
+        self.assertEqual((st, r["mensagem"]), (400, "Time 2: já existe um time com esse nome."))
+        st, r = self.post("/api/equipe", {"rev": 1, "times": [], "aparencia": {}, "conversas": "responder"})
+        self.assertEqual(st, 400)   # o modo de conversas (escopo OAuth) fica no servidor
+        for ruim in ({"rev": 1, "limpar": False}, {"rev": True, "limpar": True}, {"rev": 1, "limpar": True, "times": []}):
+            self.assertEqual(self.post("/api/equipe", ruim)[0], 400, ruim)
+        self.assertEqual(self.post("/api/equipe", {"rev": 0, "limpar": True})[0], 409)
+        st, r = self.post("/api/equipe", {"rev": 1, "limpar": True})   # Voltar ao times.json
+        self.assertEqual((st, r), (200, {"rev": 0, "origem": "arquivo"}))
+        self.assertFalse(os.path.exists(e.ARQ_EQUIPE))
+        self.assertEqual([t["nome"] for t in self.config()["times"]], ["Antigo"])
+        self.assertIn('"resultado": "salva"', self.saida.getvalue())
+        self.assertNotIn("orbita", self.saida.getvalue())   # o log guarda contagens, não os handles
+
+    def test_equipe_no_teto_de_32_kb(self):
+        """O teto da rota é 32 KB (não o de 16 KB das festas), e o arquivo ganha o "v":1, (6 bytes): um corpo compacto de
+        32.763 a 32.768 bytes passa na rota, mas o arquivo passaria do teto, então recebe 400 e nada é gravado."""
+        def corpo(tamanho):
+            agentes = [f"t{i:02d}-".ljust(41, "y") for i in range(24)]
+            tams = [41] * 300
+            montar = lambda: json.dumps({"rev": 0, "times": [{"nome": "Dev", "tipo": "mesas", "cor": None, "icone": None,
+                                                               "parede": 0, "piso": 0, "agentes": agentes}],
+                                         "aparencia": {f"a{i:03d}-".ljust(t, "x"): {"color": "graphite", "eyes": "sleepy",
+                                                                                  "accessory": "headphones"}
+                                                       for i, t in enumerate(tams)}}, separators=(",", ":")).encode()
+            for i in range(len(montar()) - tamanho):   # cada byte a menos sai de um handle
+                tams[i % 300] -= 1
+            dados = montar()
+            self.assertEqual(len(dados), tamanho)
+            return dados
+        for tamanho in range(e.EQUIPE_BYTES - 5, e.EQUIPE_BYTES + 1):
+            st, r = self.post("/api/equipe", corpo(tamanho))
+            self.assertEqual((st, r["mensagem"]), (400, "Os times ficaram grandes demais para salvar."), tamanho)
+            self.assertFalse(os.path.exists(e.ARQ_EQUIPE))
+        self.assertEqual(self.post("/api/equipe", corpo(e.EQUIPE_BYTES - 6)), (200, {"rev": 1, "origem": "tela"}))
+        self.assertEqual(os.path.getsize(e.ARQ_EQUIPE), e.EQUIPE_BYTES)   # o arquivo no teto exato
+        self.assertEqual(len(self.config()["aparencia"]), 300)
+
+
+class SairDeTodos(unittest.TestCase):
+    """4.1: "Sair de todos os aparelhos" pede a senha de novo (no balde do login), zera todas as sessões e modos e
+    apaga os dois cookies deste navegador."""
+    def setUp(self):
+        class Leitor:
+            def foto(self):
+                return {**e.resumir(AG, []), "atualizado": None, "erro": None}
+        self.pasta = tempfile.mkdtemp(prefix="escritorio-sair-")
+        self.srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
+        self.srv.leitor, self.srv.cred, self.srv.acesso = Leitor(), None, Acesso(self.pasta)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = "http://127.0.0.1:%d" % self.srv.server_address[1]
+        self.antes, e.BASE = e.BASE, self.base
+        with open(os.path.join(self.pasta, "codigo-primeiro-acesso.txt")) as f:
+            codigo = f.read().strip()
+        self.srv.acesso.criar_primeiro(codigo, "dono", "senha-bem-grande")
+        self.saida = io.StringIO()
+        self.log = contextlib.redirect_stdout(self.saida)
+        self.log.__enter__()
+
+    def tearDown(self):
+        self.log.__exit__(None, None, None)
+        self.assertNotIn("senha-bem-grande", self.saida.getvalue())
+        e.BASE = self.antes
+        self.srv.shutdown()
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
+    req = Http.req
+    entrar = Http.entrar
+
+    def sair(self, cab, senha="senha-bem-grande", **extra):
+        corpo = json.dumps({"senha": senha}).encode()
+        return self.req("/api/sair-todos", {**cab, "Origin": self.base, "Content-Type": "application/json", **extra}, corpo)
+
+    def test_zera_todas_as_sessoes_e_apaga_os_cookies(self):
+        celular, computador = self.entrar(), self.entrar()
+        self.srv.acesso.modos["x"] = {"cookie": "y", "inicio": 0, "ate": 0}   # um modo resposta aberto
+        self.srv.avisos = avisos.Avisos("CHAVE", lambda endpoint, agora: "", e.log, e.FUSO)   # e um celular com aviso
+        self.srv.avisos.assinar("https://fcm.googleapis.com/fcm/send/celular", time.time())
+        st, corpo, h = self.sair(celular, senha="errada-errada")
+        self.assertEqual(len(self.srv.avisos.assinaturas), 1)   # a senha errada não mexe no aviso
+        self.assertEqual((st, json.loads(corpo)["erro"]), (403, "senha_incorreta"))
+        self.assertEqual(self.req("/api/estado", computador)[0], 200)   # senha errada não derruba ninguém
+        st, corpo, h = self.sair(celular)
+        self.assertEqual((st, json.loads(corpo)), (200, {"ok": True}))
+        cookies = h.get_all("Set-Cookie")
+        self.assertEqual(len(cookies), 2)
+        self.assertTrue(all("Max-Age=0" in c for c in cookies))
+        for cab in (celular, computador):
+            self.assertEqual(self.req("/api/estado", cab)[0], 401)
+        self.assertEqual((self.srv.acesso.sessoes, self.srv.acesso.modos, self.srv.avisos.assinaturas), ({}, {}, []))
+        self.assertEqual(Acesso(self.pasta).sessoes, {})   # gravado: um reinício não traz as sessões de volta
+        self.assertIn('"resultado": "sair_todos", "usuario": "dono", "sessoes": 2', self.saida.getvalue())
+        self.entrar()   # a senha continua valendo para entrar de novo
+
+    def test_barreiras(self):
+        cab = self.entrar()
+        corpo = json.dumps({"senha": "senha-bem-grande"}).encode()
+        sem_origin = {**cab, "Content-Type": "application/json"}
+        self.assertEqual(self.req("/api/sair-todos", {**sem_origin, "Referer": self.base + "/"}, corpo)[0], 403)
+        self.assertEqual(self.req("/api/sair-todos", {**sem_origin, "Origin": "https://outro.exemplo"}, corpo)[0], 403)
+        self.assertEqual(self.req("/api/sair-todos", {**cab, "Origin": self.base, "Content-Type": "text/plain"}, corpo)[0], 415)
+        self.assertEqual(self.req("/api/sair-todos", {"Origin": self.base, "Content-Type": "application/json"}, corpo)[0], 401)
+        for ruim in (b'{"senha": 12345678901}', b'{"senha": "senha-bem-grande", "x": 1}', b'{"senha": ""}', b"[]",
+                     json.dumps({"senha": "x" * 1100}).encode()):
+            self.assertEqual(self.req("/api/sair-todos", {**sem_origin, "Origin": self.base}, ruim)[0], 400, ruim[:30])
+        self.assertEqual(self.req("/api/estado", cab)[0], 200)   # nada disso encerrou a sessão
+        self.srv.previa_sem_login = True
+        try:
+            self.assertEqual(self.sair(cab)[0], 403)   # a prévia não tem sessões de verdade para encerrar
+        finally:
+            del self.srv.previa_sem_login
+
+    def test_erros_contam_no_balde_do_login(self):
+        cab = self.entrar()
+        for _ in range(acesso.LIMITE):
+            self.assertEqual(self.sair(cab, senha="errada-errada")[0], 403)
+        self.assertEqual(self.sair(cab)[0], 429)   # nem a senha certa passa até a janela vencer
+        corpo = urllib.parse.urlencode({"usuario": "dono", "senha": "senha-bem-grande"}).encode()
+        self.assertEqual(self.req("/entrar", {"Origin": self.base}, corpo)[0], 200)   # o login também trava (volta à tela)
+        self.assertEqual(self.req("/api/estado", cab)[0], 200)   # e a sessão aberta continua
+
+    def test_senha_com_surrogate_sozinho_e_senha_errada(self):
+        cab = self.entrar()
+        st, corpo, _ = self.req("/api/sair-todos", {**cab, "Origin": self.base, "Content-Type": "application/json"},
+                                b'{"senha": "\\ud800"}')   # JSON válido, mas não vira UTF-8: responde, não derruba a conexão
+        self.assertEqual((st, json.loads(corpo)["erro"]), (403, "senha_incorreta"))
+        self.assertEqual(self.req("/api/estado", cab)[0], 200)
+
+    def test_disco_falhando_nao_encerra_nada(self):
+        celular, computador = self.entrar(), self.entrar()
+        # PermissionError (EACCES, arquivo travado no Windows) também é OSError: é o disco, não a senha errada
+        for falha_do_disco in (OSError("disco cheio"), PermissionError(13, "sem permissão")):
+            with self.subTest(falha=type(falha_do_disco).__name__):
+                def falha(*_):
+                    raise falha_do_disco
+                antes, acesso._gravar = acesso._gravar, falha
+                try:
+                    st, corpo, _ = self.sair(celular)
+                finally:
+                    acesso._gravar = antes
+                self.assertEqual((st, json.loads(corpo)),
+                                 (500, {"erro": "gravar", "mensagem": "Não deu para encerrar as sessões agora."}))
+                self.assertEqual((len(self.srv.acesso.sessoes), len(Acesso(self.pasta).sessoes)), (2, 2))   # memória e disco
+                for cab in (celular, computador):
+                    self.assertEqual(self.req("/api/estado", cab)[0], 200)
+                self.assertIn('"resultado": "sair_todos_nao_gravou", "detalhe": "%s"' % type(falha_do_disco).__name__,
+                              self.saida.getvalue())
+        self.assertNotIn("sair_todos_recusado", self.saida.getvalue())   # nenhuma vira senha errada
+
+
+class ClimaVivo(unittest.TestCase):
+    """2.1: o Clima relê o lugar a cada volta, zera o estado ao trocar, espera sem lugar e consulta no máximo 1 vez
+    por minuto (e a cada 900 s no mesmo lugar)."""
+    def clima(self, lugares):
+        c = e.Clima(lambda: lugares[0])
+        c.agora, c.consultas = 1000.0, []
+        c.relogio = lambda: c.agora
+
+        def consultar(lat, lon):
+            c.consultas.append((lat, lon))
+            return {"weather_code": 61, "temperature_2m": 21.5}
+        c._consultar = consultar
+        return c
+
+    def test_troca_espera_e_minimo_por_minuto(self):
+        lugares = [None]
+        c = self.clima(lugares)
+        self.assertEqual((c.ciclo(), c.consultas, c.foto()), (900, [], None))   # sem lugar: não consulta
+        lugares[0] = {"cidade": "Recife", "lat": -8.05, "lon": -34.88}
+        self.assertEqual(c.ciclo(), 900)
+        self.assertEqual((c.consultas, c.foto()["cidade"], c.foto()["tipo"]), ([(-8.05, -34.88)], "Recife", "chuva"))
+        c.agora += 10
+        self.assertEqual((c.ciclo(), len(c.consultas)), (890, 1))   # acordou sem troca: não repete a consulta
+        lugares[0] = {"cidade": "Natal", "lat": -5.79, "lon": -35.21}
+        self.assertEqual(c.ciclo(), 50)   # trocou 10 s depois: espera o minuto...
+        self.assertIsNone(c.foto())   # ...mas o tempo de Recife já saiu, para não aparecer com o nome de Natal
+        self.assertEqual(len(c.consultas), 1)
+        c.agora += 50
+        self.assertEqual((c.ciclo(), c.consultas[-1], c.foto()["cidade"]), (900, (-5.79, -35.21), "Natal"))
+        c.agora += 900
+        c.ciclo()
+        self.assertEqual(len(c.consultas), 3)   # no mesmo lugar, de 15 em 15 min
+        lugares[0] = None
+        self.assertEqual((c.ciclo(), c.foto(), len(c.consultas)), (900, None, 3))
+
+    def test_falha_nao_derruba(self):
+        c = self.clima([{"cidade": "Recife", "lat": -8.05, "lon": -34.88}])
+
+        def sem_rede(lat, lon):
+            raise OSError("rede")
+        c._consultar = sem_rede
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual((c.ciclo(), c.foto()), (900, None))
+
+    def test_acordar(self):
+        c = self.clima([None])
+        voltas = []
+        c.ciclo = lambda: voltas.append(1) or 3600
+        c.start()
+        fim = time.monotonic() + 5
+        while not voltas and time.monotonic() < fim:
+            time.sleep(0.01)
+        c.acordar()
+        fim = time.monotonic() + 5
+        while len(voltas) < 2 and time.monotonic() < fim:
+            time.sleep(0.01)
+        self.assertEqual(len(voltas), 2)
+
+
+class Busca(unittest.TestCase):
+    """2.1: a busca de cidade pelo servidor, com host fixo, sem redirecionamento, limite global e resposta reduzida."""
+    BOM = {"results": [{"name": "Recife", "admin1": "Pernambuco", "country": "Brasil", "latitude": -8.0539, "longitude": -34.8811}]}
+
+    def busca(self, resposta):
+        b = e.BuscaCidades()
+        b.urls = []
+
+        def abrir(url):
+            b.urls.append(url)
+            if isinstance(resposta, Exception):
+                raise resposta
+            return resposta if isinstance(resposta, bytes) else json.dumps(resposta).encode()
+        b._abrir = abrir
+        return b
+
+    def test_resposta_reduzida_e_limpa(self):
+        ruins = [{"name": "Sem lat", "longitude": 1}, {"name": "Bool", "latitude": True, "longitude": 1},
+                 {"name": "Fora", "latitude": 91, "longitude": 1}, {"name": "", "latitude": 1, "longitude": 1},
+                 {"name": "n" * 61, "latitude": 1, "longitude": 1}, "texto", None]
+        estranho = {"name": "Olinda‮", "admin1": "Pernam\nbuco" + "x" * 80, "country": 7, "latitude": -8, "longitude": -34.85,
+                    "population": 390000, "timezone": "America/Recife"}
+        b = self.busca({"results": [estranho] + self.BOM["results"] + ruins})   # só as 8 primeiras contam
+        st, r = b.buscar("  Recife ")
+        self.assertEqual(st, 200)
+        self.assertEqual(r["resultados"][1], {"nome": "Recife", "regiao": "Pernambuco", "pais": "Brasil", "lat": -8.05, "lon": -34.88})
+        self.assertEqual(r["resultados"][0], {"nome": "Olinda", "regiao": ("Pernam buco" + "x" * 80)[:60].strip(), "pais": "",
+                                              "lat": -8, "lon": -34.85})
+        self.assertEqual(len(r["resultados"]), 2)
+        url = urllib.parse.urlsplit(b.urls[0])
+        self.assertEqual((url.scheme, url.netloc, url.path), ("https", "geocoding-api.open-meteo.com", "/v1/search"))
+        self.assertEqual(urllib.parse.parse_qs(url.query), {"name": ["Recife"], "count": ["8"], "language": ["pt"], "format": ["json"]})
+        self.assertEqual(len(self.busca({"results": self.BOM["results"] * 20}).buscar("Recife")[1]["resultados"]), 8)
+        self.assertEqual(self.busca({}).buscar("Lugarnenhum"), (200, {"resultados": []}))   # sem "results": nenhum
+
+    def test_q_invalido_nao_chama(self):
+        b = self.busca(self.BOM)
+        for q in ("", "R", " R ", "x" * 61, "Re\ncife", "​​"):
+            self.assertEqual(b.buscar(q)[0], 400, q)
+        self.assertEqual(b.urls, [])
+
+    def test_limite_por_minuto_e_por_dia(self):
+        b = self.busca(self.BOM)
+        t0 = 1_000_000.0
+        self.assertEqual([b.buscar("Recife", t0 + i)[0] for i in range(11)], [200] * 10 + [429])
+        self.assertEqual(b.buscar("Recife", t0 + 10)[1]["mensagem"], "Muitas buscas; espere um minuto.")
+        self.assertEqual(b.buscar("Recife", t0 + 61)[0], 200)   # o minuto passou
+        dia = self.busca(self.BOM)
+        respostas = [dia.buscar("Recife", t0 + 7 * i)[0] for i in range(201)]   # 7 s entre elas: nunca 10 no minuto
+        self.assertEqual((respostas[:200].count(200), respostas[200]), (200, 429))
+        self.assertEqual(dia.buscar("Recife", t0 + 86400 + 1)[0], 200)   # a primeira do dia saiu da janela
+
+    def test_falha_vira_502_sem_repassar(self):
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            for resposta in (OSError("rede"), b"<html>evil.example</html>", b'{"results": NaN}', b'{"results": {"a": 1}}',
+                             b"x" * 200_001, urllib.error.HTTPError("u", 500, "evil.example", {}, None)):
+                st, r = self.busca(resposta).buscar("Recife")
+                self.assertEqual((st, r["mensagem"]), (502, "A busca de cidades não respondeu agora."))
+        self.assertNotIn("Recife", saida.getvalue()); self.assertNotIn("evil", saida.getvalue())
+
+    def test_nao_segue_redirecionamento_e_le_ate_o_teto(self):
+        class Pagina(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                if self.path.startswith("/longe"):
+                    self.server.seguiu = True
+                corpo = json.dumps(Busca.BOM).encode()
+                self.send_response(302 if self.path.startswith("/v1/search") else 200)
+                self.send_header("Location", "/longe")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Pagina)
+        srv.seguiu = False
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            b = e.BuscaCidades()
+            b.URL = "http://127.0.0.1:%d/v1/search" % srv.server_address[1]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(b.buscar("Recife")[0], 502)
+            self.assertFalse(srv.seguiu)
+            b.URL = "http://127.0.0.1:%d/longe" % srv.server_address[1]   # controle: sem o 302, a mesma rota responde
+            self.assertEqual(b.buscar("Recife")[1]["resultados"][0]["nome"], "Recife")
+        finally:
+            srv.shutdown()
+
+
+class Docker(unittest.TestCase):
+    def test_copy_leva_todo_modulo_local_que_o_servidor_importa(self):
+        # um módulo novo importado pelo escritorio.py e fora do COPY sobe no PC e cai no container (e, fora do instalar.sh,
+        # na VPS: o ajustes.py ficou de fora do install e do py_compile até a Fase 2)
+        raiz = os.path.dirname(os.path.abspath(e.__file__))
+        with open(os.path.join(raiz, "Dockerfile"), encoding="utf-8") as f:
+            copiados = {p for linha in f if linha.startswith("COPY ") for p in linha.split()[1:-1] if p.endswith(".py")}
+        with open(os.path.join(raiz, ".dockerignore"), encoding="utf-8") as f:
+            liberados = {linha.strip()[1:] for linha in f if linha.startswith("!")}
+        locais, pendentes = set(), ["escritorio"]
+        while pendentes:
+            nome = pendentes.pop()
+            if nome in locais:
+                continue
+            locais.add(nome)
+            with open(os.path.join(raiz, nome + ".py"), encoding="utf-8") as f:
+                arvore = ast.parse(f.read())
+            for no in ast.walk(arvore):
+                nomes = [a.name for a in no.names] if isinstance(no, ast.Import) else \
+                    [no.module] if isinstance(no, ast.ImportFrom) and no.module else []
+                pendentes += [n for n in nomes if os.path.isfile(os.path.join(raiz, n + ".py"))]
+        esperados = {n + ".py" for n in locais}
+        self.assertEqual(esperados, {"escritorio.py", "acesso.py", "social.py", "planta.py", "ajustes.py", "jornal.py",
+                                     "avisos.py", "vapid.py", "novidades.py"})
+        self.assertLessEqual(esperados, copiados)
+        self.assertLessEqual(esperados, liberados)
+        with open(os.path.join(raiz, "instalar.sh"), encoding="utf-8") as f:
+            linhas = f.read().replace("\\\n", " ").splitlines()   # junta as linhas continuadas com \
+        instalados = {p for linha in linhas if linha.startswith("install ") and linha.rstrip().endswith(" /opt/escritorio/")
+                      for p in linha.split() if p.endswith(".py")}
+        compilados = {os.path.basename(p) for linha in linhas if "py_compile" in linha for p in linha.split() if p.endswith(".py")}
+        self.assertEqual((instalados, compilados), (esperados, esperados))
+
+    def test_changelog_vai_junto_para_a_pagina_novidades(self):
+        # o /api/novidades lê o CHANGELOG.pt-BR.md ao lado do escritorio.py: fora da imagem ou do instalar.sh, a página fica vazia
+        raiz = os.path.dirname(os.path.abspath(e.__file__))
+        self.assertEqual(os.path.dirname(e.NOVIDADES.caminho), raiz)
+        nome = os.path.basename(e.NOVIDADES.caminho)
+        with open(os.path.join(raiz, "Dockerfile"), encoding="utf-8") as f:
+            self.assertIn(f"COPY {nome} ./\n", f.read())
+        with open(os.path.join(raiz, ".dockerignore"), encoding="utf-8") as f:
+            self.assertIn("!" + nome, f.read().splitlines())
+        with open(os.path.join(raiz, "instalar.sh"), encoding="utf-8") as f:
+            linhas = f.read().replace("\\\n", " ").splitlines()
+        self.assertTrue(any(linha.startswith("install ") and linha.rstrip().endswith(f" {nome} /opt/escritorio/") for linha in linhas))
+
+
 class ModoResposta(unittest.TestCase):
     """R2a no acesso.py: por sessão e navegador, 1 h renovada por envio, teto de 8 h, só na memória (relógio falso)."""
     T = 1_800_000_000.0
@@ -1959,7 +2825,7 @@ class ModoResposta(unittest.TestCase):
         outra = self.a.entrar("dono", "senha-bem-grande")   # outro navegador, mesmo usuário: não herda
         self.assertIsNone(self.a.modo(outra, cookie, self.T))   # o cookie do modo copiado para outra sessão não vale
         self.assertIsNone(self.a.modo(self.sessao, None, self.T))   # a sessão sem o cookie do modo
-        self.assertIsNone(self.a.modo(self.sessao, "x" + cookie[1:], self.T))
+        self.assertIsNone(self.a.modo(self.sessao, ("y" if cookie[0] == "x" else "x") + cookie[1:], self.T))   # sempre outro 1º caractere
         self.assertIsNone(self.a.modo("sessao-que-nao-existe", cookie, self.T))
         self.assertIsNone(Acesso(self.pasta).modo(self.sessao, cookie, self.T))   # reinício: começa sem modo nenhum
         segundo = self.a.abrir_modo(self.sessao, "senha-bem-grande", agora=self.T + 10)   # de novo: registro novo
@@ -2414,35 +3280,115 @@ class Responder(unittest.TestCase):
 
 class Previa(unittest.TestCase):
     """A ferramentas/previa.py sobe de verdade e lê uma conversa pelo caminho do servidor (thread e canal): uma
-    mudança no Conversas que a quebre aparece aqui, e não só quando alguém abre a prévia."""
+    mudança no Conversas que a quebre aparece aqui, e não só quando alguém abre a prévia. Cada prévia sobe com uma
+    pasta temporária própria e para com o sinal de sair: a pasta de dados dela tem de sumir junto."""
+    RAIZ = os.path.dirname(os.path.abspath(e.__file__))
+
+    def subir(self, *args):
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            porta = s.getsockname()[1]
+        tmp = tempfile.mkdtemp(prefix="escritorio-previa-teste-tmp-")
+        grupo = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {}
+        p = subprocess.Popen([sys.executable, "-B", os.path.join("ferramentas", "previa.py"), *args], cwd=self.RAIZ,
+                             env={**os.environ, "PREVIA_PORTA": str(porta), "PYTHONUTF8": "1", "TEMP": tmp, "TMP": tmp,
+                                  "TMPDIR": tmp}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                             encoding="utf-8", **grupo)
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.addCleanup(self.parar, p, tmp)
+        self.assertEqual(p.stdout.readline().strip(), f"http://127.0.0.1:{porta}")   # o servidor já escuta
+        self.assertEqual(len(os.listdir(tmp)), 1)   # a pasta de dados da prévia
+        rotulo, _, pasta = p.stdout.readline().strip().partition(": ")   # e o caminho dela, na subida
+        self.assertEqual(rotulo, "dados temporários")
+        self.assertTrue(os.path.samefile(pasta, os.path.join(tmp, os.listdir(tmp)[0])))
+        return f"http://127.0.0.1:{porta}"
+
+    def parar(self, p, tmp):
+        if p.poll() is None:
+            p.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
+            p.communicate(timeout=15)
+            self.assertEqual(os.listdir(tmp), [])   # a prévia apagou a própria pasta ao sair
+
     def test_previa_le_conversa_pela_thread_e_pelo_canal(self):
         pasta = tempfile.mkdtemp(prefix="escritorio-previa-teste-")
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
         bruto = os.path.join(pasta, "bruto.json")
         url = f"https://app.agentes.chat/org/{e.ORG}/c/"
         with open(bruto, "w", encoding="utf-8") as f:
             json.dump({"agents": AG, "tasks": [
                 {"run_id": "r1", "agent": {"id": "a1"}, "status": "running", "url": f"{url}{CANAL}?m={M}", "label": "Post"},
                 {"run_id": "r2", "agent": {"id": "a2"}, "status": "waiting_input", "url": url + DM, "label": "QA"}]}, f)
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0))
-            porta = s.getsockname()[1]
-        raiz = os.path.dirname(os.path.abspath(e.__file__))
-        p = subprocess.Popen([sys.executable, "-B", os.path.join("ferramentas", "previa.py"), bruto], cwd=raiz,
-                             env={**os.environ, "PREVIA_PORTA": str(porta), "PYTHONUTF8": "1"},
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        try:
-            self.assertEqual(p.stdout.readline().strip(), f"http://127.0.0.1:{porta}")   # o servidor já escuta
-            ler = lambda rota: json.loads(urllib.request.urlopen(f"http://127.0.0.1:{porta}{rota}", timeout=10).read())
-            itens = {c["agente_id"]: c["id"] for c in ler("/api/estado")["conversas"]}
-            self.assertEqual(set(itens), {"a1", "a2"})
-            for agente in ("a1", "a2"):   # a1 tem ?m= (thread), a2 não (canal)
-                r = ler(f"/api/conversa?id={itens[agente]}")   # erro na leitura (o TypeError de antes) vira HTTP 502
-                self.assertEqual({m["autor"] for m in r["mensagens"]}, {"pessoa", "agente"}, agente)
-        finally:
-            p.kill()
-            p.communicate(timeout=10)
-            shutil.rmtree(pasta, ignore_errors=True)
+        base = self.subir(bruto)
+        ler = lambda rota: json.loads(urllib.request.urlopen(base + rota, timeout=10).read())
+        itens = {c["agente_id"]: c["id"] for c in ler("/api/estado")["conversas"]}
+        self.assertEqual(set(itens), {"a1", "a2"})
+        for agente in ("a1", "a2"):   # a1 tem ?m= (thread), a2 não (canal)
+            r = ler(f"/api/conversa?id={itens[agente]}")   # erro na leitura (o TypeError de antes) vira HTTP 502
+            self.assertEqual({m["autor"] for m in r["mensagens"]}, {"pessoa", "agente"}, agente)
 
+    def test_previa_com_visitantes(self):
+        exemplo = os.path.join("ferramentas", "previa.exemplo.json")
+        base = self.subir("--visitantes", "3", exemplo)
+        visitantes = json.loads(urllib.request.urlopen(base + "/api/estado", timeout=10).read())["visitantes"]
+        self.assertEqual((len(visitantes), visitantes), (3, sorted(visitantes, key=lambda x: x["id"])))
+        tmp = tempfile.mkdtemp(prefix="escritorio-previa-teste-tmp-")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        r = subprocess.run([sys.executable, "-B", os.path.join("ferramentas", "previa.py"), "--visitantes", "9", exemplo],
+                           cwd=self.RAIZ, capture_output=True, text=True, timeout=60,
+                           env={**os.environ, "TEMP": tmp, "TMP": tmp, "TMPDIR": tmp})
+        self.assertEqual((r.returncode, os.listdir(tmp)), (1, []))
+        self.assertIn("--visitantes", r.stderr)
+
+    def test_previa_com_push_falso(self):
+        """--push: a chave sai, o endpoint da lista é aceito (o de fora, não) e um pedido novo do arquivo vira aviso."""
+        pasta = tempfile.mkdtemp(prefix="escritorio-previa-push-")
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        bruto = os.path.join(pasta, "bruto.json")
+        tarefa = {"run_id": "r1", "agent": {"id": "a1"}, "status": "running", "label": "Post"}
+        with open(bruto, "w", encoding="utf-8") as f:
+            json.dump({"agents": AG, "tasks": [tarefa]}, f)
+        base = self.subir("--push", bruto)
+
+        def req(rota, dados=None):
+            cab = {"Origin": base, "Content-Type": "application/json"} if dados else {}
+            pedido = urllib.request.Request(base + rota, headers=cab, data=json.dumps(dados).encode() if dados else None)
+            try:
+                with urllib.request.urlopen(pedido, timeout=10) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as err:
+                with err:
+                    return err.code, json.loads(err.read())
+        st, corpo = req("/api/push/chave")
+        self.assertEqual((st, len(corpo["chave"])), (200, 87))
+        self.assertEqual(req("/api/push/assinar", {"endpoint": "https://fcm.googleapis.com/fcm/send/x"}), (200, {"ok": True}))
+        self.assertEqual(req("/api/push/assinar", {"endpoint": "http://127.0.0.1:9/push"})[1]["erro"], "endpoint_invalido")
+        req("/api/estado")   # a base do diário
+        with open(bruto, "w", encoding="utf-8") as f:
+            json.dump({"agents": AG, "tasks": [{**tarefa, "status": "waiting_approval"}]}, f)
+        req("/api/estado")
+        self.assertEqual(req("/api/avisos")[1]["aviso"]["agente"], "a1")
+        self.assertEqual(req("/api/avisos")[1]["aviso"]["tipo"], "pediu_aprovacao")
+
+    def test_previa_com_jornal_semeado(self):
+        base = self.subir("--jornal", os.path.join("ferramentas", "previa.exemplo.json"))
+        j = json.loads(urllib.request.urlopen(base + "/api/jornal", timeout=10).read())
+        self.assertEqual((len(j["semana"]["agentes"]), len(j["anterior"]["agentes"]), len(j["anterior"]["dias"])), (7, 7, 7))
+        self.assertEqual(set(j["semana"]["agentes"][0]), {"id", "tarefas", "aprovacoes", "respostas", "minutos"})
+
+    def test_previa_com_cada_estado_de_conexao(self):
+        exemplo = os.path.join("ferramentas", "previa.exemplo.json")
+        for conexao, agentes, erro in (("sem_conexao", 0, e.SEM_CONEXAO), ("recusada", 7, e.texto_recusa(403)),
+                                       ("conectado", 7, None)):
+            base = self.subir("--conexao", conexao, exemplo)
+            estado = json.loads(urllib.request.urlopen(base + "/api/estado", timeout=10).read())
+            self.assertEqual((estado["conexao"], len(estado["agentes"]), estado["erro"]), (conexao, agentes, erro))
+        tmp = tempfile.mkdtemp(prefix="escritorio-previa-teste-tmp-")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        r = subprocess.run([sys.executable, "-B", os.path.join("ferramentas", "previa.py"), "--conexao", "outro", exemplo],
+                           cwd=self.RAIZ, capture_output=True, text=True, timeout=60,
+                           env={**os.environ, "TEMP": tmp, "TMP": tmp, "TMPDIR": tmp})
+        self.assertEqual((r.returncode, os.listdir(tmp)), (1, []))   # o erro na subida também apaga a pasta
+        self.assertIn("sem_conexao", r.stderr)
 
 
 # ---------------------------------------------------------------- vida social (contrato S, fatia 1)

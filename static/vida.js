@@ -112,6 +112,23 @@ const Vida = (() => {
         pufe: ["Pufe novo!", "Que macio!"], roteador: ["Wi-Fi voando!", "Agora sim, 5 barrinhas"], bolo: ["Bolo!", "Quem corta?"],
         travesseiro: ["Zzz…", "Só 5 minutinhos"] },
     },
+    // Jornal do escritório (jornal.js): {nome}, {qtd} e {lista} são trocados na hora; de cada lista sai uma frase fixa por semana
+    jornal: {
+      nome: "Gazeta do Escritório",
+      manchete: ["Destaque da semana: {nome}, com {qtd}", "{nome} é o destaque da semana: {qtd}", "Ninguém segurou {nome}: {qtd} na semana"],
+      calma: ["Semana tranquila: nenhuma tarefa terminada até agora", "Redação em silêncio: ainda sem tarefa terminada"],
+      atras: "Logo atrás: {lista}.",
+      aprovacoes: ["Quem mais pediu a sua aprovação", "{nome}, com {qtd}"],
+      respostas: ["Quem mais fez perguntas", "{nome}, com {qtd}"],
+      minutos: ["Mais tempo trabalhando", "{nome}, cerca de {qtd}"],
+      ringue: ["Campeão do ringue", "{nome}, com {qtd}"],
+      chuva: ["Semana de chuva", "{qtd} com chuva, garoa ou tempestade. Guarda-chuva na porta!"],
+      sol: ["Semana de sol", "{qtd} de céu limpo. Teve gente almoçando lá fora."],
+      neve: ["Neve no escritório", "{qtd} com neve. O café acabou cedo."],
+      variado: ["Tempo variado", "Teve de tudo um pouco: {lista}."],
+      agito: ["Agitação na sala comunal", "{lista} na semana."],
+      paz: ["Semana em paz", "Nenhuma greve e nenhuma briga."],
+    },
   };
   // função do agente (texto livre do agentes.chat) -> grupo de balões de trabalho
   const PAPEIS = [[/qa|revis|teste|complian|lgpd/i, "qa"], [/dev|c[oó]dig|full|front|back|tech|arquitet|program/i, "dev"],
@@ -146,7 +163,8 @@ const Vida = (() => {
     const m = { predio, vagas, bonecos: new Map(), lista: [], grades: new Map(), eventos: [], roda: null,
       proxPapo: 4, proxTrabalho: 10, proxJogo: 0, proxVisita: entre(12, 25), proxRoda: entre(40, 80), proxGato: entre(30, 60), proxRobo: 1, proxPasso: 0,
       proxToca: 0.4, proxMusica: 2, proxViolao: entre(30, 60), proxPapel: entre(20, 40), proxAviao: entre(40, 80), proxGuerra: 8,
-      cena: null, cenaSocial: null, vistos: new Set() };   // vida social: a cena desta tela, o que o efeitos.js desenha e os eventos já encenados
+      cena: null, cenaSocial: null, vistos: new Set(),   // vida social: a cena desta tela, o que o efeitos.js desenha e os eventos já encenados
+      visitas: new Map() };   // visitantes (pessoas olhando o escritório), por id
     for (const v of vagas) {   // a mesa de xadrez vem do mapa com duas vagas de papo: aqui viram partida (a cópia é da vida.js)
       if (v.tipo === "papo" && movelPerto(predio, v, /^mesa_xadrez/, 40)) v.tipo = "xadrez";
       if (v.tipo === "musica") v.jukebox = !!movelPerto(predio, v, /^jukebox/, 48);
@@ -602,6 +620,7 @@ const Vida = (() => {
       if (!mo) m.rodaDoCafe = false;
     }
     if ((m.proxRobo -= dt) <= 0) { m.proxRobo = 1; verRobo(m, agora); }
+    for (const v of m.visitas.values()) passoVisita(m, v, dt, agora);
     jogosSozinho(m, dt);
     if (!m.fora) brincadeiras(m, dt, agora);
     papo(m, dt, agora);
@@ -1384,13 +1403,76 @@ const Vida = (() => {
     else falar(b, sorteia(FRASES.trabalho[b.papel] || FRASES.trabalho.geral), 4);
   }
 
+  // --- visitantes: as pessoas olhando o escritório agora --------------------------------------
+  // Figurantes, como o entregador: fora do m.bonecos, da vida social, das mesas e das vagas (não tiram o lugar de
+  // ninguém). Do /api/estado vêm só o id e a cor; na tela aparecem como "Visitante", com crachá. Entram pela rua,
+  // passeiam entre a recepção e a sala comunal e, quando somem da lista, vão embora pela rua.
+  const COR_VISITA = /^#[0-9a-f]{6}$/i;
+  const salasDeVisita = m => [...m.predio.salas, ...m.predio.baixo].filter(s => s.tipo === "recepcao" || s.tipo === "lounge");
+  function visitantes(m, lista) {
+    const ids = new Set();
+    for (const it of Array.isArray(lista) ? lista.slice(0, 8) : []) {
+      if (!it || typeof it.id !== "string" || !/^[0-9a-f]{8}$/.test(it.id) || !COR_VISITA.test(it.cor)) continue;
+      ids.add(it.id);
+      let v = m.visitas.get(it.id);
+      if (!v) {
+        v = { id: it.id, nome: "Visitante", visitante: true, ap: { color: it.cor.toLowerCase(), eyes: "round", accessory: "cracha" }, x: -24, y: 0, rota: [], sala: null,
+          pose: "parado", olha: "dir", passos: 0, desde: 0, fica: 0, saindo: false, semente: parseInt(it.id.slice(0, 4), 16) % 997 };
+        m.visitas.set(it.id, v);
+        irVisita(m, v, null);
+      } else if (v.saindo) { v.saindo = false; irVisita(m, v, null); }   // voltou antes de sair: entra de novo
+    }
+    for (const v of m.visitas.values()) if (!ids.has(v.id) && !v.saindo) { // fechou a aba: termina o trecho e vai embora pela rua
+      const fim = v.rota.length ? v.rota[v.rota.length - 1] : [v.x, v.y];
+      v.saindo = true;
+      v.rota = v.sala ? [...v.rota, ...rotaDaSala(m, v.sala, fim), ...rotaRua(m)] : [];
+      v.sala = null;
+    }
+  }
+  // um ponto de chão livre na sala, longe das vagas dos agentes e com caminho até a porta
+  function pontoDeVisita(m, s) {
+    const g = grade(m, s);
+    for (let i = 0; i < 30; i++) {
+      const c = Math.floor(Math.random() * g.cols * g.lins);
+      if (!g.livre[c]) continue;
+      const p = [g.x0 + (c % g.cols) * GRADE + GRADE / 2, g.y0 + Math.floor(c / g.cols) * GRADE + GRADE / 2];
+      if (m.vagas.some(q => Math.hypot(q.x - p[0], q.y - p[1]) < 14)) continue;
+      const e = portaPerto(m, s, p[0]), r = rotaNaSala(m, s, e.dentro, p);
+      if (r) return { p, r: [...[...e.fora].reverse(), e.dentro, ...r] };
+    }
+    return null;
+  }
+  function rotaDaSala(m, s, p) { const e = portaPerto(m, s, p[0]); return [...(rotaNaSala(m, s, p, e.dentro) || [e.dentro]), ...e.fora]; }
+  // próxima parada: a outra sala (ou outro canto da mesma, se só houver uma)
+  function irVisita(m, v, agora) {
+    const salas = salasDeVisita(m);
+    if (!salas.length) return;
+    const outra = salas.filter(s => s !== v.sala), s = outra.length ? sorteia(outra) : salas[0], alvo = pontoDeVisita(m, s);
+    if (!alvo) return;
+    const ida = v.sala ? rotaDaSala(m, v.sala, [v.x, v.y]) : v.x <= -20 ? rotaRua(m).reverse().slice(1) : [];
+    if (v.x <= -20) { const r = rotaRua(m); v.x = r[r.length - 1][0]; v.y = r[r.length - 1][1]; }   // aparece na calçada, fora da tela
+    v.rota = [...ida, ...alvo.r]; v.sala = s;
+    if (agora !== null) v.desde = agora;
+  }
+  function passoVisita(m, v, dt, agora) {
+    if (v.saindo && !v.rota.length) { m.visitas.delete(v.id); return; }
+    if (v.rota.length) {
+      andar(m, v, dt, agora);
+      if (!v.rota.length) {
+        if (v.saindo) { m.visitas.delete(v.id); return; }
+        v.desde = agora; v.fica = entre(15, 40); v.olha = "baixo";
+      }
+    } else if (!v.saindo && agora - v.desde > v.fica) irVisita(m, v, agora);
+    v.pose = v.rota.length ? "andando" : "parado"; v.chave = v.y + 0.5;
+  }
+
   function digitando(m) {
     let n = 0;
     for (const b of m.lista) if (b.pose === "digitando") n++;
     return n;
   }
 
-  return { criarMundo, sincronizar, passo, digitando, momento, objetoClicado, festaGeral, social, textoGreve, FRASES };
+  return { criarMundo, sincronizar, passo, digitando, momento, objetoClicado, festaGeral, social, visitantes, textoGreve, FRASES };
 })();
 
 window.Vida = Vida;

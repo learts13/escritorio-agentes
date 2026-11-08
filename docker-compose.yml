@@ -1,0 +1,26 @@
+# Escritório dos agentes atrás de um proxy HTTPS (Coolify: domínio https://<seu-endereço>:7371).
+# ESCRITORIO_BASE é o endereço público, igual ao domínio, sem a porta e sem barra no fim.
+services:
+  escritorio:
+    build: .
+    restart: unless-stopped
+    environment:
+      ESCRITORIO_BASE: ${ESCRITORIO_BASE:?defina ESCRITORIO_BASE com o endereço https público, sem barra no fim}
+      AGENTES_ORG: ${AGENTES_ORG:?defina AGENTES_ORG com o id da organização no agentes.chat}
+    volumes:
+      - dados:/dados   # token, usuários e sessões: backup cifrado, nunca público
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m   # dois scrypt de 32 MiB ao mesmo tempo, com folga
+    # Sem "ports": o proxy chega ao container pela rede do Docker. Publicar a porta serve HTTP sem TLS, com a senha
+    # em texto puro. Só para teste nesta máquina (com ESCRITORIO_BASE=http://127.0.0.1:7381):
+    # ports:
+    #   - "127.0.0.1:7381:7371"
+
+volumes:
+  dados:

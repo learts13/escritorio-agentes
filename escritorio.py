@@ -5,11 +5,14 @@
 Lê o agentes.chat pelo conector MCP de apps externos (OAuth, escopo "read"; "read write" só com
 "conversas": "responder"), a cada ESCRITORIO_INTERVALO segundos, e guarda um resumo em memória.
 Não chama modelo de IA nenhum. Serve a página em 127.0.0.1; quem publica é a Tailscale (tailscale serve),
-só na rede privada da pessoa, com HTTPS. Na frente de tudo há login com usuário e senha (acesso.py).
+só na rede privada da pessoa, com HTTPS. Num container, ESCRITORIO_BIND=0.0.0.0, atrás do proxy HTTPS.
+Na frente de tudo há login com usuário e senha (acesso.py).
 
 Rotas: /entrar /primeiro-acesso /sair /logo  /  /<estático>  /api/estado /api/config /api/conversa /api/marca
        /api/logo /api/conversa/modo /api/conversa/modo/fechar /api/conversa/responder /api/social /api/social/briga
-       /api/social/greve/atender /api/social/placar /api/planta /oauth/conectar /oauth/retorno
+       /api/social/greve/atender /api/social/placar /api/planta /api/clima /api/clima/busca /api/festas
+       /api/equipe /api/sair-todos /api/jornal /api/novidades /api/push/chave /api/push/assinar /api/push/sair /api/avisos
+       /oauth/conectar /oauth/retorno
        (as quatro primeiras e os estáticos do login sem sessão)
 Uso: python3 -I escritorio.py           serviço (variáveis no /etc/escritorio.env)
      python3 -I escritorio.py codigo    mostra o código de primeiro acesso, só lendo (sudo escritorio-codigo)
@@ -20,32 +23,41 @@ import collections
 import datetime
 import email.utils
 import hashlib
+import hmac
 import html
 import json
 import os
 import re
 import secrets
+import signal
 import sys
 import threading
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acesso import (ARQ_CODIGO, ARQ_USUARIOS, Acesso, TentativasDemais, UsuariosIlegiveis, gravar, ler_codigo,  # noqa: E402
-                    ler_usuarios)
+from acesso import (ARQ_CODIGO, ARQ_USUARIOS, Acesso, NaoGravou, TentativasDemais, UsuariosIlegiveis, gravar,  # noqa: E402
+                    ler_codigo, ler_usuarios)
+import ajustes  # noqa: E402
+import vapid  # noqa: E402
+from ajustes import (ACESSORIOS, CLIMA_BYTES, CORES, EQUIPE_BYTES, FESTAS_BYTES, HANDLE_OK, ICONES_OK, OLHOS,  # noqa: E402
+                     ROTULO_OK, limpa_texto)
+from avisos import (CORPO_MAX as PUSH_CORPO, PUSH_BYTES, Avisos, EndpointInvalido, validar_arquivo as validar_push,  # noqa: E402
+                    validar_assinatura, validar_saida)
+from jornal import JORNAL_BYTES, Jornal, validar as validar_jornal  # noqa: E402
+from novidades import Novidades  # noqa: E402
 from planta import PLANTA_BYTES, Planta, validar_planta  # noqa: E402
 from social import PLACAR_BYTES, PLACAR_MAX, PLACAR_TETO, Social  # noqa: E402
 
-VERSAO = "1.0.0"
+VERSAO = "1.2.0"
 MCP = os.environ.get("AGENTES_MCP", "https://app.agentes.chat/mcp")
 EMISSOR = os.environ.get("AGENTES_EMISSOR", "https://app.agentes.chat")
-BASE = os.environ.get("ESCRITORIO_BASE", "http://127.0.0.1:7371").rstrip("/")
+BASE = os.environ.get("ESCRITORIO_BASE", "http://127.0.0.1:7371")   # só origem: o main() confere (erro_rede)
 PORTA = int(os.environ.get("ESCRITORIO_PORTA", "7371"))
-BIND = os.environ.get("ESCRITORIO_BIND", "127.0.0.1").strip()
+BIND = os.environ.get("ESCRITORIO_BIND", "127.0.0.1")   # 0.0.0.0 só em container, atrás de um proxy HTTPS
 ORG = os.environ.get("AGENTES_ORG", "").strip().lower()  # id da organização no agentes.chat; obrigatório no main()
 TIMES = os.environ.get("ESCRITORIO_TIMES", os.path.join(os.path.dirname(os.path.abspath(__file__)), "times.json"))
 DADOS = os.environ.get("ESCRITORIO_DADOS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "dados"))
@@ -68,6 +80,20 @@ INTERVALO = max(30, int(os.environ.get("ESCRITORIO_INTERVALO", "30")))
 ORCAMENTO_DIA = 3000
 AGENTES_A_CADA, RECARGA_MINIMA = 600, 120   # list_agents a cada 10 min; agente desconhecido recarrega, no máximo a cada 2 min
 PAUSA_429 = "O agentes.chat pediu uma pausa nas leituras; mostrando a última leitura"
+SEM_CONEXAO = "o escritório ainda não está conectado ao agentes.chat (abra /oauth/conectar)"
+FALHA_LEITURA = "agentes.chat não respondeu; mostrando a última leitura"
+# o "conexao" do /api/estado: a faixa do navegador decide por ele, e não pelo texto do "erro"
+CONEXOES = ("carregando", "conectado", "sem_conexao", "recusada", "pausa", "falha")
+
+
+def texto_recusa(http):
+    """A mensagem nossa para o 401, o 402 e o 403 do MCP. O texto que vier do agentes.chat nunca vai para a tela."""
+    if http == 401:
+        return "o agentes.chat recusou o acesso (HTTP 401): conecte o escritório de novo"
+    return (f"o agentes.chat recusou a leitura (HTTP {http}): confira se a conta conectada é da organização e se o "
+            "plano permite apps externos")
+
+
 ARQ_TOKEN = os.path.join(DADOS, "oauth.json")
 URL_APP = re.compile(r"https://app\.agentes\.chat/org/" + re.escape(ORG) + r"/c/[0-9a-f\-]{36}(\?m=[0-9a-f\-]{36})?")
 ARQUIVOS = {  # estáticos servidos (lista fechada)
@@ -84,6 +110,12 @@ ARQUIVOS = {  # estáticos servidos (lista fechada)
     "simular.js": "text/javascript; charset=utf-8", "expediente.js": "text/javascript; charset=utf-8",
     "planta.js": "text/javascript; charset=utf-8", "construir.html": "text/html; charset=utf-8",
     "construir.js": "text/javascript; charset=utf-8", "construir.css": "text/css; charset=utf-8",
+    "ajustes.js": "text/javascript; charset=utf-8", "assistente.js": "text/javascript; charset=utf-8",
+    "tv.js": "text/javascript; charset=utf-8", "sw.js": "text/javascript; charset=utf-8",
+    "jornal.js": "text/javascript; charset=utf-8", "timelapse.js": "text/javascript; charset=utf-8",
+    "avisar.js": "text/javascript; charset=utf-8", "novidades.js": "text/javascript; charset=utf-8",
+    "manifest.webmanifest": "application/manifest+json", "icone-180.png": "image/png", "icone-192.png": "image/png",
+    "icone-512.png": "image/png", "icone-mascara-512.png": "image/png",
 }
 TIMEOUT = 20
 
@@ -193,7 +225,7 @@ class Credenciais:
         with self.trava:
             pend = self.pendentes.pop(estado, None)
             if not pend or time.time() - pend["em"] > self.VALIDADE:
-                raise ValueError("estado do login inválido ou expirado; comece de novo em /oauth/conectar")
+                raise EstadoInvalido("estado do login inválido ou expirado; comece de novo em /oauth/conectar")
             tok = post_form(EMISSOR + "/api/oauth/token", {
                 "grant_type": "authorization_code", "code": codigo, "redirect_uri": pend["redirect_uri"],
                 "client_id": pend["client_id"], "code_verifier": pend["verificador"], "resource": MCP})
@@ -285,7 +317,7 @@ def post_json(url, corpo):
     req = urllib.request.Request(url, json.dumps(corpo).encode(), {"Content-Type": "application/json", "Accept": "application/json"})
     st, _, dados = _abrir(req)
     if st >= 300:
-        raise RuntimeError(f"{url} respondeu HTTP {st}")
+        raise PermissaoNegada(f"{url} respondeu HTTP {st}", st)
     return json.loads(dados)
 
 
@@ -306,6 +338,10 @@ class PermissaoNegada(Exception):
 
 class EscopoRecusado(PermissaoNegada):
     pass
+
+
+class EstadoInvalido(ValueError):
+    """O state do retorno não é de um login em andamento (venceu, já foi usado ou nunca existiu)."""
 
 
 class Limitado(Exception):
@@ -359,8 +395,8 @@ class ClienteMCP:
         sid = headers.get("mcp-session-id")
         if sid:
             self.sessao = sid
-        if st == 401:
-            raise PermissaoNegada("o agentes.chat recusou o acesso (HTTP 401)")
+        if st in (401, 402, 403):   # o corpo que veio fica de fora: nem tela nem log
+            raise PermissaoNegada(texto_recusa(st), st)
         if st == 404 and self.sessao:
             self.sessao = None
             raise ConnectionResetError("sessão MCP expirou")
@@ -497,6 +533,7 @@ class Diario:
     def __init__(self):
         self.runs = {}  # run_id -> {"status", "desde", "agente", "inicio", "rotulo"}
         self.eventos = collections.deque(maxlen=self.LIMITE)  # do mais novo para o mais velho
+        self.novos = []   # os eventos só da última leitura, (tipo, id do agente, run_id): para o jornal e o push
         self.resolvidos = collections.deque(maxlen=self.LIMITE)  # (instante, item), do mais novo para o mais velho
         self.base = False
 
@@ -517,6 +554,7 @@ class Diario:
         agora = time.time() if agora is None else agora
         em = _iso(agora)
         vistos = set()
+        self.novos = []
         for t in tarefas:
             rid, st = t["run_id"], t["status"]
             if rid in vistos:  # run_id repetido na mesma leitura: vale o primeiro (a cópia leva o mesmo "desde")
@@ -527,32 +565,34 @@ class Diario:
             if not antes or self.PEDIDO.get(antes["status"]) != self.PEDIDO.get(st):  # running e still_running são o mesmo estado
                 agente = handles.get(t["agente_id"], "")
                 if self.base:
-                    self._transicao(em, agente, rid, antes and antes["status"], st)
+                    self._transicao(em, agente, t["agente_id"], rid, antes and antes["status"], st)
                     if antes and antes["status"] in self.PEDIDO:
                         self._resolvido(agora, antes, rid, "outro_pedido" if st in self.PEDIDO else "voltou_a_trabalhar")
-                antes = self.runs[rid] = {"status": st, "desde": em, "agente": agente, "inicio": not self.base, "rotulo": ""}
+                antes = self.runs[rid] = {"status": st, "desde": em, "agente": agente, "agente_id": t["agente_id"],
+                                          "inicio": not self.base, "rotulo": ""}
             if st in self.PEDIDO and rid in (rotulos or {}):   # o rótulo do pedido, enquanto ele espera
                 antes["rotulo"] = rotulos[rid]
             t["desde"] = antes["desde"]
         for rid in [r for r in self.runs if r not in vistos] if completa else []:
             if self.base:
-                self._evento(em, "terminou", self.runs[rid]["agente"], rid)
+                self._evento(em, "terminou", self.runs[rid]["agente"], rid, self.runs[rid]["agente_id"])
                 if self.runs[rid]["status"] in self.PEDIDO:
                     self._resolvido(agora, self.runs[rid], rid, "terminou")
             del self.runs[rid]
         self.base = True
         return list(self.eventos)
 
-    def _transicao(self, em, agente, rid, antes, agora):
+    def _transicao(self, em, agente, agente_id, rid, antes, agora):
         if antes is None:
-            self._evento(em, "comecou", agente, rid)
+            self._evento(em, "comecou", agente, rid, agente_id)
         if agora in self.PEDIDO:
-            self._evento(em, self.PEDIDO[agora], agente, rid)
+            self._evento(em, self.PEDIDO[agora], agente, rid, agente_id)
         elif antes in self.PEDIDO:
-            self._evento(em, "voltou_a_trabalhar", agente, rid)
+            self._evento(em, "voltou_a_trabalhar", agente, rid, agente_id)
 
-    def _evento(self, em, tipo, agente, rid):
+    def _evento(self, em, tipo, agente, rid, agente_id):
         self.eventos.appendleft({"em": em, "tipo": tipo, "agente": agente, "run_id": rid})
+        self.novos.append((tipo, agente_id, rid))
 
     def _resolvido(self, agora, pedido, rid, desfecho):
         self.resolvidos.appendleft((agora, {"run_id": rid, "agente": pedido["agente"], "tipo": self.TIPO[pedido["status"]],
@@ -638,9 +678,13 @@ class Leitor(threading.Thread):
         super().__init__(daemon=True)
         self.cred, self.mcp = cred, ClienteMCP(cred)
         self.estado = {"agentes": [], "trabalhos": [], "tarefas": [], "eventos": [], "resolvidos": [], "atualizado": None,
-                       "erro": "Carregando…"}
+                       "erro": "Carregando…", "conexao": "carregando"}
         self.trava = threading.Lock()
+        self.acordado = threading.Event()   # acordar(): a volta do OAuth não espera o resto do intervalo
         self.diario = Diario()
+        self.diario_novo = False   # conta nova no OAuth: o próximo ciclo recomeça o Diario
+        self.jornal = None   # o Jornal da semana, posto pelo main(); conta a cada leitura que deu certo
+        self.avisos = None   # o push (avisos.py), posto pelo main(): os pedidos novos vão para a fila dele
         self.agentes, self.agentes_ok, self.agentes_em = None, True, 0.0   # list_agents guardado entre as recargas
         self.seguidos_429 = self.seguidos_erro = 0
         self.pausa_ate = 0.0   # fim da pausa pedida por um 429; as rotas que chamam o MCP consultam pausado()
@@ -656,7 +700,7 @@ class Leitor(threading.Thread):
     def ler(self, agora=None):
         token = self.cred.token()
         if not token:
-            raise PermissaoNegada("o escritório ainda não está conectado ao agentes.chat (abra /oauth/conectar)")
+            raise PermissaoNegada(SEM_CONEXAO)
         if not self.mcp.sessao:
             self.mcp.iniciar(token)
         try:
@@ -715,13 +759,20 @@ class Leitor(threading.Thread):
         agora = time.time() if agora is None else agora
         if self.pausado(agora):   # pausa pedida por um 429 que veio de outra chamada (rota de conversa): não chama o MCP
             with self.trava:
-                self.estado = {**self.estado, "erro": PAUSA_429}
+                self.estado = {**self.estado, "erro": PAUSA_429, "conexao": "pausa"}
             return self.pausa_ate - agora
+        with self.trava:
+            if self.diario_novo:   # sem os "terminou" da conta velha nem os pedidos da nova contados como novos
+                self.diario, self.diario_novo = Diario(), False
         antes, inicio = self.mcp.pedidos, self.relogio()
         try:
             novo, completa, itens = self.ler(agora)
             self.diario.aplicar(novo, completa)
-            novo.update(atualizado=_iso(agora), erro=None)
+            if self.jornal:   # nunca levanta: o jornal não derruba a leitura
+                self.jornal.ler(self.diario.novos, novo, agora)
+            if self.avisos:   # só põe na fila, sem rede; nunca levanta
+                self.avisos.transicoes(self.diario.novos, novo, agora)
+            novo.update(atualizado=_iso(agora), erro=None, conexao="conectado")
             with self.trava:
                 if self.zerar_conversas:   # conta nova no OAuth: a lista da conta anterior não fica à vista
                     self.memoria, self.zerar_conversas = ConversasDoDia(), False
@@ -742,26 +793,37 @@ class Leitor(threading.Thread):
             espera = espera_429(e.retry_after, self.seguidos_429)
             self.pausa_ate = agora + espera
             with self.trava:
-                self.estado = {**self.estado, "erro": PAUSA_429}
+                self.estado = {**self.estado, "erro": PAUSA_429, "conexao": "pausa"}
             if self.seguidos_429 == 1:
                 log(evento="leitura", resultado="limitado", espera=espera)
             return espera
         except PermissaoNegada as e:
             with self.trava:
-                self.estado = {**self.estado, "erro": str(e)}
-            log(evento="leitura", resultado="sem_acesso", detalhe=str(e)[:200])
-            return INTERVALO
+                self.estado = {**self.estado, "erro": str(e), "conexao": "recusada" if e.http else "sem_conexao"}
+            if not e.http:   # sem token: nada sai para o agentes.chat, então o intervalo de sempre basta
+                log(evento="leitura", resultado="sem_acesso", detalhe=str(e)[:200])
+                return INTERVALO
+            # recusada (401, 402, 403): espera crescente como nas falhas, com a sessão MCP de novo na próxima
+            self.mcp.sessao = None
+            self.seguidos_erro += 1
+            log(evento="leitura", resultado="recusada", http=e.http)
+            return espera_erro(self.seguidos_erro)
         except Exception as e:  # rede, MCP fora do ar: mantém o último estado e avisa
             self.mcp.sessao = None
             self.seguidos_erro += 1
             with self.trava:
-                self.estado = {**self.estado, "erro": "agentes.chat não respondeu; mostrando a última leitura"}
+                self.estado = {**self.estado, "erro": FALHA_LEITURA, "conexao": "falha"}
             log(evento="leitura", resultado="erro", detalhe=f"{type(e).__name__}: {str(e)[:200]}")
             return espera_erro(self.seguidos_erro)
 
     def run(self):
         while True:
-            time.sleep(self.ciclo())
+            self.acordado.wait(self.ciclo())
+            self.acordado.clear()
+
+    def acordar(self):
+        """A próxima leitura sai agora (a volta do OAuth). A pausa de um 429 continua: o ciclo() confere antes."""
+        self.acordado.set()
 
     def foto(self):
         with self.trava:
@@ -775,6 +837,7 @@ class Leitor(threading.Thread):
     def zerar_memoria(self):
         with self.trava:
             self.conversas, self.zerar_conversas, self.respondidos = {"por_id": {}, "mudou": {}}, True, {}
+            self.diario_novo = True
 
     def marcar_respondido(self, id_conversa, agora):
         """Envio que deu certo (M2): até a meia-noite, a leitura desse item sai sem o limite A1. O run de uma resposta
@@ -796,14 +859,6 @@ UUID_MCP = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abA
 HORA_OK = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})")
 ID_CONVERSA = re.compile(r"[A-Za-z0-9_-]{12}")   # secrets.token_urlsafe(9)
 TEXTO_MAX, CONVERSA_BYTES_MAX, CONVERSA_CACHE, FIM_MARGEM = 1500, 30_000, 60, 60
-
-
-def limpa_texto(txt, maximo):
-    """Texto de fora em texto puro: tira os caracteres de controle (menos o \\n), os de formato (bidi, zero-width, BOM)
-    e o surrogate sozinho (emoji cortado). Devolve (texto, cortado)."""
-    txt = str(txt).replace("\r\n", "\n")
-    txt = "".join(c for c in txt if c == "\n" or unicodedata.category(c) not in ("Cc", "Cf", "Cs"))
-    return txt[:maximo], len(txt) > maximo
 
 
 def resumir_conversa(bruto, url, agora):
@@ -1136,6 +1191,41 @@ class Respostas:
             return mcp.ferramenta(nome, args, token)
 
 
+def ler_jornal():
+    """dados/jornal.json validado (as semanas), ou None. Ilegível, grande demais ou fora do formato sobe vazio, com 1 linha
+    de log: falha aberta, como o placar."""
+    return ajustes.ler(ARQ_JORNAL, JORNAL_BYTES, validar_jornal, log, "jornal")
+
+
+def ler_push():
+    """dados/push.json validado (as assinaturas), ou None. Ilegível ou fora do formato sobe sem aparelhos, com 1 linha de
+    log: falha aberta (cada aparelho assina de novo no "Avisar no celular")."""
+    return ajustes.ler(ARQ_PUSH, PUSH_BYTES, validar_push, log, "push")
+
+
+def criar_avisos(destino=None, sub=None):
+    """O Avisos do servidor, com o sub do VAPID = BASE (e o da prévia, que passa o destino falso e um sub mailto: próprio).
+    Chamado uma vez só, no main() (ou na prévia), antes das threads: a chave é lida (ou criada) uma vez, sem corrida.
+    Sem a BASE em https, o push fica desligado com 409: a Apple recusa o JWT com um sub que não seja https ou mailto:, e
+    nada se assina nem se envia. A chave ilegível (ou o disco com erro) devolve None, o push sai (404) e nenhuma chave
+    nova é gerada por cima (os aparelhos assinados com ela deixariam de valer). O d só existe dentro do cabecalho, nunca
+    em atributo, log ou repr."""
+    comum = dict(log=log, fuso=FUSO, guardar=lambda dados: gravar(ARQ_PUSH, dados), assinaturas=ler_push())
+    if destino is None and not BASE.startswith("https://"):
+        log(evento="push", resultado="desligado", motivo="precisa_https")
+        return Avisos(None, None, desligado="precisa_https", **comum)
+    try:
+        d = vapid.carregar_ou_criar(ARQ_VAPID)
+    except (ValueError, OSError) as x:   # a mensagem do vapid.py tem o caminho e o motivo, nunca o conteúdo
+        log(evento="push", resultado="desligado", motivo="chave_invalida", detalhe=f"{type(x).__name__}: {str(x)[:200]}")
+        return None
+    sub = sub or BASE
+
+    def cabecalho(endpoint, agora):
+        return vapid.cabecalho(d, endpoint, sub, agora)
+    return Avisos(vapid.publica_b64url(d), cabecalho, destino=destino, **comum)
+
+
 # ---------------------------------------------------------------- clima real (Open-Meteo, sem chave)
 
 def tipo_do_clima(codigo, nuvens):
@@ -1156,41 +1246,138 @@ def tipo_do_clima(codigo, nuvens):
 
 
 class Clima(threading.Thread):
-    def __init__(self, lat, lon, cidade):
+    """O tempo de agora no lugar que vale (fonte(): o da tela, senão o do times.json, ou None). Relê o lugar a cada
+    volta: trocar a cidade não pede reinício. Ao trocar, zera o estado antes de consultar (nunca o tempo da cidade velha
+    com o nome novo); sem lugar, espera sem consultar; no máximo 1 consulta por minuto, e uma a cada 900 s no mesmo
+    lugar. Na falha, fica o que havia (ou o céu limpo)."""
+    A_CADA, MINIMO = 900, 60
+
+    def __init__(self, fonte):
         super().__init__(daemon=True)
-        self.lat, self.lon, self.cidade = lat, lon, cidade
-        self.estado, self.trava = None, threading.Lock()
+        self.fonte, self.estado, self.trava = fonte, None, threading.Lock()
+        self.consultado, self.ultima = None, None   # o lugar da última consulta e quando (relógio monotônico)
+        self.acordado = threading.Event()   # acordar(): o POST /api/clima não espera os 15 min
+        self.relogio = time.monotonic
 
     def run(self):
-        q = urllib.parse.urlencode({"latitude": self.lat, "longitude": self.lon, "timezone": "auto",
-                                    "current": "weather_code,is_day,temperature_2m,precipitation,cloud_cover,wind_speed_10m"})
         while True:
-            try:
-                req = urllib.request.Request("https://api.open-meteo.com/v1/forecast?" + q, headers={"Accept": "application/json"})
-                with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-                    atual = json.loads(r.read(200_000)).get("current", {})
-                codigo = int(atual.get("weather_code", 0))
-                with self.trava:
-                    self.estado = {"tipo": tipo_do_clima(codigo, atual.get("cloud_cover")), "codigo": codigo,
-                                   "temperatura": atual.get("temperature_2m"), "vento": atual.get("wind_speed_10m"),
-                                   "nuvens": atual.get("cloud_cover"), "cidade": self.cidade[:40]}
-            except Exception as e:  # sem clima: o escritório segue com céu limpo
-                log(evento="clima", resultado="erro", detalhe=f"{type(e).__name__}: {str(e)[:120]}")
-            time.sleep(900)
+            self.acordado.wait(self.ciclo())
+            self.acordado.clear()
+
+    def acordar(self):
+        self.acordado.set()
+
+    def ciclo(self):
+        """Uma volta. Devolve quantos segundos esperar até a próxima."""
+        lugar = self.fonte()
+        chave = (lugar["cidade"], lugar["lat"], lugar["lon"]) if lugar else None
+        if chave != self.consultado:   # lugar novo (ou nenhum): o estado da cidade velha sai já
+            with self.trava:
+                self.estado = None
+        if chave is None:
+            self.consultado = None
+            return self.A_CADA
+        agora = self.relogio()
+        desde = agora - self.ultima if self.ultima is not None else None
+        if chave == self.consultado and desde < self.A_CADA:
+            return self.A_CADA - desde
+        if desde is not None and desde < self.MINIMO:
+            return self.MINIMO - desde
+        self.consultado, self.ultima = chave, agora
+        try:
+            atual = self._consultar(lugar["lat"], lugar["lon"])
+            codigo = int(atual.get("weather_code", 0))
+            with self.trava:
+                self.estado = {"tipo": tipo_do_clima(codigo, atual.get("cloud_cover")), "codigo": codigo,
+                               "temperatura": atual.get("temperature_2m"), "vento": atual.get("wind_speed_10m"),
+                               "nuvens": atual.get("cloud_cover"), "cidade": lugar["cidade"]}
+        except Exception as e:  # sem clima: o escritório segue com céu limpo
+            log(evento="clima", resultado="erro", detalhe=f"{type(e).__name__}: {str(e)[:120]}")
+        return self.A_CADA
+
+    def _consultar(self, lat, lon):
+        q = urllib.parse.urlencode({"latitude": lat, "longitude": lon, "timezone": "auto",
+                                    "current": "weather_code,is_day,temperature_2m,precipitation,cloud_cover,wind_speed_10m"})
+        req = urllib.request.Request("https://api.open-meteo.com/v1/forecast?" + q, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            return json.loads(r.read(200_000)).get("current", {})
 
     def foto(self):
         with self.trava:
             return self.estado
 
 
+class _SemRedirecionar(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None   # o 3xx vira HTTPError: a busca só fala com o host fixo
+
+
+class BuscaCidades:
+    """GET /api/clima/busca: o nome da cidade vira coordenadas pelo geocoding do Open-Meteo, chamado pelo servidor (o
+    CSP do navegador continua só 'self'). Host fixo, sem redirecionamento, 10 s, até 200 KB, e um limite global na
+    memória. O log nunca guarda o que foi buscado."""
+    URL = "https://geocoding-api.open-meteo.com/v1/search"
+    POR_MINUTO, POR_DIA, MAX_BYTES, RESULTADOS = 10, 200, 200_000, 8
+
+    def __init__(self):
+        self.chamadas, self.trava = collections.deque(), threading.Lock()
+
+    def _abrir(self, url):
+        op = urllib.request.build_opener(_SemRedirecionar)
+        with op.open(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=10) as r:
+            return r.read(self.MAX_BYTES + 1)
+
+    def buscar(self, q, agora=None):
+        """(status, corpo) da resposta."""
+        agora = time.time() if agora is None else agora
+        try:
+            q = ajustes.texto(q, 60, "")
+        except ValueError:
+            q = ""
+        if len(q) < 2:
+            return erro(400, "pedido", "Digite de 2 a 60 letras do nome da cidade.")
+        with self.trava:
+            while self.chamadas and agora - self.chamadas[0] >= 86400:
+                self.chamadas.popleft()
+            if len(self.chamadas) >= self.POR_DIA or sum(agora - t < 60 for t in self.chamadas) >= self.POR_MINUTO:
+                return erro(429, "limite", "Muitas buscas; espere um minuto.")
+            self.chamadas.append(agora)
+        try:
+            bruto = self._abrir(self.URL + "?" + urllib.parse.urlencode(
+                {"name": q, "count": self.RESULTADOS, "language": "pt", "format": "json"}))
+            if len(bruto) > self.MAX_BYTES:
+                raise ValueError("grande demais")
+            dados = ajustes.json_estrito(bruto)
+            brutos = dados.get("results", []) if isinstance(dados, dict) else None
+            if not isinstance(brutos, list):
+                raise ValueError("sem a lista")
+        except Exception as x:   # rede, HTTP, redirecionamento, JSON: o corpo de fora não é repassado
+            log(evento="clima_busca", resultado="erro", detalhe=type(x).__name__)
+            return erro(502, "busca", "A busca de cidades não respondeu agora.")
+        resultados = []
+        for r in brutos[:self.RESULTADOS]:
+            try:   # o resultado ruim sai da lista; as coordenadas passam pela mesma validação do POST /api/clima
+                c = ajustes.validar_clima({"cidade": r["name"], "lat": r["latitude"], "lon": r["longitude"]})
+            except (ValueError, KeyError, TypeError):
+                continue
+            resultados.append({"nome": c["cidade"], "regiao": _opcional(r.get("admin1")), "pais": _opcional(r.get("country")),
+                               "lat": c["lat"], "lon": c["lon"]})
+        return 200, {"resultados": resultados}
+
+
+BUSCA = BuscaCidades()   # o limite é global: vale para todas as sessões juntas
+# página Novidades: o changelog da versão instalada, ao lado do código (imagem e instalar.sh), relido só quando muda
+NOVIDADES = Novidades(os.path.join(os.path.dirname(os.path.abspath(__file__)), "CHANGELOG.pt-BR.md"), log)
+
+
+def _opcional(x):
+    """Região ou país da busca: texto limpo numa linha, até 60 caracteres; o que não é texto vira vazio."""
+    return ajustes.limpa_texto(x, 60)[0].replace("\n", " ").strip() if isinstance(x, str) else ""
+
+
 # ---------------------------------------------------------------- times e aparência (arquivo do dono)
 
-ROTULO_OK = re.compile(r"[\w .'&À-ÿ\-]{1,40}")
-HANDLE_OK = re.compile(r"[a-z0-9][a-z0-9\-]{0,40}")
-CORES = {"sky", "indigo", "violet", "rose", "amber", "green", "teal", "graphite"}
-OLHOS = {"happy", "sleepy", "round", "wide", "dots"}
-ACESSORIOS = {"crown", "hat", "headphones", "headset", "flower", "antenna", "cap", "bow", ""}
-ICONES_OK = {"codigo", "megafone", "servidor", "coroa", "sino", "controle", "xicara", "pessoas", "grafico", "pincel", "estrela"}
+# os conjuntos dos times ficam no ajustes.py (uma fonte só, para o times.json e a tela de Configurações)
 
 
 EMPRESA_PADRAO = "Minha empresa"
@@ -1330,6 +1517,9 @@ def modo_serio(marca=None):
 ARQ_PLACAR = os.path.join(DADOS, "placar.json")   # placar semanal do ringue (vida social); só a thread do Social grava
 ID_PLACAR = re.compile(r"[A-Za-z0-9_-]{1,100}")
 ARQ_PLANTA = os.path.join(DADOS, "planta.json")   # modo construção; só o POST /api/planta grava, sob a trava da Planta
+ARQ_PUSH = os.path.join(DADOS, "push.json")   # assinaturas do aviso no celular (avisos.py); gravadas sob a trava dele
+ARQ_VAPID = os.path.join(DADOS, "vapid.json")   # a chave privada VAPID (vapid.py), 0600; nunca sai do servidor
+ARQ_JORNAL = os.path.join(DADOS, "jornal.json")   # jornal da semana (jornal.py); só a leitura grava, no máximo 1 vez por minuto
 
 
 def _numero(x, minimo):
@@ -1399,7 +1589,149 @@ def config_publica():
     # Personalizar > empresa do times.json > padrão; no padrão, a página mostra a etiqueta "exemplo"
     cfg["marca_exemplo"] = cfg["empresa"] == EMPRESA_PADRAO
     cfg["fonte"] = FONTE   # link "Código-fonte" do rodapé (AGPL §13)
+    # Configurações > times.json > padrão, com a origem de cada um para a tela dizer de onde vem o que vale
+    clima_arquivo = cfg["clima"]
+    cfg["clima"], origem = clima_vigente(clima_arquivo)
+    festas = festas_salvas()
+    cfg["festas"] = {"proprias": festas["proprias"], "desligadas": festas["desligadas"]}
+    equipe = equipe_salva()   # substitui inteiros os times e a aparência do times.json (sem misturar listas)
+    if equipe:
+        cfg["times"], cfg["aparencia"] = equipe["times"], equipe["aparencia"]
+    cfg["ajustes"] = {"clima": origem, "clima_arquivo": clima_arquivo is not None, "equipe": "tela" if equipe else "arquivo",
+                      "rev": {"festas": festas["rev"], "equipe": equipe["rev"] if equipe else 0}}
     return cfg
+
+
+# ---------------------------------------------------------------- Configurações: clima e datas (ajustes.py)
+
+ARQ_CLIMA = os.path.join(DADOS, "clima.json")
+ARQ_FESTAS = os.path.join(DADOS, "festas.json")
+ARQ_EQUIPE = os.path.join(DADOS, "equipe.json")
+TRAVA_AJUSTES = threading.Lock()   # as gravações do clima, das datas e da equipe, uma de cada vez
+MSG_REV_FESTAS = "As datas mudaram em outra tela. Recarregue para ver a versão nova."
+MSG_REV_EQUIPE = "Os times mudaram em outra tela. Recarregue para ver a versão nova."
+
+
+def clima_vigente(do_arquivo=None):
+    """(clima que vale, origem): o da tela (dados/clima.json, inclusive "sem clima"), senão o do times.json."""
+    tela = ajustes.ler(ARQ_CLIMA, CLIMA_BYTES, ajustes.validar_arquivo_clima, log, "clima")
+    if tela is not None:
+        return tela["clima"], "tela"
+    if do_arquivo is None:
+        do_arquivo = carregar_times()["clima"]
+    return do_arquivo, "arquivo" if do_arquivo else "nenhum"
+
+
+def festas_salvas():
+    return ajustes.ler(ARQ_FESTAS, FESTAS_BYTES, lambda d: ajustes.validar_festas(d, arquivo=True), log, "festas") \
+        or ajustes.festas_vazias()
+
+
+def equipe_salva():
+    """dados/equipe.json validado, ou None (vale o times.json)."""
+    return ajustes.ler(ARQ_EQUIPE, EQUIPE_BYTES, lambda d: ajustes.validar_equipe(d, arquivo=True), log, "equipe")
+
+
+def config_v():
+    """O "config_v" do /api/estado (modo TV): 12 hex que mudam quando muda a configuração. Só o os.stat (mtime e
+    tamanho) de cada arquivo, sem ler o conteúdo de nenhum; a TV recarrega a página quando o valor muda."""
+    h = hashlib.sha256()
+    for arq in (TIMES, ARQ_MARCA, ARQ_LOGO, ARQ_PLANTA, ARQ_CLIMA, ARQ_FESTAS, ARQ_EQUIPE):
+        try:
+            st = os.stat(arq)
+            h.update(f"{st.st_mtime_ns}:{st.st_size};".encode())
+        except OSError:   # ausente (ou sem acesso): conta como ausente, e criar o arquivo muda o valor
+            h.update(b"-;")
+    return h.hexdigest()[:12]
+
+
+def salvar_equipe(dados, usuario):
+    """POST /api/equipe: {rev, times, aparencia}, ou {rev, limpar: true} para voltar ao times.json, com o rev atual
+    (outro: 409). Renomear um time tira da sala dele a pintura e os móveis da planta (chave time:<nome>): a tela
+    avisa antes, e o editor de construção oferece limpar. Devolve (status, corpo)."""
+    limpar = isinstance(dados, dict) and set(dados) == {"rev", "limpar"}
+    try:
+        if limpar:
+            if dados["limpar"] is not True:
+                raise ValueError('Envie {"rev": n, "limpar": true}.')
+            rev_pedido = ajustes.inteiro(dados["rev"], 0, ajustes.REV_TETO, "Revisão inválida.")
+        else:
+            pedido = ajustes.validar_equipe(dados)
+            rev_pedido = pedido["rev"]
+    except ValueError as x:   # a mensagem é nossa, com a posição, sem repetir o valor
+        return erro(400, "pedido", str(x))
+    with TRAVA_AJUSTES:
+        atual = equipe_salva()
+        rev = atual["rev"] if atual else 0
+        if rev_pedido != rev:
+            return 409, {"erro": "rev", "mensagem": MSG_REV_EQUIPE, "rev": rev}
+        try:
+            if limpar:
+                if os.path.exists(ARQ_EQUIPE):
+                    os.unlink(ARQ_EQUIPE)
+            else:
+                nova = {**pedido, "rev": rev + 1}
+                bruto = ajustes.bytes_da_equipe(nova)
+                if len(bruto) > EQUIPE_BYTES:   # o "v" e o rev novo podem passar do teto: o arquivo nunca sai ilegível
+                    return erro(400, "pedido", "Os times ficaram grandes demais para salvar.")
+                gravar(ARQ_EQUIPE, bruto)
+        except OSError as x:
+            log(evento="equipe", resultado="nao_gravou", detalhe=type(x).__name__)
+            return erro(500, "gravar", "Não deu para salvar os times agora.")
+    if limpar:
+        log(evento="equipe", resultado="limpa", usuario=usuario)
+        return 200, {"rev": 0, "origem": "arquivo"}
+    log(evento="equipe", resultado="salva", usuario=usuario, rev=nova["rev"], times=len(nova["times"]),
+        aparencia=len(nova["aparencia"]))
+    return 200, {"rev": nova["rev"], "origem": "tela"}
+
+
+def salvar_clima(dados, usuario):
+    """POST /api/clima: {"clima": {...}}, {"clima": null} (sem clima pela tela) ou {"limpar": true} (volta ao
+    times.json). Devolve (status, corpo)."""
+    if not isinstance(dados, dict) or set(dados) not in ({"clima"}, {"limpar"}) or dados.get("limpar", True) is not True:
+        return erro(400, "pedido", 'Envie {"clima": {...}}, {"clima": null} ou {"limpar": true}.')
+    try:
+        clima = ajustes.validar_clima(dados["clima"]) if "clima" in dados else None
+    except ValueError as x:   # a mensagem é nossa, com o campo, sem repetir o valor
+        return erro(400, "pedido", str(x))
+    with TRAVA_AJUSTES:
+        try:
+            if "limpar" in dados:
+                if os.path.exists(ARQ_CLIMA):
+                    os.unlink(ARQ_CLIMA)
+            else:
+                gravar(ARQ_CLIMA, ajustes.bytes_do_clima(clima))
+        except OSError as x:
+            log(evento="clima", resultado="nao_gravou", detalhe=type(x).__name__)
+            return erro(500, "gravar", "Não deu para salvar o clima agora.")
+        vigente, origem = clima_vigente()
+    log(evento="clima", resultado="salvo", usuario=usuario, origem=origem)   # sem a cidade nem as coordenadas
+    return 200, {"clima": vigente, "origem": origem}
+
+
+def salvar_festas(dados, usuario):
+    """POST /api/festas: {rev, proprias, desligadas}, com o rev atual (outro: 409). Devolve (status, corpo)."""
+    try:
+        pedido = ajustes.validar_festas(dados)
+    except ValueError as x:
+        return erro(400, "pedido", str(x))
+    with TRAVA_AJUSTES:
+        rev = festas_salvas()["rev"]
+        if pedido["rev"] != rev:
+            return 409, {"erro": "rev", "mensagem": MSG_REV_FESTAS, "rev": rev}
+        nova = {**pedido, "rev": rev + 1}
+        dados = ajustes.bytes_das_festas(nova)
+        if len(dados) > FESTAS_BYTES:   # o "v" e o rev novo podem passar do teto: o arquivo nunca sai ilegível
+            return erro(400, "pedido", "As datas ficaram grandes demais para salvar.")
+        try:
+            gravar(ARQ_FESTAS, dados)
+        except OSError as x:
+            log(evento="festas", resultado="nao_gravou", detalhe=type(x).__name__)
+            return erro(500, "gravar", "Não deu para salvar as datas agora.")
+    log(evento="festas", resultado="salvas", usuario=usuario, rev=nova["rev"], proprias=len(nova["proprias"]),
+        desligadas=len(nova["desligadas"]))
+    return 200, {"rev": nova["rev"], "festas": {"proprias": nova["proprias"], "desligadas": nova["desligadas"]}}
 
 
 def salvar_marca(empresa, cor, expediente=None, serio=None):
@@ -1434,7 +1766,9 @@ def nome_cookie_modo():
 
 
 PUBLICOS = {"entrar.css", "entrar.js", "avatar.js", "fontes/figtree.ttf", "fontes/silkscreen.ttf", "fontes/source-sans-3.woff2",
-            "fontes/doto.woff2", "logo.png"}  # liberados na tela de login
+            "fontes/doto.woff2", "logo.png",  # liberados na tela de login
+            # PWA: o navegador busca o manifesto sem cookie; nenhum deles tem segredo. O sw.js fica na raiz (escopo /)
+            "manifest.webmanifest", "sw.js", "icone-180.png", "icone-192.png", "icone-512.png", "icone-mascara-512.png"}
 
 
 def pagina_login(erro="", primeiro=False):
@@ -1456,6 +1790,99 @@ def pagina_login(erro="", primeiro=False):
                "logo": html.escape(str(cfg.get("logo") or "logo.png"))}   # /logo?v=<hash>, público como a marca
     # uma passada só: um valor que contenha {{...}} não vira outro marcador
     return re.sub(r"\{\{(\w+)\}\}", lambda m: valores.get(m[1], m[0]), modelo).encode()
+
+
+def pagina_aviso(titulo, texto):
+    """A página de erro do Conectar (static/aviso.html), com os textos nossos escapados numa passada só."""
+    with open(os.path.join(ESTATICO, "aviso.html"), encoding="utf-8") as f:
+        modelo = f.read()
+    valores = {"titulo": html.escape(titulo), "texto": html.escape(texto)}
+    return re.sub(r"\{\{(\w+)\}\}", lambda m: valores.get(m[1], m[0]), modelo).encode()
+
+
+SEM_REDE_OAUTH = "Não consegui falar com o agentes.chat. Confira se o servidor (ou o container) alcança https://app.agentes.chat."
+# o "error=" que volta do consentimento: só estes códigos têm texto próprio; o error_description nunca aparece
+ERROS_OAUTH = {
+    "access_denied": "A autorização foi recusada. Se a tela do agentes.chat não deixou autorizar, confira se a conta é da "
+                     "organização e se o plano permite apps externos.",
+    "invalid_scope": "O agentes.chat não aceitou o acesso que o escritório pediu.",
+    "invalid_request": "O agentes.chat recusou o pedido de autorização. Comece de novo.",
+    "unauthorized_client": "O agentes.chat não aceitou este escritório como app. Comece de novo; se repetir, confira "
+                           "ESCRITORIO_BASE.",
+    "server_error": "O agentes.chat teve um problema agora. Tente de novo em alguns minutos.",
+    "temporarily_unavailable": "O agentes.chat está indisponível agora. Tente de novo em alguns minutos.",
+}
+CODIGO_OAUTH_OK = re.compile(r"[a-z_]{1,40}")
+
+
+def aviso_conectar(x):
+    """(título, texto) da falha do /oauth/conectar: o registro do app recusado (400: o endereço de retorno; 429: pausa;
+    outro 4xx: só o código) ou o agentes.chat fora de alcance."""
+    http = x.http if isinstance(x, PermissaoNegada) else None
+    if http == 400:
+        return ("O agentes.chat recusou o endereço", f"O agentes.chat recusou o endereço de retorno {BASE}/oauth/retorno. "
+                "Ele precisa ser o endereço https público deste escritório (ESCRITORIO_BASE).")
+    if http == 429:
+        return "Muitas tentativas", "O agentes.chat pediu uma pausa. Tente de novo em alguns minutos."
+    if http and 400 <= http < 500:
+        return "Não consegui conectar", f"O agentes.chat recusou o registro do app (HTTP {http}). Tente de novo."
+    return "Não consegui conectar", SEM_REDE_OAUTH
+
+
+def aviso_retorno(x):
+    """(título, texto) da falha da troca do código, com textos nossos: nada do que o agentes.chat mandou."""
+    if isinstance(x, EstadoInvalido):
+        return "Retorno vencido", "Esse retorno venceu (vale 10 minutos) ou já foi usado. Comece de novo."
+    if isinstance(x, EscopoRecusado):
+        return "Conexão recusada", str(x)
+    if isinstance(x, PermissaoNegada) and x.http in (400, 401):
+        return ("Autorização não aceita", "O agentes.chat não aceitou a autorização. Se o endereço do escritório mudou, "
+                "ajuste ESCRITORIO_BASE e conecte de novo.")
+    if isinstance(x, PermissaoNegada):
+        return "Não deu para conectar", f"O agentes.chat recusou a troca da autorização (HTTP {x.http}). Tente de novo."
+    if isinstance(x, ValueError):   # a resposta do token fora do formato: as mensagens do tokens() são nossas
+        return "Não deu para conectar", f"Não deu para conectar: {x}."
+    return "Não consegui conectar", SEM_REDE_OAUTH
+
+
+def aviso_erro_oauth(codigo):
+    """(título, texto) do retorno com error=: o código só aparece se for um código de verdade, e sem a descrição."""
+    if codigo in ERROS_OAUTH:
+        return "Conexão recusada", ERROS_OAUTH[codigo]
+    sufixo = f" (código: {codigo})" if CODIGO_OAUTH_OK.fullmatch(codigo) else ""
+    return "Conexão recusada", f"O agentes.chat recusou a conexão{sufixo}. Tente de novo."
+
+
+# ---------------------------------------------------------------- visitantes (as pessoas com o escritório aberto)
+
+VISITANTES_MAX = 50
+VISITANTE_VALIDADE = 45   # s: cada tela pede o /api/estado a cada 10 s
+CORES_VISITANTE = ("#e07a5f", "#3d9be9", "#81b29a", "#f2cc8f", "#b388eb", "#ef6f9a", "#4ecdc4", "#f4a261")
+
+
+class Visitantes:
+    """Quem está com o escritório aberto, tirado do próprio GET /api/estado: o sha256 da sessão e o instante, só na
+    memória (nada vai ao disco nem ao log), até 50 sessões, cada marca por 45 s. Para fora sai só um id anônimo: o
+    HMAC do sha com uma chave sorteada na subida, nos primeiros 8 hex, que não leva de volta à sessão e muda a cada
+    reinício. As abas de um navegador dividem o cookie, então contam como um visitante só."""
+
+    def __init__(self):
+        self.chave = secrets.token_bytes(32)
+        self.visto = {}
+        self.trava = threading.Lock()
+
+    def ver(self, token, agora, marcar=True):
+        """Marca a sessão (fora com ?invisivel=1, que só deixa de renovar: a marca some em até 45 s) e devolve os
+        outros visitantes, sem a própria sessão, em ordem de id. Lotado, sessão nova não entra até alguém sair."""
+        eu = hashlib.sha256(token.encode()).hexdigest() if token else None
+        with self.trava:
+            for k in [k for k, t in self.visto.items() if agora - t >= VISITANTE_VALIDADE]:
+                del self.visto[k]
+            if marcar and eu and (eu in self.visto or len(self.visto) < VISITANTES_MAX):
+                self.visto[eu] = agora
+            outros = [k for k in self.visto if k != eu]
+        ids = sorted(hmac.new(self.chave, k.encode(), "sha256").hexdigest()[:8] for k in outros)
+        return [{"id": i, "cor": CORES_VISITANTE[int(i, 16) % len(CORES_VISITANTE)]} for i in ids]
 
 
 class Pagina(BaseHTTPRequestHandler):
@@ -1592,7 +2019,11 @@ class Pagina(BaseHTTPRequestHandler):
             conversas = conversas_publicas(do_dia(), agora, aceita) if do_dia and carregar_times()["conversas"] in MODOS_CONVERSA else []
             modo = self._modo_resposta() if pode else None   # só o da própria sessão, neste navegador
             estado = {**leitor.foto(), "conversas": conversas, "clima": clima.foto() if clima else None,
-                      "usuario": usuario, "modo_resposta": {"resta_s": modo[0], "teto_s": modo[1]} if modo else None}
+                      "usuario": usuario, "modo_resposta": {"resta_s": modo[0], "teto_s": modo[1]} if modo else None,
+                      "config_v": config_v()}
+            visitantes = getattr(self.server, "visitantes", None)   # ?invisivel=1: a TV e quem desligou "Aparecer"
+            invisivel = urllib.parse.parse_qs(caminho.query).get("invisivel") == ["1"]
+            estado["visitantes"] = visitantes.ver(self._token(), agora, not invisivel) if visitantes else []
             social = getattr(self.server, "social", None)
             if social:
                 try:   # a vida social nunca derruba o /api/estado: na falha, a resposta sai sem a chave
@@ -1608,10 +2039,13 @@ class Pagina(BaseHTTPRequestHandler):
             if self._previa():  # o front mostra a faixa "Prévia de desenvolvimento · dados fixos"
                 cfg["previa"] = True
             cfg["pode_responder"] = self._pode_responder()
+            cfg["base"] = BASE   # o endereço configurado (não é segredo): o link de conectar e o aviso de endereço trocado
             planta = getattr(self.server, "planta", None)
             if planta:   # só aqui, e não no config_publica() que o diretor social chama a cada minuto
                 cfg["planta"] = planta.publica()
             return self._json(200, cfg)
+        if rota == "/api/clima/busca":   # o q não vai ao log; quem limita e limpa é a BuscaCidades
+            return self._json(*BUSCA.buscar(urllib.parse.parse_qs(caminho.query, keep_blank_values=True).get("q", [""])[0]))
         if rota == "/api/social":   # ficha: amizades e rivais de um agente presente, só ids e números
             social = getattr(self.server, "social", None)
             if not social:
@@ -1629,6 +2063,19 @@ class Pagina(BaseHTTPRequestHandler):
                 return self._json(*erro(404, "social_desligado", "A vida social está desligada neste escritório."))
             presentes = {a["id"] for a in self.server.leitor.foto().get("agentes", [])}
             return self._json(200, social.ranking(time.time(), presentes))
+        if rota == "/api/jornal":   # a semana atual e a anterior, só ids de presentes e números (as frases são do navegador)
+            jornal = getattr(self.server, "jornal", None)
+            if not jornal:
+                return self._json(*erro(404, "jornal_desligado", "O jornal está desligado neste escritório."))
+            presentes = {a["id"] for a in self.server.leitor.foto().get("agentes", [])}
+            return self._json(200, jornal.publico(time.time(), presentes))
+        if rota == "/api/novidades":   # do disco, sem chamar o agentes.chat; ausente ou ilegível sai com entradas: []
+            return self._json(200, {"versao": VERSAO, "entradas": NOVIDADES.publico()})
+        if rota in ("/api/push/chave", "/api/avisos"):   # o aviso no celular (avisos.py); o rótulo da tarefa nunca sai
+            avisos = getattr(self.server, "avisos", None)
+            if not avisos:
+                return self._json(*erro(404, "push_desligado", "O aviso no celular está desligado neste escritório."))
+            return self._json(*avisos.chave_publica()) if rota == "/api/push/chave" else self._json(200, avisos.publico())
         if rota == "/api/conversa":   # só o "id" ou o "agente" da query contam: o canal sai do que o servidor viu
             conversas = getattr(self.server, "conversas", None)
             if not conversas or carregar_times()["conversas"] not in MODOS_CONVERSA:
@@ -1642,22 +2089,30 @@ class Pagina(BaseHTTPRequestHandler):
                 return self._envia(302, b"", extra={"Location": self.server.cred.url_autorizacao()})
             except Exception as e:
                 log(evento="oauth", resultado="erro", detalhe=str(e)[:200])
-                return self._envia(502, "Não consegui falar com o login do agentes.chat.".encode())
+                return self._envia(502, pagina_aviso(*aviso_conectar(e)), "text/html; charset=utf-8")
         if rota == "/oauth/retorno":
             q = urllib.parse.parse_qs(caminho.query)
             if "error" in q:
-                return self._envia(400, "O agentes.chat recusou a conexão. Tente de novo em /oauth/conectar.".encode())
+                codigo = q["error"][0]
+                log(evento="oauth", resultado="recusado", codigo=codigo if CODIGO_OAUTH_OK.fullmatch(codigo) else "outro")
+                return self._envia(400, pagina_aviso(*aviso_erro_oauth(codigo)), "text/html; charset=utf-8")
             try:
                 self.server.cred.concluir(q.get("code", [""])[0], q.get("state", [""])[0])
             except Exception as e:
                 log(evento="oauth", resultado="erro", detalhe=str(e)[:200])
-                return self._envia(400, f"Não deu para conectar: {str(e)[:160]}".encode())
+                return self._envia(400, pagina_aviso(*aviso_retorno(e)), "text/html; charset=utf-8")
             if hasattr(self.server.leitor, "zerar_memoria"):   # outra conta: a lista do dia da anterior não fica à vista
                 self.server.leitor.zerar_memoria()
             if getattr(self.server, "conversas", None):   # nem as conversas que ela leu (cache de 60 s)
                 self.server.conversas.esquecer()
             if getattr(self.server, "social", None):   # nem as amizades da vida social
                 self.server.social.zerar()
+            if getattr(self.server, "jornal", None):   # nem os números da semana
+                self.server.jornal.zerar()
+            if getattr(self.server, "avisos", None):   # nem o último aviso (as assinaturas são dos aparelhos e ficam)
+                self.server.avisos.zerar()
+            if hasattr(self.server.leitor, "acordar"):   # a primeira leitura com a conexão nova sai agora
+                self.server.leitor.acordar()
             log(evento="oauth", resultado="conectado", usuario=usuario)
             return self._envia(302, b"", extra={"Location": "/"})
         return self._estatico("index.html" if rota in ("/", "") else nome)
@@ -1665,8 +2120,11 @@ class Pagina(BaseHTTPRequestHandler):
     def _estatico(self, nome):
         if nome not in ARQUIVOS:
             return self._envia(404, b"")
-        with open(os.path.join(ESTATICO, nome), "rb") as f:
-            corpo = f.read()
+        try:
+            with open(os.path.join(ESTATICO, nome), "rb") as f:
+                corpo = f.read()
+        except FileNotFoundError:   # da lista, mas ainda fora da pasta (um script novo que chega em outro land)
+            return self._envia(404, b"")
         cache = "public, max-age=3600" if nome.endswith((".png", ".ttf", ".woff2")) else "no-cache"
         return self._envia(200, corpo, ARQUIVOS[nome], cache=cache)
 
@@ -1778,6 +2236,95 @@ class Pagina(BaseHTTPRequestHandler):
             return self._json(*erro(400, "pedido", "Planta inválida."))
         return self._json(*planta.salvar(pedido, usuario))
 
+    def _post_ajustes(self, rota):
+        """Configurações (clima, datas e times): Origin obrigatório e igual à BASE (sem a volta para o Referer), sessão (ou a
+        prévia), JSON exato com teto por rota, sem NaN nem Infinity, validação tudo ou nada e gravação atômica sob trava.
+        Nada aqui chama o agentes.chat."""
+        if self.headers.get("Origin") != BASE:
+            log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        usuario = self._usuario()
+        if not usuario:
+            return self._json(401, {"erro": "entre de novo"})
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._json(*erro(415, "formato", "Envie JSON (application/json)."))
+        teto = {"/api/clima": CLIMA_BYTES, "/api/festas": FESTAS_BYTES, "/api/equipe": EQUIPE_BYTES}[rota]
+        try:
+            dados = ajustes.json_estrito(self._corpo(teto))
+        except (ValueError, RecursionError):   # tamanho, UTF-8, JSON inválido, NaN ou Infinity
+            return self._json(*erro(400, "pedido", "Pedido inválido."))
+        if rota == "/api/festas":
+            return self._json(*salvar_festas(dados, usuario))
+        if rota == "/api/equipe":
+            return self._json(*salvar_equipe(dados, usuario))
+        st, corpo = salvar_clima(dados, usuario)
+        clima = getattr(self.server, "clima", None)
+        if st == 200 and clima:   # o clima novo vale sem reiniciar
+            clima.acordar()
+        return self._json(st, corpo)
+
+    def _post_push(self, rota):
+        """Aviso no celular: o molde do /api/planta (Origin igual à BASE, sem a volta para o Referer, sessão, JSON exato de
+        até 2 KB, sem NaN nem Infinity). O endpoint nunca vai ao log nem volta na resposta."""
+        if self.headers.get("Origin") != BASE:
+            log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if not self._usuario():
+            return self._json(401, {"erro": "entre de novo"})
+        avisos = getattr(self.server, "avisos", None)
+        if not avisos:
+            return self._json(*erro(404, "push_desligado", "O aviso no celular está desligado neste escritório."))
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._json(*erro(415, "formato", "Envie JSON (application/json)."))
+        try:
+            dados = ajustes.json_estrito(self._corpo(PUSH_CORPO))
+            if rota == "/api/push/sair":
+                return self._json(*avisos.sair(validar_saida(dados)))
+            endpoint = validar_assinatura(dados)
+        except EndpointInvalido:
+            return self._json(*erro(400, "endpoint_invalido", "Esse serviço de aviso não é aceito."))
+        except (ValueError, TypeError, RecursionError):   # tamanho, UTF-8, JSON, NaN ou formato; sem ecoar nada
+            return self._json(*erro(400, "pedido", "Pedido inválido."))
+        return self._json(*avisos.assinar(endpoint, time.time()))
+
+    def _post_sair_todos(self, rota):
+        """"Sair de todos os aparelhos": Origin obrigatório e igual à BASE (sem a volta para o Referer), sessão, JSON
+        {"senha"} de até 1 KB. A senha conta no balde do login (8 erros em 15 min travam também o login). Zera todas as
+        sessões e modos resposta, desliga o aviso no celular de todos os aparelhos e apaga os dois cookies deste
+        navegador."""
+        acesso, token = self.server.acesso, self._token()
+        if self.headers.get("Origin") != BASE:
+            log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if self._previa():   # a prévia não tem sessão de verdade
+            return self._json(*erro(403, "previa", "Na prévia não há sessões para encerrar."))
+        usuario = acesso.sessao(token)
+        if not usuario:
+            return self._json(401, {"erro": "entre de novo"})
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+            return self._json(*erro(415, "formato", "Envie JSON (application/json)."))
+        try:
+            dados = ajustes.json_estrito(self._corpo(1024))
+        except (ValueError, RecursionError):
+            dados = None
+        senha = dados.get("senha") if isinstance(dados, dict) and set(dados) == {"senha"} else None
+        if not isinstance(senha, str) or not 0 < len(senha) <= 256:
+            return self._json(*erro(400, "pedido", "Pedido inválido."))
+        try:
+            n = acesso.sair_todos(token, senha)
+        except PermissionError as x:
+            log(evento="acesso", resultado="sair_todos_recusado", usuario=usuario)
+            if isinstance(x, TentativasDemais):
+                return self._json(*erro(429, "tentativas_demais", "Tentativas demais; espere alguns minutos."))
+            return self._json(*erro(403, "senha_incorreta", "Senha incorreta."))
+        except NaoGravou as x:
+            log(evento="acesso", resultado="sair_todos_nao_gravou", detalhe=str(x))
+            return self._json(*erro(500, "gravar", "Não deu para encerrar as sessões agora."))
+        log(evento="acesso", resultado="sair_todos", usuario=usuario, sessoes=n)
+        if getattr(self.server, "avisos", None):   # um aparelho perdido também para de receber os avisos
+            self.server.avisos.limpar()
+        return self._json(200, {"ok": True}, {"Set-Cookie": [self._cookie("", 0), self._cookie_modo("")]})
+
     def do_POST(self):
         # o corpo (até 128 KB) é lido antes de qualquer resposta: respondendo com ele ainda por ler, o sistema fecha a
         # conexão com reset e o cliente que ainda está mandando perde a resposta (a recusa virava "Sem conexão"). O teto
@@ -1792,8 +2339,17 @@ class Pagina(BaseHTTPRequestHandler):
             return self._post_social(rota)
         if rota == "/api/planta":
             return self._post_planta(rota)
+        if rota in ("/api/clima", "/api/festas", "/api/equipe"):
+            return self._post_ajustes(rota)
+        if rota == "/api/sair-todos":
+            return self._post_sair_todos(rota)
+        if rota in ("/api/push/assinar", "/api/push/sair"):
+            return self._post_push(rota)
         if not self._mesma_origem():
             log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            if rota in ("/entrar", "/primeiro-acesso"):   # aberto por outro endereço: diz qual é o certo (o Origin não volta)
+                return self._envia(403, pagina_login(f"Abra pelo endereço configurado: {BASE}",
+                                                     primeiro=acesso.precisa_configurar()), "text/html; charset=utf-8")
             return self._envia(403, "Origem não permitida.".encode())
         if rota in ("/entrar", "/primeiro-acesso"):
             try:
@@ -1849,14 +2405,39 @@ class Servidor(ThreadingHTTPServer):
     request_queue_size = 64  # fila do listen(): com o padrão (5), vários navegadores carregando juntos levavam conexão recusada
 
 
+def erro_rede(base, bind, porta, base_definida):
+    """Por que o serviço não sobe com esse endereço, bind e porta (ou None). A BASE é só origem, porque o Origin dos
+    POST é comparado com ela letra por letra: esquema e host em minúsculas, porta só fora da padrão, sem caminho, query,
+    fragmento nem barra no fim."""
+    p = urllib.parse.urlsplit(base)
+    try:
+        porta_base = p.port
+    except ValueError:   # porta que não é número ou passa de 65535
+        porta_base = -1
+    origem = f"{p.scheme}://{p.hostname}" + (f":{porta_base}" if porta_base is not None else "")
+    if p.scheme not in ("http", "https") or not p.hostname or base != origem or porta_base == -1 \
+            or (p.scheme, porta_base) in (("http", 80), ("https", 443)):
+        return ("ESCRITORIO_BASE precisa ser só a origem, como https://escritorio.exemplo.com: esquema e host em "
+                "minúsculas, porta só se não for a padrão, sem caminho e sem barra no fim")
+    if p.scheme == "http" and p.hostname != "127.0.0.1":
+        return "ESCRITORIO_BASE precisa ser https (ou http://127.0.0.1 para teste local)"
+    if bind not in ("127.0.0.1", "0.0.0.0"):
+        return "ESCRITORIO_BIND precisa ser 127.0.0.1 (o padrão) ou 0.0.0.0 (só em container)"
+    if bind == "0.0.0.0":   # a porta é a do container, atrás do proxy: a regra da porta baixa não vale
+        return None if base_definida else "com ESCRITORIO_BIND=0.0.0.0, defina ESCRITORIO_BASE com o endereço https público"
+    if p.scheme == "https" and not 1 <= porta < 1024:
+        return ("com https, ESCRITORIO_PORTA precisa ser menor que 1024 (porta privilegiada): numa porta alta, "
+                "qualquer usuário da máquina pode ocupá-la quando o serviço reinicia")
+    return None
+
+
 def main():
-    if BIND not in ("127.0.0.1", "0.0.0.0"):
-        sys.exit("ESCRITORIO_BIND precisa ser 127.0.0.1 ou 0.0.0.0")
-    if BASE.startswith("http://") and not BASE.startswith("http://127.0.0.1"):
-        sys.exit("ESCRITORIO_BASE precisa ser https (ou http://127.0.0.1 para teste local)")
-    if BASE.startswith("https://") and not 1 <= PORTA < 1024:
-        sys.exit("com https, ESCRITORIO_PORTA precisa ser menor que 1024 (porta privilegiada): numa porta alta, "
-                 "qualquer usuário da máquina pode ocupá-la quando o serviço reinicia")
+    motivo = erro_rede(BASE, BIND, PORTA, "ESCRITORIO_BASE" in os.environ)
+    if motivo:
+        sys.exit(motivo)
+    # o docker stop (e o systemctl stop) mandam SIGTERM; como PID 1 num container, o Python o ignoraria até o SIGKILL.
+    # Toda gravação é atômica, então sair na hora não deixa arquivo pela metade
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", ORG):
         sys.exit("defina AGENTES_ORG com o id da sua organização no agentes.chat "
                  "(o que vem depois de /org/ no endereço do app)")
@@ -1866,21 +2447,32 @@ def main():
         sys.exit(str(x))
     cred = Credenciais(ARQ_TOKEN)
     leitor = Leitor(cred)
+    clima = Clima(lambda: clima_vigente()[0])   # nasce sempre: a cidade pode chegar pela tela depois
+    # jornal da semana: só ids e números, gravado de forma atômica; o clima do meio-dia sai do mesmo Clima da página
+    leitor.jornal = Jornal(log, FUSO, lambda dados: gravar(ARQ_JORNAL, dados), ler_jornal(),
+                           lambda: (clima.foto() or {}).get("tipo"))
+    leitor.avisos = criar_avisos()   # aviso no celular: a thread dele fala com os serviços de push, nunca com o agentes.chat
+    if leitor.avisos:
+        leitor.avisos.start()
     leitor.start()
-    srv = Servidor((BIND, PORTA), Pagina)  # no Docker, a publicação do host fica limitada a 127.0.0.1
+    srv = Servidor((BIND, PORTA), Pagina)  # 127.0.0.1: a Tailscale (serve) publica só na rede privada
     srv.cred, srv.leitor, srv.acesso = cred, leitor, contas
     srv.conversas = Conversas(leitor)
     srv.respostas = Respostas(leitor, srv.conversas)
+    srv.jornal, srv.avisos = leitor.jornal, leitor.avisos
     # vida social: na memória, sem rede; só o placar semanal vai para o disco, pelo gravar() atômico
-    srv.social = Social(leitor, config_publica, log, FUSO, guardar=lambda dados: gravar(ARQ_PLACAR, dados), placar=ler_placar())
+    srv.social = Social(leitor, config_publica, log, FUSO, guardar=lambda dados: gravar(ARQ_PLACAR, dados), placar=ler_placar(),
+                        contar_jornal=srv.jornal.contar)
     srv.social.start()
     srv.planta = Planta(ARQ_PLANTA, log, lambda dados: gravar(ARQ_PLANTA, dados))   # planta ilegível sobe vazia, com 1 log
+    srv.visitantes = Visitantes()
     if contas.precisa_configurar():
-        log(evento="acesso", resultado="aguardando_primeiro_usuario", ver_codigo="sudo escritorio-codigo")
-    cl = carregar_times().get("clima")
-    if cl:
-        srv.clima = Clima(cl["lat"], cl["lon"], cl["cidade"])
-        srv.clima.start()
+        ver = "docker exec -it <container> python3 -I -B escritorio.py codigo" if BIND == "0.0.0.0" else "sudo escritorio-codigo"
+        log(evento="acesso", resultado="aguardando_primeiro_usuario", ver_codigo=ver)   # o código em si nunca vai ao log
+    srv.clima = clima
+    srv.clima.start()
+    if BIND == "0.0.0.0":
+        log(evento="inicio", aviso="use só em container, atrás de um proxy HTTPS")
     log(evento="inicio", versao=VERSAO, onde=f"{BIND}:{PORTA}", base=BASE)
     srv.serve_forever()
 

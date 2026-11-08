@@ -1,8 +1,10 @@
 """Modo construção: planta.py (validação, leitura e gravação) e a rota POST /api/planta.
 Uso: python -B -m unittest test_escritorio test_planta
 """
+import atexit
 import json
 import os
+import shutil
 import socket
 import tempfile
 import threading
@@ -21,6 +23,10 @@ os.environ.setdefault("AGENTES_ORG", "00000000-0000-4000-8000-000000000000")  # 
 import escritorio as e  # noqa: E402
 import planta  # noqa: E402
 from acesso import Acesso, gravar  # noqa: E402
+
+# até o fim do processo, e não no tearDownModule: no discover, o escritorio pode ter sido importado com esta pasta, e os
+# módulos de teste seguintes ainda gravam nela
+atexit.register(shutil.rmtree, PASTA, ignore_errors=True)
 
 OK = {"rev": 0, "salas": {"lounge": {"parede": 2, "piso": 5}, "time:Dev": {"piso": 3}, "time:Café & Cia": {"parede": 6}},
       "moveis": {"lounge|sofa_cinza|0": {"x": 120, "y": 70, "e": True}, "time:Dev|planta_alta|1": {"fora": True},
@@ -121,6 +127,7 @@ class Validacao(unittest.TestCase):
 class Leitura(unittest.TestCase):
     def setUp(self):
         self.pasta = tempfile.mkdtemp(prefix="planta-ler-")
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
         self.arq = os.path.join(self.pasta, "planta.json")
         self.logs = Logs()
 
@@ -199,10 +206,12 @@ class Rota(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+        shutil.rmtree(cls.dados, ignore_errors=True)
 
     def setUp(self):
         self.antes, e.BASE = e.BASE, self.base
         self.arq = os.path.join(tempfile.mkdtemp(prefix="planta-"), "planta.json")
+        self.addCleanup(shutil.rmtree, os.path.dirname(self.arq), ignore_errors=True)
         self.logs, self.falhar, self.espera = Logs(), False, 0
 
         def guardar(dados):

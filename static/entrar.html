@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Entrar · {{empresa}}</title>
   <link rel="icon" href="{{logo}}">
-  <link rel="stylesheet" href="entrar.css?v=14">
+  <link rel="stylesheet" href="entrar.css?v=16">
 </head>
 <body>
   <main class="tela">
@@ -38,7 +38,7 @@
           <input id="codigo" name="codigo" autocomplete="one-time-code" inputmode="text">
           <details class="onde">
             <summary>Onde encontro o código?</summary>
-            <p>Com quem instalou o escritório: o código aparece no fim da instalação. Para ver de novo, quem administra o servidor roda <code>sudo escritorio-codigo</code>.</p>
+            <p>Com quem instalou o escritório: o código aparece no fim da instalação. Para ver de novo, quem administra o servidor roda <code>sudo escritorio-codigo</code> ou, no Docker, <code>escritorio.py codigo</code> dentro do container (o README mostra o comando inteiro).</p>
           </details>
         </div>
         <p class="erro" role="alert" {{oculto_erro}}><span class="erro-ic" aria-hidden="true">!</span><span>{{erro}}</span></p>
@@ -58,7 +58,7 @@
           </div>
         </div>
         <button id="enviar" class="enviar" type="submit">Entrar</button>
-        <p class="rodape suave">Acesso só pela sua rede Tailscale.</p>
+        <p class="rodape suave">Só entra quem tem usuário e senha deste escritório.</p>
       </form>
       <footer class="parceria">
         <p>Uma parceria <a href="https://agentes.chat" target="_blank" rel="noopener noreferrer" aria-label="agentes.chat (abre em nova aba)">agentes.chat</a>
@@ -67,7 +67,7 @@
       </footer>
     </section>
   </main>
-  <script src="avatar.js?v=14"></script>
-  <script src="entrar.js?v=14"></script>
+  <script src="avatar.js?v=16"></script>
+  <script src="entrar.js?v=16"></script>
 </body>
 </html>
