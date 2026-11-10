@@ -9,7 +9,7 @@ on:
       - .github/upstream-release
       - .github/workflows/sync-upstream.yml
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
