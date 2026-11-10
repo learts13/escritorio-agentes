@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Visita ao escritório</title>
+  <link rel="stylesheet" href="/visita.css?v=4">
+</head>
+<body>
+  <main class="layout">
+    <section class="ambiente" aria-labelledby="titulo">
+      <p class="marca">ESCRITÓRIO DOS AGENTES</p>
+      <h1 id="titulo">Visita ao escritório</h1>
+      <p>Veja o ambiente e encontre a sala de reunião.</p>
+      <canvas id="cena" width="640" height="360" role="img" aria-label="Mapa do escritório"></canvas>
+      <p id="mapa-estado" role="status">Carregando o mapa…</p>
+      <button id="ver-sala" type="button" disabled>Ver sala de reunião</button>
+      <button id="ver-escritorio" type="button" disabled>Ver escritório</button>
+    </section>
+    <section class="conversa" aria-labelledby="titulo-conversa">
+      <h2 id="titulo-conversa">Conversa</h2>
+      <p id="estado" role="status">Conectando…</p>
+      <p id="aviso-agente" class="aviso" hidden></p>
+      <p id="mensagens-vazio" class="nota" hidden>Ainda não há mensagens.</p>
+      <ol id="mensagens" aria-label="Mensagens" aria-live="polite"></ol>
+      <form id="formulario">
+        <label for="texto">Sua mensagem</label>
+        <textarea id="texto" maxlength="1000" rows="3" aria-describedby="caracteres-restantes" required disabled></textarea>
+        <p id="caracteres-restantes" class="nota contador">1000 caracteres restantes</p>
+        <button type="submit" disabled>Enviar</button>
+      </form>
+      <p class="nota">As mensagens ficam temporariamente na memória do serviço. Ao sair, esta tela é apagada.</p>
+      <button id="sair" class="secundario" type="button">Sair da sala</button>
+    </section>
+  </main>
+  <script src="/mapa.js?v=4"></script>
+  <script src="/visita.js?v=4"></script>
+</body>
+</html>

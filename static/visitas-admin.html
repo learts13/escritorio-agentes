@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Convidar para o escritório</title>
+  <link rel="stylesheet" href="/visita.css?v=2">
+</head>
+<body>
+  <main class="layout">
+    <section class="ambiente">
+      <p class="marca">ESCRITÓRIO DOS AGENTES</p>
+      <h1>Convide para uma conversa</h1>
+      <p>Crie um link para a sala de reunião. Ele vale por uma hora e pode ser usado por quem o receber.</p>
+      <p><a class="voltar" href="/">Voltar ao escritório</a></p>
+    </section>
+    <section class="conversa">
+      <h2>Sala de reunião</h2>
+      <p>Compartilhe o link apenas com quem você deseja receber. As mensagens ficam temporariamente na memória do aplicativo.</p>
+      <label for="agente">Agente na sala (opcional)</label>
+      <select id="agente"><option value="">Só pessoas da equipe</option></select>
+      <p class="nota">Com um agente na sala, as mensagens vão para ele no agentes.chat, que guarda a conversa. O visitante é avisado ao entrar. <a class="voltar" href="/recepcionista.html">Configurar o recepcionista</a></p>
+      <button id="criar" type="button">Criar convite</button>
+      <p id="estado" role="status"></p>
+      <form id="form-senha" hidden>
+        <label for="senha">Senha do escritório</label>
+        <input id="senha" type="password" autocomplete="current-password" maxlength="256">
+        <button id="senha-confirmar" type="submit">Confirmar e criar convite</button>
+        <button id="senha-cancelar" class="secundario" type="button">Cancelar</button>
+      </form>
+      <label for="link">Link do convite</label>
+      <textarea id="link" rows="3" readonly></textarea>
+      <button id="copiar" type="button" disabled>Copiar link</button>
+      <button id="entrar" type="button" disabled>Entrar na sala</button>
+      <button id="revogar" class="secundario" type="button" disabled>Encerrar convite e sala</button>
+      <p class="nota">Ao fechar esta página, o convite continua válido até expirar. A equipe precisa entrar na sala para receber mensagens. Configure o proxy sem registrar as requisições de visita antes de publicar.</p>
+    </section>
+  </main>
+  <script src="/visitas-admin.js?v=2"></script>
+</body>
+</html>

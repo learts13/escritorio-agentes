@@ -1195,7 +1195,8 @@ function montarExterior(atlas, obj0, W, H, p, marca, portaY) {
   const r = rng(marca ^ 11), ext = { carros: [], postes: [], ruaY: p.y + p.h + 84, ruaAlt: 44 };
   const tem = n => !!sprite(atlas, n), alto = n => sprite(atlas, n)[3], larg = n => sprite(atlas, n)[2];
   // planta e árvore saem espelhadas metade das vezes (pixel art não escala sem borrar: a variação vem do espelho e do deslocamento)
-  const obj = (n, x, y) => { const o = obj0(n, x, y); if (o && /^(arvore|arbusto|palmeira|planta)/.test(n) && r() < 0.5) o.espelho = true; return o; };
+  // fora: árvores e plantas daqui balançam com o vento do clima (efeitos.js)
+  const obj = (n, x, y) => { const o = obj0(n, x, y); if (o && /^(arvore|arbusto|palmeira|planta)/.test(n)) { o.fora = true; if (r() < 0.5) o.espelho = true; } return o; };
   // entrada lateral: vaso ao lado da porta; no gramado, à direita do caminho de pedra e perto da rua, a placa de loja com o
   // expediente (aberto/fechado, desenhada no efeitos.js) e, depois dela, o bicicletário. A placa vem antes de tudo do gramado
   // (os outros desviam dela) e fica fora da rota de quem sai: pelo caminho até a calçada e de lá para a esquerda (vida.js)

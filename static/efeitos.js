@@ -154,9 +154,11 @@ const Efeitos = (() => {
     if (pc) { peca(c, o, pc[0], pc[1]); return true; }
     if (!BALANCA.test(n) || !t) return false;
     const s = tam(n); if (!s) return false;
-    // planta balançando de leve: só a copa anda 1 px para os lados; o vaso (ou o tronco) fica
+    // planta balançando de leve: só a copa anda 1 px para os lados; o vaso (ou o tronco) fica.
+    // Lá fora (o.fora), o vento do clima comanda: deita a copa e balança mais nas rajadas
     const forte = o.agita && performance.now() - o.agita < 1400;   // clicada (brincar.js): balança mais e mais rápido
-    const d = Math.round(Math.sin(t / (forte ? 110 : 1500) + o.x * 0.37) * (forte ? 2 : 0.8)); if (!d) return false;
+    const vento = !forte && o.fora && window.Clima && Clima.balanco ? Clima.balanco(o.x * 0.37) * (o.espelho ? -1 : 1) : null;   // espelhada: o lado inverte
+    const d = Math.round(vento ?? Math.sin(t / (forte ? 110 : 1500) + o.x * 0.37) * (forte ? 2 : 0.8)); if (!d) return false;
     const corte = Math.round(s[3] * (/^planta/.test(n) ? 0.5 : 0.6));
     c.drawImage(A.img, s[0], s[1], s[2], corte, o.x + d, o.y, s[2], corte);
     c.drawImage(A.img, s[0], s[1] + corte, s[2], s[3] - corte, o.x, o.y + corte, s[2], s[3] - corte);

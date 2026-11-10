@@ -7,7 +7,7 @@ RUN groupadd --system --gid 10001 escritorio \
  && mkdir -m 0700 /dados && chown escritorio:escritorio /dados
 
 WORKDIR /app
-COPY escritorio.py acesso.py social.py planta.py ajustes.py jornal.py avisos.py vapid.py novidades.py ./
+COPY escritorio.py acesso.py social.py planta.py ajustes.py jornal.py avisos.py vapid.py novidades.py visitas_sala.py ./
 COPY CHANGELOG.pt-BR.md ./
 COPY static/ static/
 

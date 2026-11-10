@@ -113,6 +113,26 @@ def bytes_do_clima(clima):
     return json.dumps({"v": 1, "clima": clima}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
+# ---------------------------------------------------------------- recepcionista da sala de visitas
+
+UUID_CANAL = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+def validar_arquivo_recepcao(d):
+    """O recepcao.json: {"v": 1, "anfitriao": handle, "canal": uuid}. Devolve {"anfitriao", "canal"}."""
+    if not isinstance(d, dict) or set(d) != {"v", "anfitriao", "canal"} or type(d["v"]) is not int or d["v"] != 1:
+        raise ValueError("formato")
+    if not isinstance(d["anfitriao"], str) or not HANDLE_OK.fullmatch(d["anfitriao"]):
+        raise ValueError("anfitrião")
+    if not isinstance(d["canal"], str) or not UUID_CANAL.fullmatch(d["canal"]):
+        raise ValueError("canal")
+    return {"anfitriao": d["anfitriao"], "canal": d["canal"]}
+
+
+def bytes_da_recepcao(r):
+    return json.dumps({"v": 1, "anfitriao": r["anfitriao"], "canal": r["canal"]}, separators=(",", ":")).encode("utf-8")
+
+
 # ---------------------------------------------------------------- datas comemorativas
 
 def festas_vazias(rev=0):

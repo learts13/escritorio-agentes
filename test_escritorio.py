@@ -466,6 +466,32 @@ class Http(unittest.TestCase):
         self.assertEqual(self.req("/entrar")[0], 200)
         self.assertEqual(self.req("/logo.png")[0], 200)
 
+    def test_visitas_isoladas_de_sessao_administrativa(self):
+        def post(rota, dados, cookie=None, origem=None):
+            cab = {"Origin": self.base if origem is None else origem, "Content-Type": "application/json"}
+            cab.update(cookie or {})
+            st, corpo, _ = self.req(rota, cab, json.dumps(dados).encode())
+            return st, json.loads(corpo)
+
+        criar = "/api/visitas/criar"
+        self.assertEqual(self.req("/visita.html")[0], 200)
+        self.assertEqual(self.req("/visita.js")[0], 200)
+        self.assertEqual(self.req("/visitas-admin.html")[0], 302)
+        self.assertEqual(post(criar, {})[0], 401)
+        dono = self.entrar()
+        self.assertEqual(post(criar, {}, dono, "https://outro.example")[0], 403)
+        convite = post(criar, {}, dono)[1]["convite"]
+        outro = post(criar, {}, dono)[1]["convite"]
+        visitante = post("/api/visitas/entrar", {"convite": convite})[1]["sessao"]
+        equipe = post("/api/visitas/entrar", {"convite": convite})[1]["sessao"]
+        isolado = post("/api/visitas/entrar", {"convite": outro})[1]["sessao"]
+        self.assertEqual(self.req("/api/estado")[0], 401)
+        self.assertEqual(post("/api/visitas/enviar", {"sessao": visitante, "texto": "olá"})[0], 200)
+        self.assertEqual(post("/api/visitas/receber", {"sessao": equipe})[1]["mensagens"], ["olá"])
+        self.assertEqual(post("/api/visitas/receber", {"sessao": isolado})[1]["mensagens"], [])
+        self.assertTrue(post("/api/visitas/revogar", {"convite": convite}, dono)[1]["ok"])
+        self.assertEqual(post("/api/visitas/receber", {"sessao": visitante})[0], 403)
+
     def test_estado_com_rotulo_cortado_no_meio_do_emoji_responde_200(self):
         antes = self.srv.leitor
 
@@ -809,7 +835,8 @@ class Estaticos(unittest.TestCase):
         # todo <script src>, <link href> e <img src> local das páginas tem que estar em ARQUIVOS e existir no disco;
         # o que a tela de login carrega tem que ser público (sem sessão, o resto vira redirecionamento para /entrar)
         ref = re.compile(r"<(?:script|link|img)\b[^>]*?\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']", re.I)
-        for pagina, publico in (("index.html", False), ("entrar.html", True), ("construir.html", False), ("aviso.html", True)):
+        for pagina, publico in (("index.html", False), ("entrar.html", True), ("construir.html", False), ("aviso.html", True),
+                                ("visita.html", True), ("mundo.html", True), ("recepcionista.html", False), ("visitas-admin.html", False)):
             with open(os.path.join(e.ESTATICO, pagina), encoding="utf-8") as f:
                 html = f.read()
             if pagina == "entrar.html":
@@ -1196,6 +1223,26 @@ class Orcamento(unittest.TestCase):
         r = subprocess.run([sys.executable, "-c", cod], cwd=os.path.dirname(os.path.abspath(e.__file__)),
                            env=amb, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.stdout.strip(), "30", r.stderr)
+
+    def test_variaveis_de_visita_toleram_grafia(self):
+        """x-real-ip é o mesmo cabeçalho (antes derrubava a subida) e TELA=true liga (antes era ignorado sem aviso)."""
+        cod = "import escritorio as e; print(e.CABECALHO_VISITAS, e.TELA_VISITAS)"
+        pasta = os.path.dirname(os.path.abspath(e.__file__))
+        for cab, tela, esperado in (("x-real-ip", "true", "X-Real-IP True"), (" cf-connecting-ip ", "Sim", "CF-Connecting-IP True"),
+                                    ("X-Real-IP", "", "X-Real-IP False"), ("X-Real-IP", "0", "X-Real-IP False")):
+            amb = {**os.environ, "ESCRITORIO_VISITAS_CABECALHO": cab, "ESCRITORIO_VISITAS_TELA": tela}
+            r = subprocess.run([sys.executable, "-c", cod], cwd=pasta, env=amb, capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.stdout.strip(), esperado, r.stderr)
+
+    def test_tela_com_valor_desconhecido_nao_sobe(self):
+        antes = e.TELA_VISITAS_BRUTA
+        try:
+            e.TELA_VISITAS_BRUTA = "talvez"
+            with self.assertRaises(SystemExit) as c:
+                e.main()
+            self.assertIn("ESCRITORIO_VISITAS_TELA", str(c.exception.code))
+        finally:
+            e.TELA_VISITAS_BRUTA = antes
 
     def test_esperas(self):
         self.assertEqual(e.espera_429("120", 1), 120)
@@ -2758,7 +2805,7 @@ class Docker(unittest.TestCase):
                 pendentes += [n for n in nomes if os.path.isfile(os.path.join(raiz, n + ".py"))]
         esperados = {n + ".py" for n in locais}
         self.assertEqual(esperados, {"escritorio.py", "acesso.py", "social.py", "planta.py", "ajustes.py", "jornal.py",
-                                     "avisos.py", "vapid.py", "novidades.py"})
+                                 "avisos.py", "vapid.py", "novidades.py", "visitas_sala.py"})
         self.assertLessEqual(esperados, copiados)
         self.assertLessEqual(esperados, liberados)
         with open(os.path.join(raiz, "instalar.sh"), encoding="utf-8") as f:
@@ -3325,6 +3372,16 @@ class Previa(unittest.TestCase):
         for agente in ("a1", "a2"):   # a1 tem ?m= (thread), a2 não (canal)
             r = ler(f"/api/conversa?id={itens[agente]}")   # erro na leitura (o TypeError de antes) vira HTTP 502
             self.assertEqual({m["autor"] for m in r["mensagens"]}, {"pessoa", "agente"}, agente)
+
+    def test_previa_com_clima_do_mundo(self):
+        # sem Open-Meteo: um tempo de exemplo fixo nas 28 cidades, com todos os tipos, para ver o mapa sem rede
+        base = self.subir(os.path.join("ferramentas", "previa.exemplo.json"))
+        req = urllib.request.Request(base + "/api/mundo/clima", data=b"{}", method="POST",
+                                     headers={"Origin": base, "Content-Type": "application/json"})
+        d = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        self.assertEqual(len(d["cidades"]), 28)
+        self.assertEqual({c["tipo"] for c in d["cidades"].values()}, set(e.TIPOS_CLIMA))
+        self.assertTrue(all(0 <= c["vento"] <= 1 and c["noite"] is False for c in d["cidades"].values()))
 
     def test_previa_com_visitantes(self):
         exemplo = os.path.join("ferramentas", "previa.exemplo.json")
