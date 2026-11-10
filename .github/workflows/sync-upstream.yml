@@ -184,16 +184,16 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-          pr="$(gh pr list --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
           if [[ -z "$pr" ]]; then
             cat > /tmp/pr-body.md <<EOF
           This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into $TARGET_BRANCH.
 
           The merged ARM64 image passed the Compose configuration check and persistent-volume smoke test. This workflow merges the PR into the Coolify deployment branch after these checks pass.
           EOF
-            gh pr create --base "$TARGET_BRANCH" --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
+            gh pr create --repo "$GITHUB_REPOSITORY" --base "$TARGET_BRANCH" --head "$GITHUB_REPOSITORY_OWNER:$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
           else
-            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "Official release $RELEASE_TAG passed ARM64 build and smoke checks. This workflow merges it into $TARGET_BRANCH after the checks pass."
+            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --title "Sync upstream $RELEASE_TAG" --body "Official release $RELEASE_TAG passed ARM64 build and smoke checks. This workflow merges it into $TARGET_BRANCH after the checks pass."
           fi
 
       - name: Merge tested release into production branch
@@ -205,10 +205,10 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-          pr="$(gh pr list --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
           if [[ -z "$pr" ]]; then
             echo "Upstream release PR was not found; refusing to merge $RELEASE_TAG." >&2
             exit 1
           fi
-          gh pr merge "$pr" --merge
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --merge
           echo "Merged $RELEASE_TAG to $TARGET_BRANCH after ARM64 smoke tests." >> "$GITHUB_STEP_SUMMARY"
