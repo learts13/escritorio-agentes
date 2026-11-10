@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Recepcionista da sala de visitas</title>
+  <link rel="stylesheet" href="/visita.css?v=2">
+</head>
+<body>
+  <main class="layout">
+    <section class="ambiente">
+      <p class="marca">ESCRITÓRIO DOS AGENTES</p>
+      <h1>Recepcionista da sala de visitas</h1>
+      <p>Quem visita a sala de reunião pode conversar com um agente da sua empresa. Esse agente fala com gente de fora, então ele precisa ser só seu recepcionista: sem ferramentas e só com informação pública.</p>
+      <p>O escritório monta as instruções com os dados da sua empresa. Você cria o agente no agentes.chat, cola as instruções e volta aqui para ligar.</p>
+      <p><a class="voltar" href="/visitas-admin.html">Voltar aos convites</a></p>
+    </section>
+    <section class="conversa">
+      <h2>1. Sobre a sua empresa</h2>
+      <p class="nota">Só o que qualquer visitante pode saber. Nada disso fica salvo no escritório.</p>
+      <form id="empresa" class="campos">
+        <label for="nome">Nome da empresa</label>
+        <input id="nome" maxlength="80" required autocomplete="organization">
+        <label for="faz">O que a empresa faz</label>
+        <textarea id="faz" rows="4" maxlength="1500" required placeholder="Serviços, para quem, onde atende."></textarea>
+        <label for="site">Site (opcional)</label>
+        <input id="site" maxlength="200" inputmode="url" placeholder="https://">
+        <label for="contato">Como pedir orçamento ou falar com a equipe (opcional)</label>
+        <input id="contato" maxlength="300" placeholder="Pelo site, por e-mail, pelo WhatsApp da empresa...">
+        <label for="horario">Horário de atendimento (opcional)</label>
+        <input id="horario" maxlength="120" placeholder="Seg. a sex., das 9h às 18h">
+        <label for="evitar">Assuntos que ela não deve tratar (opcional)</label>
+        <textarea id="evitar" rows="2" maxlength="600" placeholder="Um por linha."></textarea>
+        <button type="submit">Gerar as instruções</button>
+      </form>
+
+      <h2>2. Crie o agente no agentes.chat</h2>
+      <label for="instrucoes">Instruções da recepcionista</label>
+      <textarea id="instrucoes" rows="10" readonly placeholder="Preencha os dados acima e gere as instruções."></textarea>
+      <button id="copiar" class="secundario" type="button" disabled>Copiar instruções</button>
+      <ol class="passos">
+        <li>No agentes.chat, crie um agente novo (por exemplo, Recepção) e cole as instruções.</li>
+        <li>Na página dele, em Agentes e acesso, desligue todas as ferramentas e apps. Ele só precisa conversar.</li>
+        <li>Crie um canal só para as visitas e coloque nele esse agente.</li>
+        <li>A conta conectada a este escritório também precisa estar no canal.</li>
+      </ol>
+
+      <h2>3. Ligue no escritório</h2>
+      <p id="situacao" class="nota" role="status">Lendo como está...</p>
+      <ul id="faltam" class="nota"></ul>
+      <form id="ligar" class="campos">
+        <label for="anfitriao">@ do agente</label>
+        <input id="anfitriao" maxlength="42" required autocomplete="off" placeholder="@recepcao">
+        <label for="canal">Link do canal das visitas</label>
+        <input id="canal" maxlength="300" required autocomplete="off" placeholder="https://app.agentes.chat/org/.../c/...">
+        <label class="marcar"><input id="sem-ferramentas" type="checkbox" required> Desliguei todas as ferramentas e apps desse agente.</label>
+        <p class="nota">Ao salvar, o escritório pode pedir a senha dele aqui: ela abre o modo resposta por 1 hora neste navegador. O escritório só aceita os agentes que quem administra o servidor liberou.</p>
+        <div id="bloco-senha" hidden>
+          <label for="senha">Senha do escritório</label>
+          <input id="senha" type="password" autocomplete="current-password" maxlength="256">
+        </div>
+        <p id="confirmar" class="nota" role="status"></p>
+        <button id="salvar" type="submit">Conferir</button>
+      </form>
+      <button id="limpar" class="secundario" type="button" hidden>Tirar o recepcionista</button>
+      <p id="estado" role="status"></p>
+    </section>
+  </main>
+  <script src="/recepcionista.js?v=2"></script>
+</body>
+</html>

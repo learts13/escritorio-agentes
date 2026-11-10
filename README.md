@@ -20,13 +20,18 @@
   <img src="./docs/demo.gif" alt="Animated demo of the office in demo mode, with fictional agents: the pixel-art map by day with agents walking and working, the camera zooming in on an agent with a '?' question bubble, then the pointer moves to a request in the Waiting for you list (one click takes you to that agent). Short captions in Portuguese explain each step." width="900">
 </picture>
 
-[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Customize](#customize-white-label) · [Social life](#social-life) · [Construction mode](#construction-mode) · [TV mode](#tv-mode) · [Installable app](#installable-app-pwa) · [Visitors](#visitors) · [Newspaper](#newspaper) · [Time-lapse](#time-lapse) · [Phone alerts](#phone-alerts) · [Security](#security) · [Architecture](#architecture) · [Development](#development) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md)
+[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Customize](#customize-white-label) · [Social life](#social-life) · [Construction mode](#construction-mode) · [TV mode](#tv-mode) · [Installable app](#installable-app-pwa) · [Visitors](#visitors) · [Visits by invitation](#visits-by-invitation) · [Newspaper](#newspaper) · [Time-lapse](#time-lapse) · [Phone alerts](#phone-alerts) · [Security](#security) · [Architecture](#architecture) · [Development](#development) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md)
 
-🎬 **[Launch video](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2026.11.06)** (narrated in Brazilian Portuguese, with subtitles), attached to the release.
+🎬 **[Launch video](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2026.11.06)** (narrated in Brazilian Portuguese, with subtitles), attached to the release. 🌎 **[Video of the world and the visits](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0)** (1.3.0), also narrated in Portuguese, with subtitles.
 
 <picture>
   <source media="(prefers-reduced-motion: reduce)" srcset="./docs/screenshots/13-greve-plaquinhas.png">
   <img src="./docs/novidades.gif" alt="Animated clip of what is new, in demo mode with fictional agents: a strike in the lounge with everyone sitting on the floor holding cardboard signs, a fight in the Ring ending with the 'VENCEU' winner's banner and the crowd around, the demand delivered (the pizza rider on the street and the crew eating in front of the ring) and the construction mode editor, where you paint the rooms and drag and mirror the furniture. Captions in Portuguese are burned into the image." width="600">
+</picture>
+
+<picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="./docs/screenshots/19-mundo-brasil.png">
+  <img src="./docs/mundo.gif" alt="Animated clip of the world and the visits, with fictional data: the pixel-art globe spinning at night; the map of Brazil with the miniatures of the capitals; zooming into the map; Rio de Janeiro seen from above, with the Christ statue and the waterfront; São Paulo on Christmas night; and the visit-by-invitation page, with the meeting room and the chat" width="100%">
 </picture>
 
 </div>
@@ -48,7 +53,7 @@ It **does not call any AI model** and does not spend tokens. Approving always ha
 - ✋ **Approvals at a glance:** a "!" or "?" over anyone waiting for your approval or answer, and a **"Waiting for you"** list with how long each request has been waiting. Each one opens the right request in agentes.chat (approving is always done there).
 - 🎵 **Life and sounds:** 21 poses, games in pairs up to 3 points with a cheering crowd, a coffee circle, high-fives, a robot vacuum at night and more. 45 optional sound effects synthesized in the browser (keyboard, "simlish" chatter with a voice per agent, games, alerts, the ring and the strike, rain and thunder), with a volume control and on/off per category. Audio only starts after you interact with the page.
 - 🖱️ **Clickable objects** (mouse, touch, or Tab and Enter): the TV (5 channels), arcade machines, jukebox, coffee maker, aquarium, lamps, notice board, plants, the opening-hours sign, the cat, the wall clock, the code board, kanban and moodboard, the sales bell, the ring scoreboard and the strike signs. Most of them also bring a free agent over. The games (pool, foosball, ping-pong, chess, darts, basketball) are not clickable: the agents play them on their own.
-- 🌦️ **Real time and weather:** day and night follow the real clock, empty rooms turn their lights off and windows show the sky of the hour. Real weather for your city ([Open-Meteo](https://open-meteo.com), no key): rain, drizzle, thunderstorm, snow, fog, overcast.
+- 🌦️ **Real time and weather:** day and night follow the real clock, empty rooms turn their lights off and windows show the sky of the hour. Real weather for your city ([Open-Meteo](https://open-meteo.com), no key): rain, drizzle, thunderstorm, snow, fog, overcast, with gusty wind, lightning in the thunderstorm and swaying trees.
 - 🎉 **Holidays:** Christmas, New Year (fireworks), Carnival and Easter (calculated), Lunar New Year, Halloween, Festa Junina, Brazilian Independence Day, Programmers' Day, Diwali and more, with decorations, hats and lines.
 - 🎨 **Customization:** company name, accent color and logo from the **Customize** screen; teams, rooms, floors, walls, icons and avatars in `times.json`.
 - 🕹️ **Simulation:** a panel to preview the office on another date, time or weather (Christmas at night in the snow, for example). Nothing is saved: it only changes the URL of that tab, and a "Simulation" banner stays visible with "Back to real".
@@ -57,6 +62,8 @@ It **does not call any AI model** and does not spend tokens. Approving always ha
 - 📺 **TV mode:** full screen, the screen kept on and a camera director that rushes to requests, fights and strikes, with a news ticker (see [TV mode](#tv-mode)).
 - 📲 **App and phone alerts:** install the office on your home screen and get an alert when an agent asks for your approval or asks a question (see [Installable app](#installable-app-pwa) and [Phone alerts](#phone-alerts)).
 - 👀 **Visitors:** whoever else has the office open shows up on the map, wearing a badge (see [Visitors](#visitors)).
+- 🚪 **Visits by invitation:** a 1-hour link brings someone from outside into the meeting room, with no password (see [Visits by invitation](#visits-by-invitation)).
+- 🌎 **World:** a public page that goes from the globe down to Brazil, the city and the reception door, with the real weather of 28 cities (see [World](#world)).
 - 📰 **Weekly newspaper:** a headline, notes and each agent's numbers for this week and last week (see [Newspaper](#newspaper)).
 - 🎞️ **Daily time-lapse:** the office's day in a ~30 s video, recorded only in your browser (see [Time-lapse](#time-lapse)).
 - 📸 **Photo mode:** hides the interface and saves a PNG of the office.
@@ -215,7 +222,7 @@ In `times.json` (start by copying `times.exemplo.json`; the installer does that 
 | `expediente` | office hours, `{"abre": "07:00", "fecha": "20:00"}` (HH:MM, the default). Outside them, agents without a task go home and a banner says when the office opens. `abre` later than `fecha` is a shift past midnight (`22:00` to `06:00`); the Customize screen overrides it |
 | `conversas` | `"ler"` adds **See conversation** to an agent's card and the **Conversations** page, with the tasks in progress and the ones that ended today: the latest 20 messages of each one's conversation (the task's thread; if no one wrote in it, the conversation's loose messages), read on demand (`read_conversation`, still the `read` scope). Off by default; read the warning in [Security](#security) before turning it on. `"responder"` does the same and lets you **send messages** to the agents in the day's direct conversations, from the Conversations page (`read write` scope; see [Security](#security)) |
 
-To test without waiting, add to the URL: `?hora=21.5`, `?clima=tempestade` (`chuva`, `garoa`, `neve`, `neblina`, `nublado`, `limpo`) and `?data=2026-12-25`. The **Simulation** panel builds these for you.
+To test without waiting, add to the URL: `?hora=21.5`, `?clima=tempestade` (`chuva`, `garoa`, `neve`, `neblina`, `nublado`, `limpo`), `?vento=60` (km/h, 0 to 120: tilts rain and snow, sways the outdoor trees and, when strong, blows leaves) and `?data=2026-12-25`. The **Simulation** panel builds these for you.
 
 ## Social life
 
@@ -285,6 +292,76 @@ Whoever else has the office open (another device, another browser or another per
 - **On the TV, nobody shows up:** the TV does not count as a visitor and does not draw visitors, so the wall map shows only the agents.
 - In demo mode, the line does not show. What the server keeps and sends is in [Security](#security).
 
+## Visits by invitation
+
+You can bring someone from outside into the office without creating a user or sharing the password.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/22-visita-recepcao.png"><img src="./docs/screenshots/22-visita-recepcao.png" alt="The Visita ao escritório page without an invitation: the building map with only the reception lit, the other rooms dark and labeled Com convite, and the chat locked" width="100%"></a>
+      <p><em>No invitation: only the reception, with the other rooms dark.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/23-visita-convite.png"><img src="./docs/screenshots/23-visita-convite.png" alt="The Visita ao escritório page with an invitation: the pixel-art meeting room and, next to it, the chat with two messages and the Sua mensagem field" width="100%"></a>
+      <p><em>With an invitation: the meeting room and a live chat.</em></p>
+    </td>
+  </tr>
+</table>
+
+- **Inviting:** in the menu, **Convidar para uma visita** (invite for a visit) creates a link. It is valid for 1 hour and works for whoever gets it, so send it only to the people who should come in. For the team to show up in the chat, it also joins the room with the button on the same screen.
+- **What the visitor sees:** the meeting room and a simplified floor plan of the office, with no agent names, team names, conversations or tasks. There is no name field: the room only has the message text.
+- **Chat:** messages reach whoever is in the room at that moment. Whoever comes in later does not get what came before.
+- **Ending:** ending the invitation drops every session in the room. Each session also drops after 1 minute without polling. Restarting the office clears all rooms.
+- **Public reception:** `/visita.html` without an invitation shows only the reception, with the other rooms dark and the chat locked. That is where the chalet in the [World](#world) leads.
+- **Receptionist (optional):** the team can put an agentes.chat agent to answer in the room. In that case the visitor's text goes to the visits channel on agentes.chat and **is kept there**.
+- **Privacy:** without a receptionist, nothing from the visit goes to disk or to the office log; the invitation, the session and the messages live only in memory. The office does not control what the proxy, the CDN and the browser keep. Before opening visits to the internet, read [`docs/visitas-privadas-plano.md`](./docs/visitas-privadas-plano.md) (in Portuguese), which says where each piece of data goes and what to check.
+
+## World
+
+`/mundo.html` shows where the office is: a pixel-art planet that goes all the way down to the reception door. The page is **public and cookieless**, shows nothing from agentes.chat and has no menu link yet: open it by its address. Its text is in Portuguese.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/18-mundo-globo.png"><img src="./docs/screenshots/18-mundo-globo.png" alt="The pixel-art globe, with clouds, the moon and Brazil outlined in gold, with an arrow pointing at it" width="100%"></a>
+      <p><em>The globe, with the current night side. Click Brazil to go down.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/19-mundo-brasil.png"><img src="./docs/screenshots/19-mundo-brasil.png" alt="The illustrated map of Brazil: biomes, rivers, mountain ranges, a miniature landmark for each state capital and the office chalet in São Paulo" width="100%"></a>
+      <p><em>Brazil, with the current weather in each capital.</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/20-mundo-zoom.png"><img src="./docs/screenshots/20-mundo-zoom.png" alt="The map at maximum zoom over Minas Gerais: mountain ranges, highways, smaller rivers, named mid-size cities and the state highlighted" width="100%"></a>
+      <p><em>Zooming in reveals highways, mid-size cities and relief.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/21-mundo-cidade.png"><img src="./docs/screenshots/21-mundo-cidade.png" alt="The city of São Paulo seen from above: the MASP museum in the middle, buildings, a square with a bandstand and a fountain, streets with cars and pedestrians, and the chalet with the Recepção sign" width="100%"></a>
+      <p><em>The office's city, with the reception chalet.</em></p>
+    </td>
+  </tr>
+</table>
+
+- **Four levels:** the **globe** spins with the current night side; **Brazil** shows the 27 state capitals and Mateus Leme (MG), each with its landmark; the **city** has the landmark, a square, streets, cars and people on the sidewalks (coastal capitals get a waterfront); the **neighborhood** leads to the reception door.
+- **Getting around:** click or tap to go down, **Esc** or **Voltar** (back) to go up. The wheel, pinch, double click and the `+` and `-` keys zoom; at maximum zoom over a capital, zooming in once more enters it, and zooming out at the minimum returns to the globe. The arrow keys spin the globe or move the map, and **Tab** and **Enter** walk through the cities and the buildings.
+- **Live:** the real weather of the 28 cities (clear, cloudy, fog, drizzle, rain, storm or snow, with wind), day and night by the clock, and the calendar holidays, which decorate the city. Holidays you turned off in **Personalizar** (Customize) do not show; the company's own dates never reach the world.
+- **The office's city:** the map city closest to the **weather city** set in **Personalizar**, up to 300 km away. Only it has the chalet with the sign and the door that leads to the neighborhood. Farther than that, the map works the same, without a chalet. **For now the map is Brazil only.**
+- **Light:** the far map weighs 47 KB. The two detail levels are only downloaded when you zoom: 160 KB from 2x and 395 KB at maximum zoom, in tiles, and only the ones in view. With "reduce motion" on nothing moves, and the animation pauses when the tab is hidden.
+- **Try it:** `python ferramentas/previa.py ferramentas/previa.exemplo.json` and open `http://127.0.0.1:7372/mundo.html`. `?hora=22`, `?clima=chuva` and `?data=2026-12-25` simulate the hour, the weather and the date.
+
+What the server sends to this page is in [Security](#security).
+
+### Changing the cities or the world art
+
+If you only install the office you need none of this: the files in `static/mundo/` ship ready in the repository.
+
+- **Cities:** `arte/mundo/cidades.json`. Each city has `id`, `nome` (name), `uf` (state), `lat`, `lon`, `marco` (the `marco-<marco>.png` art file), `marco_nome` (the name shown), `porte` (size: `metropole`, `grande`, `media` or `pequena`) and `litoral` (`true` for a waterfront).
+- **Art:** `arte/pixellab/mundo/` (landmarks, buildings, houses, trees, cars, mountain ranges). Without a landmark's art, the city uses a generic building.
+- **Terrain:** `arte/mundo/biomas.json` and `serras.json`, plus the Natural Earth extracts in `arte/mundo/fontes/` (outlines, rivers, highways and cities; the source of each is in `LICENCA.md`).
+- **Rebuild:** `python ferramentas/montar_mundo.py` rewrites `static/mundo/` in about a minute. It needs [Pillow](https://python-pillow.org) on your machine; the server never runs this tool.
+
 ## Newspaper
 
 The **Jornal** (newspaper) page, in the menu, tells the office's week as a newspaper: the issue number (the week of the year), the period, the headline, the notes and a table with everyone.
@@ -328,6 +405,7 @@ An alert on your phone, or computer, when an agent asks for your approval or ask
 In short: with the installer, the office is reachable **only on your tailnet** (on Docker with a public address, read [Public address](#public-address)); it **fails closed** when its user file cannot be read, and **no secret ever reaches the browser**: the agentes.chat token stays on the server, and the browser only holds an HttpOnly session cookie.
 
 - **Read-only on agentes.chat:** OAuth scope `read`. A token with more permissions is refused. The exception is the `"responder"` mode (below), which asks for `read write`; `manage` is always refused.
+- **World (`/mundo.html`):** the page and its files are served without login, by exact name. It only calls `POST /api/mundo/clima`, rate-limited per origin, which returns, per city, the weather type, the wind (0 to 1) and whether it is night; the `id` of the office's city (`casa`); the map version; and the keys of the calendar holidays you turned off (`festas_desligadas`). It never sends temperature, coordinates, IP, the company name or your own dates, and nothing from agentes.chat. Open-Meteo is queried by the server, once every 15 minutes for the 28 cities; the browser never talks to it. See [World](#world).
 - **Passwords and sessions:**
   - passwords are stored as scrypt hashes (N=2^15, r=8, p=1), and the session travels in a `__Host-esc_sessao` cookie, HttpOnly, SameSite=Lax and Secure;
   - every form submission is checked by origin;
@@ -433,6 +511,7 @@ To test the whole **Connect** flow without the real agentes.chat, use the fake s
 ### Art
 
 - Furniture and objects: generated with [PixelLab](https://pixellab.ai) for this project (`arte/pixellab`).
+- World: landmarks, buildings, houses, trees, cars and mountain ranges from PixelLab (`arte/pixellab/mundo`); the globe, the map terrain, the streets and the holiday decorations, drawn in code; outlines, rivers, highways and cities from [Natural Earth](https://www.naturalearthdata.com), public domain (see [Changing the cities or the world art](#changing-the-cities-or-the-world-art)).
 - Floors, walls, desks, avatars, sky, weather and procedural decorations: drawn in code.
 - Default logo (`static/logo.png`, also the favicon): drawn in code, with `python ferramentas/montar_tema.py --logo`.
 

@@ -7,6 +7,14 @@ services:
     environment:
       ESCRITORIO_BASE: ${ESCRITORIO_BASE:?defina ESCRITORIO_BASE com o endereço https público, sem barra no fim}
       AGENTES_ORG: ${AGENTES_ORG:?defina AGENTES_ORG com o id da organização no agentes.chat}
+      # Agente na sala de visitas: as duas juntas (handles separados por vírgula e o uuid do canal só de visitas).
+      # Vazias, a sala fica só com pessoas da equipe. TELA=1 deixa a tela do recepcionista salvar sem a lista.
+      ESCRITORIO_VISITAS_ANFITRIOES: ${ESCRITORIO_VISITAS_ANFITRIOES:-}
+      ESCRITORIO_VISITAS_CANAL: ${ESCRITORIO_VISITAS_CANAL:-}
+      ESCRITORIO_VISITAS_TELA: ${ESCRITORIO_VISITAS_TELA:-}
+      # Limite por origem atrás do proxy: veja docs/visitas-privadas-plano.md antes de definir.
+      ESCRITORIO_VISITAS_PROXY: ${ESCRITORIO_VISITAS_PROXY:-}
+      ESCRITORIO_VISITAS_CABECALHO: ${ESCRITORIO_VISITAS_CABECALHO:-X-Real-IP}
     volumes:
       - dados:/dados   # token, usuários e sessões: backup cifrado, nunca público
     read_only: true

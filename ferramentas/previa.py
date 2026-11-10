@@ -207,6 +207,11 @@ srv.leitor, srv.cred = Falso([a for a in ARGS if not a.startswith("--")][0]), No
 srv.conversas = ConversasFicticias(srv.leitor)
 # clima vivo, como no servidor: a cidade salva pela tela vai para o clima.json da pasta temporária (sobe mais abaixo)
 srv.clima = e.Clima(lambda: e.clima_vigente()[0])
+# o tempo das cidades do mapa do mundo: um exemplo fixo, sem Open-Meteo, com cada tipo em alguma cidade (a noite vem do
+# horário na página). ?clima= e ?hora= no /mundo.html sobrepõem, para ver cada caso.
+srv.clima_mundo = e.ClimaMundo(*e.ler_mundo())
+srv.clima_mundo.estado = {c["id"]: {"tipo": e.TIPOS_CLIMA[i % len(e.TIPOS_CLIMA)], "vento": round(i % 5 / 4, 2), "noite": False}
+                          for i, c in enumerate(srv.clima_mundo.cidades)}
 # o jornal da semana, como no servidor: o jornal.json vai para a pasta temporária; o clima do meio-dia sai do clima vivo
 srv.jornal = srv.leitor.jornal = e.Jornal(e.log, e.FUSO, lambda dados: e.gravar(e.ARQ_JORNAL, dados), e.ler_jornal(),
                                           lambda: (srv.clima.foto() or {}).get("tipo"))

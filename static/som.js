@@ -228,8 +228,8 @@ const Som = (() => {
       if (!zumbido) { zumbido = laço(220, "lowpass"); vento = laço(380, "lowpass"); }
       const fechado = window.Expediente ? Expediente.fora(hora) : hora >= 20 || hora < 7;   // escritório fechado: zumbido mais baixo
       aproxima(zumbido, fechado ? 0.025 : 0.045, 0.02);
-      const tipo = window.Clima ? Clima.tipo() : "limpo", ventando = cfg.clima && (tipo === "neve" || tipo === "tempestade");
-      aproxima(vento, ventando ? 0.05 + Math.sin(agora * 0.4) * 0.025 : 0, 0.02);
+      const forca = cfg.clima && window.Clima ? Clima.vento || 0 : 0;   // o vento de agora, já com as rajadas
+      aproxima(vento, forca > 0.08 ? forca * 0.1 + Math.sin(agora * 0.4) * 0.02 * forca : 0, 0.02);
       bichos(agora);
     },
     // teclado: cliques variados, espaço e enter de vez em quando, rajadas com pausas de quem pensa
@@ -247,11 +247,11 @@ const Som = (() => {
       if (!chuvaNo && intens > 0) { const l = laço(1400, "lowpass"); chuvaNo = l; chuvaGanho = l.g; }
       if (chuvaGanho) chuvaGanho.gain.value += (intens * 0.18 - chuvaGanho.gain.value) * 0.05;
     },
-    trovao() {
+    trovao(forca = 1) { // forca: 1 é o raio bem perto (estalo seco e alto); longe, ronco baixo e abafado
       if (!pode("clima")) return;
       const t0 = ctx.currentTime, s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), dur = vari(2.6, 0.2);
-      s.buffer = ruidoBuf; f.type = "lowpass"; f.frequency.value = vari(160, 0.2);
-      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vari(0.8, 0.15), t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      s.buffer = ruidoBuf; f.type = "lowpass"; f.frequency.value = vari(100 + forca * 80, 0.2);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vari(0.8 * forca, 0.15), t0 + 0.04 + (1 - forca) * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       s.connect(f); f.connect(g); g.connect(mestre); s.start(t0, trecho(dur + 0.1)); s.stop(t0 + dur + 0.1);
     },
   };

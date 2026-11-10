@@ -24,7 +24,7 @@ Only the latest version on the `main` branch receives security fixes.
 
 ### Scope
 
-Especially welcome: login, sessions and cookies; the first-access code; the OAuth token for agentes.chat; the data folder; `instalar.sh` and the systemd unit; the `Dockerfile`, the `.dockerignore` and the `docker-compose.yml`; anything that exposes the office outside the tailnet or, on Docker with a public address, beyond the sign-in.
+Especially welcome: login, sessions and cookies; the first-access code; the OAuth token for agentes.chat; the data folder; `instalar.sh` and the systemd unit; the `Dockerfile`, the `.dockerignore` and the `docker-compose.yml`; the public world page (`/mundo.html`, its static files and `POST /api/mundo/clima`), which must never carry agentes.chat data, the company's own dates or anything about who is asking; anything that exposes the office outside the tailnet or, on Docker with a public address, beyond the sign-in.
 
 Out of scope: problems in agentes.chat itself (report them to agentes.chat), in Tailscale, in Coolify or in your own server and proxy setup; attacks that need root on the server; and branding (name, color, logo) shown on the sign-in screen, which is public on the tailnet (or on the internet, with a public address) by design.
 
@@ -52,7 +52,7 @@ Só a versão mais recente do branch `main` recebe correções de segurança.
 
 ### Escopo
 
-São especialmente bem-vindos: login, sessões e cookies; o código de primeiro acesso; o token OAuth do agentes.chat; a pasta de dados; o `instalar.sh` e a unit systemd; o `Dockerfile`, o `.dockerignore` e o `docker-compose.yml`; qualquer coisa que exponha o escritório fora da tailnet ou, no Docker com endereço público, além do login.
+São especialmente bem-vindos: login, sessões e cookies; o código de primeiro acesso; o token OAuth do agentes.chat; a pasta de dados; o `instalar.sh` e a unit systemd; o `Dockerfile`, o `.dockerignore` e o `docker-compose.yml`; a página pública do mundo (`/mundo.html`, os arquivos dela e o `POST /api/mundo/clima`), que nunca pode levar dado do agentes.chat, datas próprias da empresa nem nada sobre quem pede; qualquer coisa que exponha o escritório fora da tailnet ou, no Docker com endereço público, além do login.
 
 Fora do escopo: problemas do próprio agentes.chat (reporte a eles), da Tailscale, do Coolify ou da configuração do seu servidor e do seu proxy; ataques que exigem root no servidor; e a marca (nome, cor, logo) na tela de entrar, que é pública na tailnet (ou na internet, com endereço público) de propósito.
 

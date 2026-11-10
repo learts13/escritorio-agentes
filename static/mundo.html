@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Mundo dos escritórios</title>
+  <link rel="stylesheet" href="/visita.css?v=28">
+</head>
+<body class="pagina-mundo">
+  <main class="mundo">
+    <section class="mundo-painel">
+      <p class="marca">ESCRITÓRIO DOS AGENTES</p>
+      <h1>Mundo dos escritórios</h1>
+      <p>A Terra em pixel art, com a noite de agora. Clique no Brasil para descer ao mapa, com o tempo de agora em cada capital e aviões entre elas; escolha uma cidade para vê-la de cima, com o marco, a praça, as ruas, os carros e gente andando nas calçadas; aproxime para ver as placas das ruas e toque numa construção para saber o nome; nas datas festivas, ela aparece enfeitada. Na cidade do escritório, o chalé com a placa desce ao bairro, e a porta dele leva à recepção.</p>
+      <p class="mundo-teclas">Teclado: Tab passa pelo Brasil, pelas cidades e pelas construções, Enter escolhe, + e − aproximam, as setas giram o globo ou movem o mapa e Esc volta um nível.</p>
+      <p id="mundo-estado" role="status">Carregando o mapa…</p>
+      <button id="entrar" type="button">Entrar na recepção</button>
+    </section>
+    <div class="mundo-palco">
+      <canvas id="mundo" width="320" height="180" role="img" aria-label="Globo terrestre em pixel art girando, com a noite de agora, as luzes das cidades do Brasil, nuvens e a lua"></canvas>
+      <div id="mundo-alvos" class="mundo-alvos"></div>
+      <p id="mundo-dica" class="mundo-dica" hidden></p>
+      <div class="mundo-controles">
+        <button id="mundo-voltar" type="button" class="mundo-voltar" disabled>Voltar</button>
+        <button id="mundo-mais" type="button" aria-label="Aproximar">+</button>
+        <button id="mundo-menos" type="button" aria-label="Afastar">−</button>
+      </div>
+    </div>
+  </main>
+  <script src="/som.js?v=28"></script>
+  <script src="/ceu.js?v=28"></script>
+  <script src="/clima.js?v=28"></script>
+  <script src="/festas.js?v=28"></script>
+  <script src="/mundo_bairro.js?v=28"></script>
+  <script src="/mundo_mapa_arte.js?v=28"></script>
+  <script src="/mundo_mapa_perto.js?v=28"></script>
+  <script src="/mundo_mapa.js?v=28"></script>
+  <script src="/mundo_globo.js?v=28"></script>
+  <script src="/avatar.js?v=28"></script>
+  <script src="/mundo_cidade_planta.js?v=28"></script>
+  <script src="/mundo_festa.js?v=28"></script>
+  <script src="/mundo_cidade_chao.js?v=28"></script>
+  <script src="/mundo_cidade_letreiro.js?v=28"></script>
+  <script src="/mundo_cidade.js?v=28"></script>
+  <script src="/mundo.js?v=28"></script>
+</body>
+</html>
