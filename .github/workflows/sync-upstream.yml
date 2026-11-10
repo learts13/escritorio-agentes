@@ -175,7 +175,7 @@ jobs:
             git push origin "HEAD:refs/heads/$BRANCH"
           fi
 
-      - name: Open or update upstream review PR
+      - name: Open or update upstream release PR
         if: steps.merge.outputs.updated == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -189,9 +189,26 @@ jobs:
             cat > /tmp/pr-body.md <<EOF
           This branch merges the official stable release $RELEASE_TAG from HelbertMoura/escritorio-agentes into $TARGET_BRANCH.
 
-          The merged ARM64 image passed the Compose configuration check and persistent-volume smoke test. Review and merge this PR to update the Coolify deployment branch.
+          The merged ARM64 image passed the Compose configuration check and persistent-volume smoke test. This workflow merges the PR into the Coolify deployment branch after these checks pass.
           EOF
             gh pr create --base "$TARGET_BRANCH" --head "$BRANCH" --title "Sync upstream $RELEASE_TAG" --body-file /tmp/pr-body.md
           else
-            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "Official release $RELEASE_TAG passed ARM64 build and smoke checks. Review before updating $TARGET_BRANCH."
+            gh pr edit "$pr" --title "Sync upstream $RELEASE_TAG" --body "Official release $RELEASE_TAG passed ARM64 build and smoke checks. This workflow merges it into $TARGET_BRANCH after the checks pass."
           fi
+
+      - name: Merge tested release into production branch
+        if: steps.merge.outputs.updated == 'true' && steps.target.outputs.branch == 'feat/coolify-arm64'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --head "$BRANCH" --base "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr" ]]; then
+            echo "Upstream release PR was not found; refusing to merge $RELEASE_TAG." >&2
+            exit 1
+          fi
+          gh pr merge "$pr" --merge
+          echo "Merged $RELEASE_TAG to $TARGET_BRANCH after ARM64 smoke tests." >> "$GITHUB_STEP_SUMMARY"
