@@ -238,7 +238,7 @@ const MapaPerto = (() => {
     // --- nomes: estados (2x), vizinhos (sempre) e cidades médias (3x) --------------------------------------------------
     const medias = (Array.isArray(nivel.medias) ? nivel.medias : [])
       .filter(m => m && typeof m.nome === "string" && numero(m.x) && numero(m.y))
-      .map(m => ({ nome: m.nome, uf: String(m.uf || ""), x: m.x + 0.5, y: m.y + 0.5 }));
+      .map(m => ({ id: typeof m.id === "string" ? m.id : null, nome: m.nome, uf: String(m.uf || ""), x: m.x + 0.5, y: m.y + 0.5 }));
     const paises = (Array.isArray(nivel.paises) ? nivel.paises : [])
       .filter(p => p && typeof p.nome === "string" && numero(p.x) && numero(p.y))
       .map(p => ({ nome: p.nome, x: p.x + 0.5, y: p.y + 0.5 }));
@@ -293,10 +293,10 @@ const MapaPerto = (() => {
       }
       if (z >= Z_MEDIAS) for (const m of medias) {
         const c = texto(m.nome, T, "#f6eed8", 0), M = 3 * U, mx = tx(m.x) - (M >> 1), my = ty(m.y) - (M >> 1);
-        const marca = { tipo: "marca", id: m.nome, x: mx, y: my, w: M, h: M };
+        const marca = { tipo: "marca", id: m.nome, cidade: m.id, x: mx, y: my, w: M, h: M };
         if (!livre(marca)) continue;
-        const lados = [mx + M + U, mx - U - c.width].map(x => ({ tipo: "media", id: m.nome, c, x, y: my + (M >> 1) - (c.height >> 1),
-          w: c.width, h: c.height, marca }));
+        const lados = [mx + M + U, mx - U - c.width].map(x => ({ tipo: "media", id: m.nome, cidade: m.id, c, x,
+          y: my + (M >> 1) - (c.height >> 1), w: c.width, h: c.height, marca }));
         const r = lados.find(l => livre(l));
         if (r) postos.push(marca, r);
       }
@@ -320,7 +320,13 @@ const MapaPerto = (() => {
       return postos;
     }
 
-    return { atualizar, terreno, cobre, tentarDeNovo, ufEm, realce, rotulos, porSigla, get estados() { return lista; },
+    // a cidade média sob o ponto da tela (o marcador ou o nome, com folga de um U), entre as postas no último arranjo
+    function mediaEm(sx, sy, U) {
+      const r = arranjo.lista.find(r => r.cidade && sx >= r.x - U && sx <= r.x + r.w + U && sy >= r.y - U && sy <= r.y + r.h + U);
+      return r ? r.cidade : null;
+    }
+
+    return { atualizar, terreno, cobre, tentarDeNovo, ufEm, realce, rotulos, mediaEm, porSigla, get estados() { return lista; },
       get info() {   // por nível: quantos azulejos pedidos e quantos desenhados no último quadro
         const soma = k => camadas.reduce((t, c) => t + c[k], 0);
         return { pedidos: soma("pedidos"), desenhados: soma("desenhados"), longe: !cobertaAgora,

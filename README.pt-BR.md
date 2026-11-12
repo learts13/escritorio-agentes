@@ -181,6 +181,22 @@ Se o escritório for aberto por um endereço diferente da `ESCRITORIO_BASE`, a f
 
 Quando o Conectar falha, uma página curta diz o motivo, com textos do próprio escritório: o servidor não alcança o agentes.chat, o endereço de retorno foi recusado, a autorização foi recusada ou venceu (ela vale 10 minutos). O texto que vem do agentes.chat nunca é mostrado.
 
+### Com o agentes.chat self-host
+
+Se a sua equipe usa a [versão self-host do agentes.chat](https://github.com/agentes-chat/agentes-chat/blob/main/SELF_HOSTING.md), o escritório lê dela em vez da nuvem. Só muda uma variável: **`AGENTES_URL`**, com o endereço que vocês abrem no navegador (o `PUBLIC_URL` da instalação).
+
+```bash
+sudo AGENTES_ORG=<id da organização> AGENTES_URL=https://agentes.<sua-tailnet>.ts.net bash instalar.sh
+```
+
+- **O id da organização** é o que vem depois de `/org/` no endereço da sua instalação, como na nuvem.
+- **Na mesma tailnet:** a self-host padrão fica na Tailscale, e o escritório também. O instalador descobre o IP da instalação e libera só ele na rede do serviço (o arquivo `/etc/systemd/system/escritorio.service.d/agentes-url.conf`); o resto da rede privada continua bloqueado. Se o IP mudar, rode o instalador de novo.
+- **https:** o login (OAuth) da self-host só aceita `https` (ou `http://localhost`). O instalador pede `https`: numa porta alta, outro usuário da máquina poderia ocupar o `localhost` quando a self-host reinicia. O `http://localhost` fica para o Docker e para testes na sua máquina. Numa rede local só com `http`, use a Tailscale ou um domínio com https.
+- **Trocar de instalação** (da nuvem para a self-host, ou o contrário) pede **Conectar** de novo: o token guardado vale só para a instalação que o emitiu e é descartado sem ir a lugar nenhum. Revogue o da nuvem em Configurações → Apps de IA de lá.
+- **No Docker e no Coolify:** defina `AGENTES_URL` junto com as outras variáveis. O container precisa alcançar esse endereço; com a self-host só na tailnet, prefira o `instalar.sh` numa máquina da tailnet.
+- **Depois:** abra o escritório e use **Conectar ao agentes.chat**. A autorização abre na sua instalação, e os botões "Responder" e "Revisar" levam a ela. Sem a `AGENTES_URL`, tudo segue na nuvem, como antes.
+- **Conferir:** `curl -s <AGENTES_URL>/.well-known/oauth-protected-resource/mcp`, rodado na máquina do escritório, deve mostrar o documento da instalação.
+
 ## Docker e Coolify
 
 O repositório traz um `Dockerfile` e um `docker-compose.yml`. Não há imagem publicada: o Coolify (ou você) constrói a imagem direto do Git. A imagem leva só o código e a pasta `static/`, sem `pip`, e roda com um usuário próprio, sem shell. O `.dockerignore` é uma lista de permissão: mesmo construída de uma pasta que tem `dados/` ou `times.json`, a imagem não leva nada disso.
@@ -319,7 +335,7 @@ Dá para trazer alguém de fora para dentro do escritório, sem criar usuário n
 
 ## Mundo
 
-`/mundo.html` mostra onde o escritório fica: um planeta em pixel art que desce até a porta da recepção. A página é **pública e sem cookie**, não mostra nada do agentes.chat e ainda não tem link no menu: abra pelo endereço.
+`/mundo.html` mostra onde o escritório fica: um planeta em pixel art que desce até a porta da recepção. A página é **pública e sem cookie**, não mostra nada do agentes.chat e abre pelo item **Mundo** do menu. No **Modo TV**, ela entra sozinha por 45 s a cada 5 min sem notícia; `/mundo.html?tv=1` faz o mesmo passeio em tela cheia, para uma tela da sala.
 
 <table>
   <tr>
@@ -347,7 +363,10 @@ Dá para trazer alguém de fora para dentro do escritório, sem criar usuário n
 - **Quatro níveis:** o **globo** gira com a noite de agora; o **Brasil** mostra as 27 capitais e Mateus Leme (MG), cada uma com o seu ponto turístico; a **cidade** tem o marco, praça, ruas, carros e gente nas calçadas (capital de praia tem orla); o **bairro** leva à porta da recepção.
 - **Navegar:** clique ou toque para descer, **Esc** ou **Voltar** para subir. A roda, a pinça, o duplo clique e as teclas `+` e `-` aproximam; no zoom máximo sobre uma capital, aproximar de novo entra nela, e afastar no mínimo volta ao globo. As setas giram o globo ou movem o mapa, e **Tab** e **Enter** percorrem as cidades e as construções.
 - **Ao vivo:** o tempo real das 28 cidades (limpo, nublado, neblina, garoa, chuva, tempestade ou neve, com vento), dia e noite pelo relógio e as datas comemorativas do calendário, que enfeitam a cidade. As datas que você desligou em **Personalizar** não aparecem; as datas próprias da empresa nunca vão para o mundo.
-- **A cidade do escritório:** é a cidade do mapa mais perto da **cidade do clima** de **Personalizar**, até 300 km. Só ela tem o chalé com a placa e a porta que leva ao bairro. Mais longe que isso, o mapa funciona igual, sem chalé. **Hoje o mapa é só o Brasil.**
+- **A cidade do escritório:** é a cidade do mapa mais perto da **cidade do clima** de **Personalizar**, até 300 km. Só ela tem o chalé com a placa e a porta que leva ao bairro. Mais longe que isso, o mapa funciona igual, sem chalé.
+- **Fora do Brasil:** 12 cidades de outros países são pontos dourados no globo (Lisboa, Luanda, Maputo, Buenos Aires, Montevidéu, Santiago, Cidade do México, Nova York, Londres, Paris, Madri e Tóquio). Clicar desce direto à cidade; Esc volta ao globo. Elas também valem como cidade do escritório.
+- **Cidades médias:** com zoom, as 50 cidades médias do mapa (Campinas, Santos, Juiz de Fora...) também abrem, com o tempo da capital mais perto.
+- **Na rua:** carros, ônibus e bicicletas pela mão certa e, nas datas comemorativas, pedestres de chapéu de festa.
 - **Leve:** o mapa de longe pesa 47 KB. Os dois níveis de detalhe só baixam com zoom: 160 KB a partir de 2x e 395 KB no zoom máximo, em pedaços e só os da vista. Com "reduzir movimento" ligado nada se mexe, e a animação pausa com a aba escondida.
 - **Testar:** `python ferramentas/previa.py ferramentas/previa.exemplo.json` e abra `http://127.0.0.1:7372/mundo.html`. `?hora=22`, `?clima=chuva` e `?data=2026-12-25` simulam hora, tempo e data.
 
@@ -357,6 +376,7 @@ O que o servidor manda para essa página está em [Segurança](#segurança).
 
 Quem só instala não precisa de nada disto: os arquivos de `static/mundo/` já vêm prontos no repositório.
 
+- **Cidades de fora:** `arte/mundo/exterior.json`, com `pais` no lugar da `uf` e `regiao` (`N`, `NE`, `CO`, `SE` ou `S`), que escolhe as árvores.
 - **Cidades:** `arte/mundo/cidades.json`. Cada cidade tem `id`, `nome`, `uf`, `lat`, `lon`, `marco` (o arquivo `marco-<marco>.png` da arte), `marco_nome` (o nome mostrado), `porte` (`metropole`, `grande`, `media` ou `pequena`) e `litoral` (`true` para orla).
 - **Arte:** `arte/pixellab/mundo/` (marcos, prédios, casas, árvores, carros, serras). Sem a arte de um marco, a cidade usa um prédio genérico.
 - **Terreno:** `arte/mundo/biomas.json` e `serras.json`, mais os recortes do Natural Earth em `arte/mundo/fontes/` (contornos, rios, rodovias e cidades; a origem de cada um está em `LICENCA.md`).

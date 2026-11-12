@@ -12,11 +12,12 @@ const TV = (() => {
   const DEVOLVE = 30000;        // um toque devolve o controle por 30 s
   const VELHO = 120000;         // evento que esperou mais de 2 min na fila já não é notícia
   const FILA_MAX = 12, VISTOS_MAX = 300;
+  const MUNDO_A_CADA = 300000, MUNDO_FICA = 45000;   // sem notícia, o mundo (/mundo.html?tv=1) por 45 s a cada 5 min
   const menosMovimento = matchMedia("(prefers-reduced-motion: reduce)");
   const $ = id => document.getElementById(id);
 
   let api = null, ligada = false, relogio = 0, wake = null, pedindoWake = false, parado = 0, configV = null;
-  let fila = [], atual = null, ate = 0, pausaAte = 0, passeio = { sala: -1, geral: true };
+  let fila = [], atual = null, ate = 0, pausaAte = 0, passeio = { sala: -1, geral: true }, mundoEm = 0;
   const vistos = new Set();     // eventos e cenas já mostrados (ou que já existiam quando a TV ligou)
 
   const urlTv = () => new URLSearchParams(location.search).get("tv") === "1";
@@ -48,7 +49,7 @@ const TV = (() => {
     api.fecharFicha(); api.telaCheia(true);
     if (gesto) pedirTelaCheia(); else $("tv-cheia").hidden = telaCheiaDoNavegador() || !document.fullscreenEnabled;
     pedirWake(); api.aoLigar();
-    fila = []; atual = null; ate = 0; pausaAte = 0; passeio = { sala: -1, geral: true };
+    fila = []; atual = null; ate = 0; pausaAte = 0; passeio = { sala: -1, geral: true }; mundoEm = performance.now();
     marcarVistos(api.estado());   // o que já estava acontecendo não vira notícia
     api.verTudo(true);
     relogio = setInterval(passo, 500);
@@ -63,7 +64,7 @@ const TV = (() => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     const u = new URL(location.href); u.searchParams.delete("tv"); history.replaceState(history.state, "", u);
     document.body.classList.remove("tv", "tv-quieto");
-    $("tv-legenda").hidden = true; $("tv-cheia").hidden = true;
+    $("tv-legenda").hidden = true; $("tv-cheia").hidden = true; mundo(false);
     fila = []; atual = null; configV = null;
     api.soltar(); api.telaCheia(false);
     $("modo-tv").focus({ preventScroll: true });
@@ -135,6 +136,7 @@ const TV = (() => {
 
   function mostrar(n, agora) {
     const ja = menosMovimento.matches;   // movimento reduzido: corta em vez de deslizar
+    mundo(false);   // a notícia fura o mundo
     if (n.agente) {
       if (!api.seguirAgente(n.agente, ja)) return false;
       const a = api.agente(n.agente);
@@ -152,6 +154,11 @@ const TV = (() => {
   function passear(agora) {
     const ja = menosMovimento.matches;
     atual = null; ate = agora + PASSEIO;
+    if (agora - mundoEm > MUNDO_A_CADA && !$("tv-mundo")) {
+      mundoEm = agora; ate = agora + MUNDO_FICA; mundo(true); $("tv-legenda").hidden = true;
+      return;
+    }
+    mundo(false);
     const salas = api.salasComGente();
     if (passeio.geral && salas.length) {
       passeio.sala = (passeio.sala + 1) % salas.length;
@@ -164,6 +171,17 @@ const TV = (() => {
       $("tv-legenda").hidden = true;
       passeio.geral = true;
     }
+  }
+
+  // o mundo por cima do mapa, sem foco nem clique (um toque cai no mapa, devolve o controle e fecha o mundo)
+  function mundo(abrir) {
+    const f = $("tv-mundo");
+    if (!abrir) { if (f) f.remove(); return; }
+    if (f) return;
+    const novo = document.createElement("iframe");
+    novo.id = "tv-mundo"; novo.className = "tv-mundo"; novo.src = "/mundo.html?tv=1"; novo.title = "Mundo dos escritórios";
+    novo.tabIndex = -1; novo.setAttribute("aria-hidden", "true");
+    $("tv-legenda").before(novo);
   }
 
   // faixa de baixo, estilo telejornal: boneco, quem e o quê
@@ -184,7 +202,7 @@ const TV = (() => {
   function tocou() {
     if (!ligada) return;
     pausaAte = performance.now() + DEVOLVE; ate = 0; atual = null;
-    $("tv-legenda").hidden = true;
+    $("tv-legenda").hidden = true; mundo(false);
   }
 
   return {

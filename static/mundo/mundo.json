@@ -1,5 +1,5 @@
 {
- "versao": 1647808147,
+ "versao": 1468990746,
  "cidades": [
   {
    "id": "rio-branco",
@@ -527,6 +527,152 @@
    "goiania",
    "campo-grande"
   ]
+ ],
+ "exterior": [
+  {
+   "id": "lisboa",
+   "nome": "Lisboa",
+   "pais": "Portugal",
+   "lat": 38.72,
+   "lon": -9.14,
+   "marco": "torre-belem",
+   "marco_nome": "Torre de Belém",
+   "porte": "metropole",
+   "litoral": true,
+   "regiao": "SE"
+  },
+  {
+   "id": "luanda",
+   "nome": "Luanda",
+   "pais": "Angola",
+   "lat": -8.84,
+   "lon": 13.23,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "metropole",
+   "litoral": true,
+   "regiao": "NE"
+  },
+  {
+   "id": "maputo",
+   "nome": "Maputo",
+   "pais": "Moçambique",
+   "lat": -25.97,
+   "lon": 32.57,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "grande",
+   "litoral": true,
+   "regiao": "NE"
+  },
+  {
+   "id": "buenos-aires",
+   "nome": "Buenos Aires",
+   "pais": "Argentina",
+   "lat": -34.6,
+   "lon": -58.38,
+   "marco": "obelisco",
+   "marco_nome": "Obelisco de Buenos Aires",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "S"
+  },
+  {
+   "id": "montevideu",
+   "nome": "Montevidéu",
+   "pais": "Uruguai",
+   "lat": -34.9,
+   "lon": -56.16,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "grande",
+   "litoral": true,
+   "regiao": "S"
+  },
+  {
+   "id": "santiago",
+   "nome": "Santiago",
+   "pais": "Chile",
+   "lat": -33.45,
+   "lon": -70.67,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "S"
+  },
+  {
+   "id": "cidade-do-mexico",
+   "nome": "Cidade do México",
+   "pais": "México",
+   "lat": 19.43,
+   "lon": -99.13,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "CO"
+  },
+  {
+   "id": "nova-york",
+   "nome": "Nova York",
+   "pais": "Estados Unidos",
+   "lat": 40.71,
+   "lon": -74.01,
+   "marco": "estatua-liberdade",
+   "marco_nome": "Estátua da Liberdade",
+   "porte": "metropole",
+   "litoral": true,
+   "regiao": "S"
+  },
+  {
+   "id": "londres",
+   "nome": "Londres",
+   "pais": "Reino Unido",
+   "lat": 51.51,
+   "lon": -0.13,
+   "marco": "big-ben",
+   "marco_nome": "Big Ben",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "S"
+  },
+  {
+   "id": "paris",
+   "nome": "Paris",
+   "pais": "França",
+   "lat": 48.86,
+   "lon": 2.35,
+   "marco": "torre-eiffel",
+   "marco_nome": "Torre Eiffel",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "S"
+  },
+  {
+   "id": "madri",
+   "nome": "Madri",
+   "pais": "Espanha",
+   "lat": 40.42,
+   "lon": -3.7,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "metropole",
+   "litoral": false,
+   "regiao": "SE"
+  },
+  {
+   "id": "toquio",
+   "nome": "Tóquio",
+   "pais": "Japão",
+   "lat": 35.68,
+   "lon": 139.69,
+   "marco": "",
+   "marco_nome": "",
+   "porte": "metropole",
+   "litoral": true,
+   "regiao": "SE"
+  }
  ],
  "niveis": {
   "brasil": {
@@ -1718,350 +1864,500 @@
      "uf": "SP",
      "x": 268,
      "y": 288,
-     "pop": 2791000
+     "pop": 2791000,
+     "id": "campinas",
+     "porte": "grande",
+     "litoral": false
     },
     {
      "nome": "Santos",
      "uf": "SP",
      "x": 276,
      "y": 299,
-     "pop": 1709000
+     "pop": 1709000,
+     "id": "santos",
+     "porte": "grande",
+     "litoral": true
     },
     {
      "nome": "Joinville",
      "uf": "SC",
      "x": 251,
      "y": 323,
-     "pop": 988000
+     "pop": 988000,
+     "id": "joinville",
+     "porte": "media",
+     "litoral": true
     },
     {
      "nome": "São José dos Campos",
      "uf": "SP",
      "x": 281,
      "y": 292,
-     "pop": 753769
+     "pop": 753769,
+     "id": "sao-jose-dos-campos",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Uberlândia",
      "uf": "MG",
      "x": 257,
      "y": 248,
-     "pop": 563536
+     "pop": 563536,
+     "id": "uberlandia",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Sorocaba",
      "uf": "SP",
      "x": 265,
      "y": 294,
-     "pop": 563281
+     "pop": 563281,
+     "id": "sorocaba",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Ribeirão Preto",
      "uf": "SP",
      "x": 261,
      "y": 271,
-     "pop": 551267
+     "pop": 551267,
+     "id": "ribeirao-preto",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Londrina",
      "uf": "PR",
      "x": 228,
      "y": 293,
-     "pop": 520238
+     "pop": 520238,
+     "id": "londrina",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Jundiaí",
      "uf": "SP",
      "x": 271,
      "y": 292,
-     "pop": 505548
+     "pop": 505548,
+     "id": "jundiai",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Feira de Santana",
      "uf": "BA",
      "x": 350,
      "y": 182,
-     "pop": 481911
+     "pop": 481911,
+     "id": "feira-de-santana",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Juiz de Fora",
      "uf": "MG",
      "x": 306,
      "y": 277,
-     "pop": 470193
+     "pop": 470193,
+     "id": "juiz-de-fora",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Volta Redonda",
      "uf": "RJ",
      "x": 299,
      "y": 285,
-     "pop": 456362
+     "pop": 456362,
+     "id": "volta-redonda",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Foz do Iguaçu",
      "uf": "PR",
      "x": 194,
      "y": 315,
-     "pop": 440455
+     "pop": 440455,
+     "id": "foz-do-iguacu",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Campina Grande",
      "uf": "PB",
      "x": 381,
      "y": 132,
-     "pop": 417261
+     "pop": 417261,
+     "id": "campina-grande",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Ipatinga",
      "uf": "MG",
      "x": 314,
      "y": 254,
-     "pop": 407894
+     "pop": 407894,
+     "id": "ipatinga",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Taubaté",
      "uf": "SP",
      "x": 284,
      "y": 290,
-     "pop": 403560
+     "pop": 403560,
+     "id": "taubate",
+     "porte": "media",
+     "litoral": false
     },
     {
      "nome": "Campos",
      "uf": "RJ",
      "x": 326,
      "y": 277,
-     "pop": 387417
+     "pop": 387417,
+     "id": "campos",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Caxias do Sul",
      "uf": "RS",
      "x": 228,
      "y": 351,
-     "pop": 381270
+     "pop": 381270,
+     "id": "caxias-do-sul",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "São José do Rio Preto",
      "uf": "SP",
      "x": 246,
      "y": 267,
-     "pop": 374699
+     "pop": 374699,
+     "id": "sao-jose-do-rio-preto",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Piracicaba",
      "uf": "SP",
      "x": 263,
      "y": 287,
-     "pop": 342209
+     "pop": 342209,
+     "id": "piracicaba",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Bauru",
      "uf": "SP",
      "x": 249,
      "y": 283,
-     "pop": 335024
+     "pop": 335024,
+     "id": "bauru",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Montes Claros",
      "uf": "MG",
      "x": 301,
      "y": 227,
-     "pop": 332379
+     "pop": 332379,
+     "id": "montes-claros",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Maringá",
      "uf": "PR",
      "x": 220,
      "y": 294,
-     "pop": 328335
+     "pop": 328335,
+     "id": "maringa",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Itajaí",
      "uf": "SC",
      "x": 253,
      "y": 328,
-     "pop": 327126
+     "pop": 327126,
+     "id": "itajai",
+     "porte": "pequena",
+     "litoral": true
     },
     {
      "nome": "Pelotas",
      "uf": "RS",
      "x": 216,
      "y": 377,
-     "pop": 320674
+     "pop": 320674,
+     "id": "pelotas",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Itu",
      "uf": "SP",
      "x": 267,
      "y": 292,
-     "pop": 320170
+     "pop": 320170,
+     "id": "itu",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Anápolis",
      "uf": "GO",
      "x": 250,
      "y": 223,
-     "pop": 319587
+     "pop": 319587,
+     "id": "anapolis",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Vitória da Conquista",
      "uf": "BA",
      "x": 331,
      "y": 208,
-     "pop": 308204
+     "pop": 308204,
+     "id": "vitoria-da-conquista",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Franca",
      "uf": "SP",
      "x": 266,
      "y": 265,
-     "pop": 305041
+     "pop": 305041,
+     "id": "franca",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Blumenau",
      "uf": "SC",
      "x": 249,
      "y": 329,
-     "pop": 293949
+     "pop": 293949,
+     "id": "blumenau",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Ponta Grossa",
      "uf": "PR",
      "x": 238,
      "y": 310,
-     "pop": 292177
+     "pop": 292177,
+     "id": "ponta-grossa",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Limeira",
      "uf": "SP",
      "x": 266,
      "y": 285,
-     "pop": 289665
+     "pop": 289665,
+     "id": "limeira",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Petrópolis",
      "uf": "RJ",
      "x": 307,
      "y": 285,
-     "pop": 286071
+     "pop": 286071,
+     "id": "petropolis",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Crato",
      "uf": "CE",
      "x": 345,
      "y": 132,
-     "pop": 273883
+     "pop": 273883,
+     "id": "crato",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Cabo Frio",
      "uf": "RJ",
      "x": 319,
      "y": 288,
-     "pop": 261721
+     "pop": 261721,
+     "id": "cabo-frio",
+     "porte": "pequena",
+     "litoral": true
     },
     {
      "nome": "Petrolina",
      "uf": "PE",
      "x": 334,
      "y": 153,
-     "pop": 260985
+     "pop": 260985,
+     "id": "petrolina",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Uberaba",
      "uf": "MG",
      "x": 260,
      "y": 257,
-     "pop": 260843
+     "pop": 260843,
+     "id": "uberaba",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Cascavel",
      "uf": "PR",
      "x": 205,
      "y": 309,
-     "pop": 257172
+     "pop": 257172,
+     "id": "cascavel",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Governador Valadares",
      "uf": "MG",
      "x": 320,
      "y": 248,
-     "pop": 250878
+     "pop": 250878,
+     "id": "governador-valadares",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Santa Maria",
      "uf": "RS",
      "x": 202,
      "y": 356,
-     "pop": 249219
+     "pop": 249219,
+     "id": "santa-maria",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Caruaru",
      "uf": "PE",
      "x": 380,
      "y": 142,
-     "pop": 242094
+     "pop": 242094,
+     "id": "caruaru",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Ilhéus",
      "uf": "BA",
      "x": 349,
      "y": 207,
-     "pop": 230622
+     "pop": 230622,
+     "id": "ilheus",
+     "porte": "pequena",
+     "litoral": true
     },
     {
      "nome": "Santarém",
      "uf": "PA",
      "x": 192,
      "y": 84,
-     "pop": 230428
+     "pop": 230428,
+     "id": "santarem",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Imperatriz",
      "uf": "MA",
      "x": 265,
      "y": 115,
-     "pop": 218106
+     "pop": 218106,
+     "id": "imperatriz",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Marília",
      "uf": "SP",
      "x": 240,
      "y": 282,
-     "pop": 212218
+     "pop": 212218,
+     "id": "marilia",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Presidente Prudente",
      "uf": "SP",
      "x": 226,
      "y": 281,
-     "pop": 209502
+     "pop": 209502,
+     "id": "presidente-prudente",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "São Carlos",
      "uf": "SP",
      "x": 261,
      "y": 280,
-     "pop": 205035
+     "pop": 205035,
+     "id": "sao-carlos",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Criciúma",
      "uf": "SC",
      "x": 246,
      "y": 346,
-     "pop": 204217
+     "pop": 204217,
+     "id": "criciuma",
+     "porte": "pequena",
+     "litoral": true
     },
     {
      "nome": "Guaratinguetá",
      "uf": "SP",
      "x": 288,
      "y": 288,
-     "pop": 203580
+     "pop": 203580,
+     "id": "guaratingueta",
+     "porte": "pequena",
+     "litoral": false
     },
     {
      "nome": "Mossoró",
      "uf": "RN",
      "x": 366,
      "y": 111,
-     "pop": 202583
+     "pop": 202583,
+     "id": "mossoro",
+     "porte": "pequena",
+     "litoral": false
     }
    ],
    "paises": [

@@ -84,6 +84,27 @@ const MundoMapa = (() => {
         marco: typeof c.marco === "string" ? c.marco : "", grande: GRANDES.has(c.id), n: i, fase: rnd() * 6, emissao: 0,
         raio: 2 + rnd() * 6, flash: 0, bolt: 0, formas: {}, tempo: { tipo: "limpo", vento: 0, noite: false } }));
     const porId = new Map(cidades.map(c => [c.id, c]));
+    // as cidades médias (as do zoom de 3x) também abrem a cidade: sem marco (o centro fica com prédios), com o porte e a
+    // praia que vêm do mundo.json e o tempo da capital mais perto
+    const medias = cidades.length && dados.niveis && dados.niveis.brasil && Array.isArray(dados.niveis.brasil.medias)
+      ? dados.niveis.brasil.medias : [];
+    for (const m of medias) {
+      if (!m || typeof m.id !== "string" || !/^[a-z0-9-]{1,40}$/.test(m.id) || porId.has(m.id) || !Number.isFinite(m.x) || !Number.isFinite(m.y)) continue;
+      const x = m.x + 0.5, y = m.y + 0.5, d = c => Math.hypot(c.x - x, c.y - y);
+      const vizinha = cidades.reduce((a, c) => d(c) < d(a) ? c : a);
+      porId.set(m.id, { id: m.id, nome: String(m.nome || m.id), uf: String(m.uf || ""), x, y, marco: "", media: true,
+        porte: ["grande", "media", "pequena"].includes(m.porte) ? m.porte : "pequena", litoral: m.litoral === true,
+        get tempo() { return vizinha.tempo; } });
+    }
+    // as cidades de fora do Brasil (do globo): o tempo de cada uma vem do servidor, como o das capitais; a "UF" é o país
+    const exterior = [];
+    for (const e of Array.isArray(dados.exterior) ? dados.exterior : []) {
+      if (!e || typeof e.id !== "string" || !/^[a-z0-9-]{1,40}$/.test(e.id) || porId.has(e.id)) continue;
+      const c = { id: e.id, nome: String(e.nome || e.id), uf: String(e.pais || ""), fora: true, marco: typeof e.marco === "string" ? e.marco : "",
+        porte: ["metropole", "grande", "media", "pequena"].includes(e.porte) ? e.porte : "grande", litoral: e.litoral === true,
+        regiao: ["N", "NE", "CO", "SE", "S"].includes(e.regiao) ? e.regiao : "SE", tempo: { tipo: "limpo", vento: 0, noite: false } };
+      exterior.push(c); porId.set(c.id, c);
+    }
     const rotas = (Array.isArray(dados.rotas) ? dados.rotas : []).filter(r => Array.isArray(r) && porId.has(r[0]) && porId.has(r[1]))
       .map(([a, b], i) => {   // a curva leve: o ponto de controle sai do meio, de lado, 14% do comprimento
         const A = porId.get(a), B = porId.get(b), dx = B.x - A.x, dy = B.y - A.y, s = i % 2 ? 0.14 : -0.14;
@@ -180,7 +201,7 @@ const MundoMapa = (() => {
 
     function clima(resp) {
       const d = resp && typeof resp === "object" ? resp : {}, lista = d.cidades && typeof d.cidades === "object" ? d.cidades : {};
-      for (const c of cidades) {
+      for (const c of [...cidades, ...exterior]) {
         const v = Object.prototype.hasOwnProperty.call(lista, c.id) && lista[c.id] && typeof lista[c.id] === "object" ? lista[c.id] : {};
         c.tempo = { tipo: simulado || (TIPOS.includes(v.tipo) ? v.tipo : "limpo"),
                     vento: typeof v.vento === "number" && v.vento > 0 ? Math.min(1, v.vento) : 0, noite: v.noite === true };
@@ -724,7 +745,7 @@ const MundoMapa = (() => {
       entrar(p) {   // voltando de uma cidade, a câmera sai de perto dela; o atlas e os azulejos que falharam são pedidos de novo
         carregar(); detalhe.tentarDeNovo(); partindo = false;
         const c = p && p.de && porId.get(p.de);
-        if (!c) return;
+        if (!c || c.fora) return;
         camBrasil.x = c.x; camBrasil.y = c.y; camBrasil.z = reduzido ? 2 : 4; camBrasil.zoomPara(2); camBrasil.limitar();
       },
       sair() { brasil.destaque = null; ufSobre = ufFixa = null; },
@@ -738,13 +759,16 @@ const MundoMapa = (() => {
       clique(x, y) {
         const c = perto(camBrasil, x, y);
         if (c) return { ir: "cidade", cidade: c.id };
+        const m = detalhe.mediaEm(...camBrasil.tela(x, y), unidade(camBrasil));   // o marcador ou o nome de uma média
+        if (m && porId.has(m)) return { ir: "cidade", cidade: m };
         ufFixa = detalhe.ufEm(x, y, camBrasil);
         return ufFixa ? { anuncio: anuncioUf(ufFixa) } : null;
       },
       sobre(x, y) {
-        const c = perto(camBrasil, x, y);
-        ufSobre = c ? null : detalhe.ufEm(x, y, camBrasil);
-        return c ? alvo(c, camBrasil) : null;
+        const c = perto(camBrasil, x, y), m = c ? null : porId.get(detalhe.mediaEm(...camBrasil.tela(x, y), unidade(camBrasil)));
+        ufSobre = c || m ? null : detalhe.ufEm(x, y, camBrasil);
+        return c ? alvo(c, camBrasil) : m ? { id: m.id, x: m.x, y: m.y, alto: 3 * unidade(camBrasil) / camBrasil.dpr,
+          titulo: `${m.nome} · ${m.uf}`, texto: texto(m), rotulo: `${m.nome} (${m.uf}): ${texto(m)}`, acao: { ir: "cidade", cidade: m.id } } : null;
       },
       fora() { ufSobre = null; },   // o cursor saiu do mapa
       anuncio() { return ufSobre ? anuncioUf(ufSobre) : null; },   // o estado sob o cursor, para a linha de status
@@ -755,8 +779,8 @@ const MundoMapa = (() => {
         if (c.z !== c.alvoZ || c.ancora || c.voo || (daRoda && parada < PAUSA)) return null;
         if (sinal < 0) return c.z <= 1 ? { ir: "globo" } : null;
         if (c.z < c.maximo() - 1e-9) return null;
-        const cid = perto(c, ...c.mundo(sx, sy));
-        return cid ? { ir: "cidade", cidade: cid.id } : null;
+        const cid = perto(c, ...c.mundo(sx, sy)), m = cid ? null : detalhe.mediaEm(sx, sy, unidade(c));
+        return cid ? { ir: "cidade", cidade: cid.id } : m && porId.has(m) ? { ir: "cidade", cidade: m } : null;
       },
       assinatura() { return arranjo.chave; },   // muda quando os ícones mudam de lugar (o atlas, o tempo): os botões se refazem
       alvos() { return cidades.map(c => alvo(c, camBrasil)); },

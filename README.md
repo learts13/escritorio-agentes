@@ -181,6 +181,22 @@ If the office is opened from an address other than `ESCRITORIO_BASE`, the bar wa
 
 When Connect fails, a short page says why, in the office's own words: the server cannot reach agentes.chat, the return address was refused, or the authorization was refused or expired (it is valid for 10 minutes). The text that comes from agentes.chat is never shown.
 
+### With self-hosted agentes.chat
+
+If your team runs the [self-hosted agentes.chat](https://github.com/agentes-chat/agentes-chat/blob/main/SELF_HOSTING.md), the office reads from it instead of the cloud. Only one variable changes: **`AGENTES_URL`**, the address you open in the browser (the install's `PUBLIC_URL`).
+
+```bash
+sudo AGENTES_ORG=<organization id> AGENTES_URL=https://agentes.<your-tailnet>.ts.net bash instalar.sh
+```
+
+- **The organization id** is what comes after `/org/` in your install's address, as in the cloud.
+- **On the same tailnet:** the default self-hosted setup lives on Tailscale, and so does the office. The installer finds the install's IP and allows only that one on the service's network (the file `/etc/systemd/system/escritorio.service.d/agentes-url.conf`); the rest of the private network stays blocked. If the IP changes, run the installer again.
+- **https:** the self-hosted sign-in (OAuth) only accepts `https` (or `http://localhost`). The installer asks for `https`: on a high port, another user on the machine could take over `localhost` while the self-hosted server restarts. `http://localhost` is for Docker and local tests. On a LAN with plain `http`, use Tailscale or a domain with https.
+- **Switching installs** (cloud to self-hosted, or back) means **Connect** again: the stored token only works with the install that issued it and is dropped without going anywhere. Revoke the cloud one in its Settings → Apps de IA.
+- **On Docker and Coolify:** set `AGENTES_URL` along with the other variables. The container must reach that address; with the install only on the tailnet, prefer `instalar.sh` on a tailnet machine.
+- **Then:** open the office and use **Connect to agentes.chat**. The authorization opens on your install, and the "Reply" and "Review" buttons lead to it. Without `AGENTES_URL`, everything stays on the cloud, as before.
+- **Check:** `curl -s <AGENTES_URL>/.well-known/oauth-protected-resource/mcp`, run on the office's machine, should print the install's document.
+
 ## Docker and Coolify
 
 The repository ships a `Dockerfile` and a `docker-compose.yml`. There is no published image: Coolify (or you) builds it straight from Git. The image carries only the code and the `static/` folder, with no `pip`, and runs as its own user, with no shell. The `.dockerignore` is an allowlist: even when built from a folder that has `dados/` or `times.json`, the image carries none of it.
@@ -319,7 +335,7 @@ You can bring someone from outside into the office without creating a user or sh
 
 ## World
 
-`/mundo.html` shows where the office is: a pixel-art planet that goes all the way down to the reception door. The page is **public and cookieless**, shows nothing from agentes.chat and has no menu link yet: open it by its address. Its text is in Portuguese.
+`/mundo.html` shows where the office is: a pixel-art planet that goes all the way down to the reception door. The page is **public and cookieless**, shows nothing from agentes.chat and opens from the **Mundo** item in the menu. In **TV mode** it comes up on its own for 45 s every 5 min with no news; `/mundo.html?tv=1` runs the same tour full screen, for a lobby screen. Its text is in Portuguese.
 
 <table>
   <tr>
@@ -347,7 +363,10 @@ You can bring someone from outside into the office without creating a user or sh
 - **Four levels:** the **globe** spins with the current night side; **Brazil** shows the 27 state capitals and Mateus Leme (MG), each with its landmark; the **city** has the landmark, a square, streets, cars and people on the sidewalks (coastal capitals get a waterfront); the **neighborhood** leads to the reception door.
 - **Getting around:** click or tap to go down, **Esc** or **Voltar** (back) to go up. The wheel, pinch, double click and the `+` and `-` keys zoom; at maximum zoom over a capital, zooming in once more enters it, and zooming out at the minimum returns to the globe. The arrow keys spin the globe or move the map, and **Tab** and **Enter** walk through the cities and the buildings.
 - **Live:** the real weather of the 28 cities (clear, cloudy, fog, drizzle, rain, storm or snow, with wind), day and night by the clock, and the calendar holidays, which decorate the city. Holidays you turned off in **Personalizar** (Customize) do not show; the company's own dates never reach the world.
-- **The office's city:** the map city closest to the **weather city** set in **Personalizar**, up to 300 km away. Only it has the chalet with the sign and the door that leads to the neighborhood. Farther than that, the map works the same, without a chalet. **For now the map is Brazil only.**
+- **The office's city:** the map city closest to the **weather city** set in **Personalizar**, up to 300 km away. Only it has the chalet with the sign and the door that leads to the neighborhood. Farther than that, the map works the same, without a chalet.
+- **Beyond Brazil:** 12 cities in other countries are golden dots on the globe (Lisbon, Luanda, Maputo, Buenos Aires, Montevideo, Santiago, Mexico City, New York, London, Paris, Madrid and Tokyo). Clicking goes straight down to the city; Esc goes back to the globe. They also count as the office's city.
+- **Mid-size cities:** zoomed in, the map's 50 mid-size cities (Campinas, Santos, Juiz de Fora...) open too, with the nearest capital's weather.
+- **On the street:** cars, buses and bikes on the right side of the road and, on holidays, pedestrians in party hats.
 - **Light:** the far map weighs 47 KB. The two detail levels are only downloaded when you zoom: 160 KB from 2x and 395 KB at maximum zoom, in tiles, and only the ones in view. With "reduce motion" on nothing moves, and the animation pauses when the tab is hidden.
 - **Try it:** `python ferramentas/previa.py ferramentas/previa.exemplo.json` and open `http://127.0.0.1:7372/mundo.html`. `?hora=22`, `?clima=chuva` and `?data=2026-12-25` simulate the hour, the weather and the date.
 
@@ -357,6 +376,7 @@ What the server sends to this page is in [Security](#security).
 
 If you only install the office you need none of this: the files in `static/mundo/` ship ready in the repository.
 
+- **Cities abroad:** `arte/mundo/exterior.json`, with `pais` (country) instead of `uf` and `regiao` (`N`, `NE`, `CO`, `SE` or `S`), which picks the trees.
 - **Cities:** `arte/mundo/cidades.json`. Each city has `id`, `nome` (name), `uf` (state), `lat`, `lon`, `marco` (the `marco-<marco>.png` art file), `marco_nome` (the name shown), `porte` (size: `metropole`, `grande`, `media` or `pequena`) and `litoral` (`true` for a waterfront).
 - **Art:** `arte/pixellab/mundo/` (landmarks, buildings, houses, trees, cars, mountain ranges). Without a landmark's art, the city uses a generic building.
 - **Terrain:** `arte/mundo/biomas.json` and `serras.json`, plus the Natural Earth extracts in `arte/mundo/fontes/` (outlines, rivers, highways and cities; the source of each is in `LICENCA.md`).

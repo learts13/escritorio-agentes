@@ -263,6 +263,21 @@ const Avatar = (() => {
     return { x, y };
   }
 
+  // O chapéu da festa do dia (festas.js: noel, bruxa, coelho, festa ou palha) na cabeça do boneco; x, y: o canto do
+  // quadro que o boneco() devolve. No escritório e nos pedestres das cidades do mundo
+  function chapeu(c, x, y, festa) {
+    if (!festa || !festa.chapeu) return;
+    const cx = x + 11, topo = y + 8;
+    const px = (a, bb, w, h, cor) => { c.fillStyle = cor; c.fillRect(cx + a, topo + bb, w, h); };
+    switch (festa.chapeu) {
+      case "noel": px(-5, -2, 10, 2, "#ffffff"); px(-4, -5, 8, 3, "#e11d48"); px(-2, -7, 5, 2, "#e11d48"); px(2, -8, 3, 2, "#e11d48"); px(4, -9, 2, 2, "#ffffff"); break;
+      case "bruxa": px(-7, -1, 14, 1, "#1f1530"); px(-4, -4, 8, 3, "#2d1f45"); px(-2, -7, 5, 3, "#2d1f45"); px(0, -9, 3, 2, "#2d1f45"); px(-4, -2, 8, 1, "#f97316"); break;
+      case "coelho": px(-4, -8, 2, 7, "#ffffff"); px(2, -8, 2, 7, "#ffffff"); px(-3, -7, 1, 5, "#f9a8d4"); px(3, -7, 1, 5, "#f9a8d4"); break;
+      case "festa": px(-3, -2, 6, 2, "#a855f7"); px(-2, -4, 4, 2, "#facc15"); px(-1, -6, 2, 2, "#22d3ee"); px(-1, -8, 2, 2, "#f43f5e"); break;
+      case "palha": px(-7, -1, 14, 2, "#e6b85c"); px(-4, -4, 8, 3, "#d4a043"); px(-4, -2, 8, 1, "#b5472f"); break;
+    }
+  }
+
   // Aparência estável para quem não está no arquivo de configuração (derivada do handle).
   function aparenciaPadrao(handle) {
     let h = 0; for (const ch of handle || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -271,7 +286,7 @@ const Avatar = (() => {
     return { color: cores[h % cores.length], eyes: olhosTipos[(h >>> 3) % olhosTipos.length], accessory: acess[(h >>> 6) % acess.length] };
   }
 
-  return { desenhar: desenharAvatar, boneco, padrao: aparenciaPadrao, TAM, CORES, POSES };
+  return { desenhar: desenharAvatar, boneco, chapeu, padrao: aparenciaPadrao, TAM, CORES, POSES };
 })();
 
 window.Avatar = Avatar;

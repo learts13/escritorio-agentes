@@ -48,7 +48,7 @@ class Cidades(unittest.TestCase):
         c.ciclo()
         foto = c.foto()
         ids = [cidade["id"] for cidade in c.cidades]
-        self.assertEqual((len(ids), sorted(foto)), (28, sorted(ids)))
+        self.assertEqual((len(ids), sorted(foto)), (40, sorted(ids)))
         for cid, tempo in foto.items():
             self.assertEqual(set(tempo), {"tipo", "vento", "noite"}, cid)
             self.assertIn(tempo["tipo"], e.TIPOS_CLIMA)
@@ -82,7 +82,7 @@ class Cidades(unittest.TestCase):
         self.assertEqual(len(c.consultas), 2)
 
     def test_consulta_unica_ao_open_meteo(self):
-        """O _consultar de verdade, com o urlopen falso: uma URL só com as 28 coordenadas, e a resposta de uma cidade só
+        """O _consultar de verdade, com o urlopen falso: uma URL só com as 40 coordenadas (28 do Brasil e 12 do globo), e a resposta de uma cidade só
         (objeto em vez de lista) também vale."""
         pedidos = []
 
@@ -133,17 +133,17 @@ class Cidades(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             c.ciclo()
         foto = c.foto()
-        self.assertEqual(len(foto), 28)
+        self.assertEqual(len(foto), 40)
         self.assertEqual(set(json.dumps(v, sort_keys=True) for v in foto.values()),
                          {json.dumps({"tipo": "limpo", "vento": 0, "noite": False}, sort_keys=True)})
 
     def test_cidade_faltando_vira_limpo(self):
-        c = mundo_falso(lambda coords: [dict(CHUVA_NOITE) for _ in coords[:-1]])   # 27 de 28
+        c = mundo_falso(lambda coords: [dict(CHUVA_NOITE) for _ in coords[:-1]])   # 39 de 40
         c.ciclo()
         foto = c.foto()
         ultima = c.cidades[-1]["id"]
         self.assertEqual(foto[ultima], {"tipo": "limpo", "vento": 0, "noite": False})
-        self.assertEqual(sum(1 for v in foto.values() if v["tipo"] == "chuva"), 27)
+        self.assertEqual(sum(1 for v in foto.values() if v["tipo"] == "chuva"), 39)
         c.resposta = lambda coords: [dict(CHUVA_NOITE)]   # uma só
         c.agora += 900
         c.ciclo()
@@ -160,8 +160,9 @@ class Casa(unittest.TestCase):
         self.assertEqual(e.cidade_do_escritorio({"cidade": "Mateus Leme", "lat": -19.98, "lon": -44.43}, cidades),
                          "mateus-leme")
         self.assertEqual(e.cidade_do_escritorio({"cidade": "Campinas", "lat": -22.91, "lon": -47.06}, cidades), "sao-paulo")
-        # mais de 300 km da cidade mais perto do mapa: sem casa
-        self.assertIsNone(e.cidade_do_escritorio({"cidade": "Lisboa", "lat": 38.72, "lon": -9.14}, cidades))
+        # as cidades de fora do Brasil (o globo) também são casa; mais de 300 km da mais perto: sem casa
+        self.assertEqual(e.cidade_do_escritorio({"cidade": "Porto", "lat": 41.15, "lon": -8.61}, cidades), "lisboa")
+        self.assertIsNone(e.cidade_do_escritorio({"cidade": "Sydney", "lat": -33.87, "lon": 151.21}, cidades))
         self.assertAlmostEqual(e.distancia_km(-23.55, -46.63, -22.91, -47.06), 83.6, delta=1)
 
     def test_mundo_ausente(self):
@@ -209,7 +210,7 @@ class Rota(unittest.TestCase):
         self.assertEqual((status, cab["Cache-Control"]), (200, "no-store"))
         self.assertNotIn("Set-Cookie", cab)
         self.assertEqual(set(dados), {"cidades", "casa", "versao", "festas_desligadas"})
-        self.assertEqual((dados["casa"], dados["versao"], len(dados["cidades"])), ("recife", c.versao, 28))
+        self.assertEqual((dados["casa"], dados["versao"], len(dados["cidades"])), ("recife", c.versao, 40))
         self.assertEqual(dados["cidades"]["recife"], {"tipo": "chuva", "vento": 0.5, "noite": True})
         for dado in ("Recife", "-8.05", "lat", "27.3"):
             self.assertNotIn(dado, json.dumps(dados))

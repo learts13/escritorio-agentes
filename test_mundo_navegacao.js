@@ -297,8 +297,13 @@ async function principal() {
     if (regiao !== "S") assert.ok(!arv.has("arvore-6"), `${id}: pinheiro fora do Sul`);
     const nP = { metropole: [14, 18], grande: [11, 14], media: [8, 12], pequena: [6, 9] }[cc.porte];
     assert.ok(p.pedestres.length >= nP[0] && p.pedestres.length <= nP[1], `${id}: ${p.pedestres.length} pedestres`);
-    assert.equal(p.carros.length, { metropole: 8, grande: 6, media: 5, pequena: 3 }[cc.porte], `${id}: carros`);
-    for (const c of p.carros) frota.add(c.peca);
+    // carros, ônibus (da cidade média para cima) e bicicletas dividem as faixas
+    const conta = re => p.carros.filter(c => re.test(c.peca)).length;
+    assert.equal(conta(/^carro-/), { metropole: 8, grande: 6, media: 5, pequena: 3 }[cc.porte], `${id}: carros`);
+    assert.equal(conta(/^onibus-cima-[12]$/), { metropole: 2, grande: 1, media: 1, pequena: 0 }[cc.porte], `${id}: ônibus`);
+    assert.equal(conta(/^bici-[123]$/), { metropole: 3, grande: 2, media: 2, pequena: 2 }[cc.porte], `${id}: bicicletas`);
+    assert.equal(p.carros.length, conta(/^carro-/) + conta(/^onibus-cima-/) + conta(/^bici-/), `${id}: só esses veículos`);
+    for (const c of p.carros) if (c.peca.startsWith("carro-")) frota.add(c.peca);
     // vagas distintas: nada divide chão com outra peça, e tudo fica fora da rua e da calçada (o ônibus saiu: fica o ponto)
     for (const s of itens) {
       assert.ok(s.r[0] <= s.x && s.x <= s.r[2] && s.r[1] <= s.y && s.y <= s.r[3], `${id}: o pé de ${s.peca} na vaga`);
@@ -343,6 +348,29 @@ async function principal() {
   assert.equal(portas.length, 1); assert.equal(portas[0].id, "porta"); assert.deepEqual({ ...portas[0].acao }, { ir: "bairro", cidade: "mateus-leme" });
   ca.clicar(...ca.M.camera.tela(portas[0].x, portas[0].y - 10)); ca.rodar(12);
   assert.equal(ca.M.nivel, "bairro", "a porta da casa desce ao bairro"); assert.equal(ca.contexto.location.hash, "#bairro");
+  // a cidade média também abre: sem marco (o centro com prédios), com o porte e a praia do mundo.json e o tempo da capital
+  // mais perto (Santos: a de São Paulo); Esc volta ao Brasil
+  const st = await abrir("#cidade=santos", { passo: 100, clima: { ...CLIMA, cidades: { "sao-paulo": { tipo: "chuva" } } } });
+  st.rodar(5);
+  assert.equal(st.M.nivel, "cidade", "a média abre a cidade");
+  const sp = st.M.niveis.cidade.planta;
+  assert.equal(sp.porte, "grande"); assert.ok(sp.orla, "Santos tem praia");
+  assert.equal(st.contexto.clima && st.contexto.clima.tipo, "chuva", "o tempo da capital mais perto");
+  await carregar(st);
+  assert.match(st.canvas["aria-label"], /^Santos vista de cima/); assert.match(st.canvas["aria-label"], /No centro, prédios/);
+  st.tecla("Escape"); st.rodar(12);
+  assert.equal(st.M.nivel, "brasil");
+  // a cidade de fora do Brasil abre do mesmo jeito, com as árvores da região dela e o tempo que vem do servidor; Esc sobe
+  // direto ao globo, onde ela é um alvo que desce de volta
+  const pa = await abrir("#cidade=paris", { passo: 100, clima: { ...CLIMA, cidades: { paris: { tipo: "neblina" } } } });
+  pa.rodar(5);
+  assert.equal(pa.M.nivel, "cidade", "Paris abre a cidade");
+  assert.equal(pa.M.niveis.cidade.planta.regiao, "S"); assert.equal(pa.M.niveis.cidade.planta.porte, "metropole");
+  assert.equal(pa.contexto.clima && pa.contexto.clima.tipo, "neblina", "o tempo de Paris");
+  pa.tecla("Escape"); pa.rodar(12);
+  assert.equal(pa.M.nivel, "globo", "da cidade de fora, Esc sobe ao globo");
+  const alvoParis = pa.M.niveis.globo.alvos().find(a => a.id === "paris");
+  assert.ok(alvoParis, "Paris é um alvo do globo"); assert.deepEqual({ ...alvoParis.acao }, { ir: "cidade", cidade: "paris" });
   // fora da casa, nenhum alvo e nenhum clique desce; o bairro é sempre o da casa
   const mn = await abrir("#cidade=manaus", { passo: 100 });
   mn.rodar(5);
@@ -626,7 +654,8 @@ async function principal() {
     for (let i = 0; i < 30; i++) { a.arrastar(dx, dy); a.rodar(); dentro(); }
     a.rodar(8); dentro();
   }
-  for (let i = 0; i < 30; i++) a.canvas.disparar("wheel", { deltaY: -120, clientX: 100, clientY: 100 });
+  // a roda no canto da tela, onde nenhuma cidade (capital ou média) fica: no teto, ela só segura a câmera
+  for (let i = 0; i < 30; i++) a.canvas.disparar("wheel", { deltaY: -120, clientX: 1, clientY: 1 });
   a.rodar(10); dentro();
   for (let i = 0; i < 10 && cam().alvoZ > 1; i++) { a.elementos["mundo-menos"].disparar("click"); a.rodar(5); }
   for (let i = 0; i < 30 && cam().z !== cam().alvoZ; i++) a.rodar(1);

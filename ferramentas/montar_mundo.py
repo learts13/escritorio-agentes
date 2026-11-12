@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import string
 import sys
 from collections import Counter, deque
@@ -314,7 +315,23 @@ def cidades_medias(fontes, cidades, rotulo):
         escolhidas.append({"nome": p["NAME"], "uf": rotulo[(x, y)], "x": x, "y": y, "pop": p["POP_MAX"], **ponto})
         if len(escolhidas) == MEDIAS_MAX:
             break
-    return [{k: m[k] for k in ("nome", "uf", "x", "y", "pop")} for m in escolhidas]
+    # entra-se nelas também: o id para o endereço (#cidade=<id>), o porte pela população e a praia quando o mar fica a
+    # até 2 px (uns 25 km)
+    return [{**{k: m[k] for k in ("nome", "uf", "x", "y", "pop")}, "id": ident(m["nome"]), "porte": porte_media(m["pop"]),
+             "litoral": any((m["x"] + dx, m["y"] + dy) not in rotulo for dx in range(-2, 3) for dy in range(-2, 3))}
+            for m in escolhidas]
+
+
+def ident(nome):
+    """O id de uma cidade média: o nome sem acento, em minúsculas e com hífens (São José dos Campos: sao-jose-dos-campos)."""
+    import unicodedata
+    s = unicodedata.normalize("NFD", nome).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:40]
+
+
+def porte_media(pop):
+    """O porte da cidade média pela população (do Natural Earth, com a região metropolitana)."""
+    return "grande" if pop >= 1_000_000 else "media" if pop >= 400_000 else "pequena"
 
 
 def alisar_costa(rotulo, w, h, vezes=2):
@@ -413,6 +430,15 @@ def celulas(rotulo):
                     for i in range(80)) for j in range(80)]
 
 
+CAMPOS_EXTERIOR = ("id", "nome", "pais", "lat", "lon", "marco", "marco_nome", "porte", "litoral", "regiao")
+
+
+def exterior(fontes):
+    """As cidades de fora do Brasil (arte/mundo/exterior.json), só com os campos que a página usa; sem o arquivo, []."""
+    caminho = os.path.join(fontes, "exterior.json")
+    return [{k: c[k] for k in CAMPOS_EXTERIOR} for c in ler(caminho)] if os.path.exists(caminho) else []
+
+
 def na_terra(cidade, rotulo):
     """Pixel da cidade no brasil.png: o de para_pixel ou, se ele cair fora do Brasil (cidade da costa,
     de ilha ou de baía), o pixel de UF mais perto em distância euclidiana, até CIDADE_RAIO."""
@@ -477,6 +503,8 @@ def montar(fontes, saida):
                      "litoral": c["litoral"]}
                     for c in cidades for x, y in [na_terra(c, rotulo)]],
         "rotas": rotas(cidades),
+        # as cidades de fora do Brasil, no globo: clicar desce direto à cidade (sem mapa do país)
+        "exterior": exterior(fontes),
     }
     medias = cidades_medias(fontes, mundo["cidades"], rotulo)
     w4, h4 = W_BRASIL * ESCALA_4X, H_BRASIL * ESCALA_4X
@@ -575,6 +603,94 @@ JANELAS_MAX, JANELA_AREA = 48, 30
 ATLAS_LARGURA = 512
 MINI_MARCO, MINI_AVIAO = 32, 20   # pixels: o lado maior da miniatura do mapa, antes do contorno de 1 px
 MINI_CONTORNO = (28, 22, 18, 255)
+
+
+# os veículos desenhados aqui, pixel a pixel (o PixelLab não desenha ônibus nem bicicleta vistos de cima): de frente para
+# o leste, como os carros, que a cidade gira conforme o sentido
+CONTORNO, VIDRO, BRILHO, PNEU = (24, 24, 32, 255), (38, 48, 70, 255), (112, 140, 186, 255), (16, 16, 20, 255)
+FAROL, LANTERNA = (255, 236, 168, 255), (214, 64, 64, 255)
+
+
+
+def onibus_de_cima(corpo, claro, escuro, faixa):
+    """O ônibus de cima, de frente para o leste (como os carros, que a cidade gira conforme o sentido): 44x17, com as
+    janelas dos dois lados, o teto com dois aparelhos de ar, o para-brisa, faróis, lanternas e as rodas embaixo."""
+    w, h = 44, 17   # 16 de carroceria e a linha das rodas
+    from PIL import Image
+    im = Image.new("RGBA", (w, h))
+    px = im.load()
+    teto, teto_luz, teto_sombra = (222, 226, 232, 255), (242, 245, 249, 255), (188, 194, 204, 255)
+    for x in range(w):
+        for y in range(16):
+            if (x in (0, w - 1) and y in (0, 1, 14, 15)) or (x in (1, w - 2) and y in (0, 15)):
+                continue   # os cantos arredondados
+            borda = x in (0, w - 1) or y in (0, 15) or (x in (1, w - 2) and y in (1, 14))
+            px[x, y] = CONTORNO if borda else corpo
+    for x in range(2, w - 2):
+        px[x, 1] = claro; px[x, 14] = escuro
+        px[x, 4] = faixa; px[x, 11] = faixa   # a faixa da empresa, nos dois lados
+    for x in range(3, w - 6):   # as janelas: vidro em trechos de 5, com colunas na cor do ônibus
+        if (x - 3) % 6 != 5:
+            px[x, 2] = BRILHO if (x - 3) % 6 == 0 else VIDRO
+            px[x, 3] = VIDRO; px[x, 12] = VIDRO; px[x, 13] = VIDRO
+    for x in range(4, w - 7):   # o teto
+        for y in range(5, 11):
+            px[x, y] = teto
+        px[x, 5] = teto_luz; px[x, 10] = teto_sombra
+    for x0 in (9, 25):   # os dois aparelhos de ar-condicionado
+        for x in range(x0, x0 + 8):
+            for y in range(6, 10):
+                px[x, y] = (150, 158, 172, 255)
+            px[x, 6] = (176, 184, 196, 255); px[x, 9] = (112, 120, 134, 255)
+        for x in range(x0 + 1, x0 + 7, 2):
+            px[x, 7] = px[x, 8] = (98, 106, 120, 255)
+    for y in range(2, 14):   # para-brisa (leste) e vidro de trás
+        for x in (w - 6, w - 5, w - 4):
+            px[x, y] = VIDRO
+        px[2, y] = VIDRO
+    for y in (3, 4, 5):
+        px[w - 5 + (y - 3) // 2, y] = BRILHO
+    px[w - 3, 2] = px[w - 3, 13] = FAROL
+    px[1, 2] = px[1, 13] = LANTERNA
+    for x in list(range(7, 12)) + list(range(30, 35)):   # as rodas, aparecendo embaixo
+        px[x, 16] = PNEU
+    return im
+
+
+def bici(camisa, sombra, pele, cabelo):
+    """A bicicleta de cima, de frente para o leste: 13x7, rodas na frente e atrás, guidão, e o ciclista (ombros na cor
+    da camisa e a cabeça)."""
+    w, h = 13, 7
+    from PIL import Image
+    im = Image.new("RGBA", (w, h))
+    px = im.load()
+    for x in (0, 1, 2, 10, 11, 12):   # as rodas
+        px[x, 3] = PNEU
+    for x in range(3, 10):   # o quadro
+        px[x, 3] = (190, 196, 204, 255)
+    px[9, 1] = px[9, 2] = px[9, 4] = px[9, 5] = (60, 60, 68, 255)   # o guidão
+    for x in range(4, 8):   # os ombros e as costas
+        for y in range(1, 6):
+            px[x, y] = camisa
+        px[x, 5] = sombra
+    px[3, 2] = px[3, 3] = px[3, 4] = sombra
+    for x in (6, 7):   # a cabeça
+        for y in (2, 3, 4):
+            px[x, y] = cabelo
+    px[8, 3] = pele
+    px[8, 2] = px[8, 4] = (pele[0] - 30, pele[1] - 30, pele[2] - 30, 255)   # os braços até o guidão
+    return im
+
+
+def desenhados():
+    """As peças feitas por código: dois ônibus (amarelo e azul) e três bicicletas (ciclistas de camisas diferentes)."""
+    return {
+        "onibus-cima-1": onibus_de_cima((236, 178, 40, 255), (252, 206, 90, 255), (190, 132, 24, 255), (46, 110, 190, 255)),
+        "onibus-cima-2": onibus_de_cima((52, 112, 196, 255), (96, 152, 226, 255), (34, 78, 146, 255), (236, 178, 40, 255)),
+        "bici-1": bici((214, 70, 70, 255), (160, 44, 44, 255), (224, 172, 128, 255), (60, 40, 30, 255)),
+        "bici-2": bici((60, 160, 110, 255), (36, 116, 78, 255), (150, 100, 70, 255), (24, 20, 20, 255)),
+        "bici-3": bici((240, 200, 60, 255), (190, 150, 30, 255), (236, 190, 150, 255), (180, 120, 50, 255)),
+    }
 
 
 def metade(im):
@@ -740,6 +856,7 @@ def montar_atlas(arte, cidades, saida):
     for nome in OPCIONAIS:
         if os.path.exists(os.path.join(arte, nome + ".png")):
             pecas[nome] = abrir(nome)
+    pecas.update(desenhados())
     for nome in ("aviao-1", "aviao-2"):
         pecas["mini-" + nome] = mini(pecas[nome], MINI_AVIAO)
     for c in cidades:
@@ -779,7 +896,7 @@ def main():
     saida = sys.argv[2] if len(sys.argv) > 2 else SAIDA
     mundo = montar(entrada, saida)
     print(f"mundo: {len(mundo['cidades'])} cidades, {len(mundo['rotas'])} rotas, versão {mundo['versao']} -> {os.path.normpath(saida)}")
-    atlas = montar_atlas(ARTE, ler(os.path.join(entrada, "cidades.json")), saida)
+    atlas = montar_atlas(ARTE, ler(os.path.join(entrada, "cidades.json")) + exterior(entrada), saida)
     print(f"atlas: {len(atlas['quadros'])} peças, versão {atlas['versao']} -> {os.path.normpath(saida)}")
 
 

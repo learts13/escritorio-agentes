@@ -11,8 +11,8 @@ Uso: python -I -B ferramentas/agentes_falso.py [--modo ok] [--porta 7390] [--dad
                 equipe com a sua), já apontado para este servidor, com uma
                 pasta de dados temporária (apagada ao sair), o times.exemplo.json e um AGENTES_ORG fictício. Mostra o
                 código de primeiro acesso. Nunca usa a 7371 nem a pasta de dados dela.
-  Sem o --escritorio, rode o escritório à mão com AGENTES_EMISSOR=http://127.0.0.1:7390,
-  AGENTES_MCP=http://127.0.0.1:7390/mcp, ESCRITORIO_BASE=http://127.0.0.1:7381, ESCRITORIO_PORTA=7381,
+  Sem o --escritorio, rode o escritório à mão com AGENTES_URL=http://127.0.0.1:7390 (como uma self-host),
+  ESCRITORIO_BASE=http://127.0.0.1:7381, ESCRITORIO_PORTA=7381,
   ESCRITORIO_DADOS=<pasta temporária>, ESCRITORIO_TIMES=times.exemplo.json e um AGENTES_ORG fictício.
 
 Modos (--modo, ou com tudo aberto: curl -d mcp_403 http://127.0.0.1:7390/_modo):
@@ -296,11 +296,11 @@ def subir_escritorio(porta_falso, porta):
     """O escritório de verdade, contra este servidor: só variáveis apontando para o 127.0.0.1 e uma pasta nova."""
     pasta = tempfile.mkdtemp(prefix="escritorio-falso-")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("AGENTES_", "ESCRITORIO_"))}
-    env.update(AGENTES_EMISSOR=f"http://127.0.0.1:{porta_falso}", AGENTES_MCP=f"http://127.0.0.1:{porta_falso}/mcp",
+    env.update(AGENTES_URL=f"http://127.0.0.1:{porta_falso}",   # como uma self-host: o MCP e o login saem dela
                AGENTES_ORG=ORG_FICTICIA, ESCRITORIO_BASE=f"http://127.0.0.1:{porta}",
                ESCRITORIO_PORTA=str(porta), ESCRITORIO_DADOS=pasta,
                ESCRITORIO_TIMES=os.path.join(PROJETO, "times.exemplo.json"))
-    assert all(env[k].startswith("http://127.0.0.1:") for k in ("AGENTES_EMISSOR", "AGENTES_MCP", "ESCRITORIO_BASE"))
+    assert all(env[k].startswith("http://127.0.0.1:") for k in ("AGENTES_URL", "ESCRITORIO_BASE"))
     proc = subprocess.Popen([sys.executable, "-I", "-B", os.path.join(PROJETO, "escritorio.py")], env=env)
     arq = os.path.join(pasta, "codigo-primeiro-acesso.txt")
     for _ in range(100):
