@@ -3,10 +3,12 @@
 // - as peças pela profundidade (quem está mais abaixo desenha por cima): o marco no centro (ou um prédio genérico, quando
 //   a arte dele falta), prédios, casas, chalés, o lazer, a praia, árvores (a copa balança com o vento do Clima), o
 //   mobiliário, postes e pedestres;
-// - carros pela mão direita, girando o desenho (feito para o leste) conforme o sentido, e dando a volta fora da vista.
+// - carros, ônibus e bicicletas pela mão direita, girando o desenho (feito para o leste) conforme o sentido, e dando a
+//   volta fora da vista.
 //   No cruzamento cabe um veículo por vez: quem chega espera do lado de fora enquanto houver outro lá dentro, e quem vai
 //   atrás na mesma faixa não encosta no da frente;
-// - pedestres (os bonecos do escritório, avatar.js, em 1:1) andando pela rede de calçadas e faixas da planta;
+// - pedestres (os bonecos do escritório, avatar.js, em 1:1) andando pela rede de calçadas e faixas da planta; na festa do
+//   dia, três em cada cinco com o chapéu dela;
 // - fumaça nas chaminés de alguns chalés, passarinhos cruzando de vez em quando e, à noite, janelas acesas (as do atlas,
 //   umas sim e outras não, mudando com a hora), postes, faróis e a casa;
 // - a partir de 2x (perto): placas com o nome das ruas nas esquinas, pombos na praça, sombra dos pedestres e os detalhes
@@ -20,7 +22,7 @@
 // entrada numa cidade (e de novo se falhar). Nada é alocado por quadro: listas, vista e opções são reaproveitadas.
 "use strict";
 const MundoCidade = (() => {
-  const { W, H, E, C } = CidadePlanta, FAIXA = 8, B = E / 2 + C, MEIO_CARRO = 16, PLACA_H = 12, POSTE = 28, FOLGA = 4;
+  const { W, H, E, C } = CidadePlanta, FAIXA = 8, B = E / 2 + C, PLACA_H = 12, POSTE = 28, FOLGA = 4;
   const QUADRA = [192, 160];   // o zoom máximo ainda mostra uma quadra inteira
   const PERTO = 1.8;           // a partir daqui (z), os detalhes de perto
   const ALTO_MAX = 130;        // a altura do maior desenho do atlas (os marcos chegam a 125)
@@ -41,7 +43,7 @@ const MundoCidade = (() => {
     camera.teto = () => Math.min(camera.W / QUADRA[0], camera.H / QUADRA[1]) / camera.base;
     const todas = Array.isArray(dados && dados.cidades) ? dados.cidades : [];
     const cidades = new Map(todas.filter(c => c && typeof c.id === "string").map(c => [c.id, c]));
-    const info = id => cidades.get(id) || {};
+    const info = id => cidades.get(id) || (mapa && mapa.porId.get(id)) || {};   // a média vem do mapa (porte, praia e UF)
     let id = null, p = CidadePlanta.planta(""), carros = [], pedestres = [], pecas = [], postes = [], rua = Math.random;
     let atlas = null, quadros = {}, janelas = {}, pedido = false, escolhido = null, notaveis = [], rascunho = null, placaCasa = null;
     let placas = [];   // as plaquinhas de cada cruzamento (com os letreiros guardados), entram na ordem de profundidade
@@ -143,7 +145,8 @@ const MundoCidade = (() => {
     const cobre = (s, m, k) => s - m < k + E / 2 && k - E / 2 < s + m;
     const dentro = (o, X, Y) => o.eixo === "h" ? o.rua === Y && cobre(o.s, meio(o), X) : o.rua === X && cobre(o.s, meio(o), Y);
     function andar(c, dt) {
-      const h = c.eixo === "h", m = meio(c), lo = Math.min(0, vista[h ? 0 : 1]) - MEIO_CARRO, hi = Math.max(h ? W : H, vista[h ? 2 : 3]) + MEIO_CARRO;
+      const h = c.eixo === "h", m = meio(c), fora = Math.max(16, m + 2);   // a volta, com o desenho todo fora da vista
+      const lo = Math.min(0, vista[h ? 0 : 1]) - fora, hi = Math.max(h ? W : H, vista[h ? 2 : 3]) + fora;
       let s = c.s + c.dir * c.v * dt;
       if (s > hi || s < lo) s = s > hi ? lo : hi;   // a volta acontece fora da caixa e da vista, com o carro inteiro escondido
       else for (let i = 0; i < p.cruzamentos.length; i++) {   // não entra num cruzamento com outro veículo dentro
@@ -279,7 +282,9 @@ const MundoCidade = (() => {
         if (vida.perto) {   // de perto, a sombra no chão
           ctx.globalAlpha = 0.25; ctx.fillStyle = "#16202a"; ctx.fillRect(Math.round(s.x) - 3, Math.round(s.y) - 1, 7, 2); ctx.globalAlpha = 1;
         }
-        if (window.Avatar) Avatar.boneco(ctx, s.b, t, 1);
+        if (!window.Avatar) return;
+        const q = Avatar.boneco(ctx, s.b, t, 1), f = s.festeiro && festa ? festa() : null;
+        if (f) Avatar.chapeu(ctx, q.x, q.y, f);   // na festa do dia, três em cada cinco de chapéu
         return;
       }
       if (s.enfeite) return enfeites.desenhar(ctx, s);
@@ -417,7 +422,8 @@ const MundoCidade = (() => {
         ctx.globalAlpha = 1;
         for (let i = 0; i < carros.length; i++) {   // os carros no chão, por baixo das construções (o atlas já os traz na escala)
           const c = carros[i], r = recorte(c.peca);
-          if (!r || !naVista(c.x - MEIO_CARRO, c.y - MEIO_CARRO, c.x + MEIO_CARRO, c.y + MEIO_CARRO)) continue;
+          const m = r ? r[2] / 2 + 2 : 0;
+          if (!r || !naVista(c.x - m, c.y - m, c.x + m, c.y + m)) continue;
           ctx.save(); ctx.translate(Math.round(c.x), Math.round(c.y)); ctx.rotate(giro(c));
           ctx.drawImage(atlas, r[0], r[1], r[2], r[3], -Math.round(r[2] / 2), -Math.round(r[3] / 2), r[2], r[3]);
           ctx.restore();
@@ -465,9 +471,9 @@ const MundoCidade = (() => {
           else if (s.peca === "banco-poste-1") brilho(ctx, s.x - 6, s.y - 22, 12, 0.45 * escuro, LUZ, s.y);   // o lampião do banco
         }
         if (casa) brilho(ctx, p.casa.x, p.casa.y - 18, 22, 0.55 * escuro, LUZ, p.casa.y);
-        for (let i = 0; i < carros.length; i++) {   // os faróis
-          const c = carros[i], a = giro(c);
-          brilho(ctx, c.x + Math.cos(a) * 14, c.y + Math.sin(a) * 14, 9, 0.5 * escuro, LUZ, c.y);
+        for (let i = 0; i < carros.length; i++) {   // os faróis (a bicicleta, uma luz pequena)
+          const c = carros[i], a = giro(c), m = meio(c) + 1, bici = c.peca.startsWith("bici-");
+          brilho(ctx, c.x + Math.cos(a) * m, c.y + Math.sin(a) * m, bici ? 5 : 9, (bici ? 0.35 : 0.5) * escuro, LUZ, c.y);
         }
         ctx.globalCompositeOperation = "source-over";
       }
@@ -518,7 +524,7 @@ const MundoCidade = (() => {
         carros = p.carros.map(c => ({ ...c, x: 0, y: 0 }));
         pedestres = p.pedestres.map((a, i) => {   // b: o boneco do avatar.js, com a aparência da semente local
           const ap = window.Avatar ? Avatar.padrao(a.semente) : null;
-          return { ...a, ped: true, x: 0, y: 0, b: { x: 0, y: 0, ap, pose: reduzido ? "parado" : "andando", olha: "baixo", semente: i * 7 } };
+          return { ...a, ped: true, festeiro: i % 5 < 3, x: 0, y: 0, b: { x: 0, y: 0, ap, pose: reduzido ? "parado" : "andando", olha: "baixo", semente: i * 7 } };
         });
         // o lado do braço de cada poste: para a rua vertical do cruzamento dele
         postes = p.postes.map(([x, y]) => ({ x, y, poste: true, lado: p.cruzamentos.some(([X]) => X > x && X - x < E) ? 1 : -1 }));

@@ -21,10 +21,10 @@ const CidadePlanta = (() => {
   const CALCADAO = 12, AREIA = 70;   // a orla, da avenida para o mar
   // filas de prédios no anel em volta do marco e nos arredores, a parte de torres, carros e pedestres
   const PORTES = {
-    metropole: { predios: 0.9, fora: 0.55, altos: 0.8, carros: 8, pedestres: [14, 18] },
-    grande: { predios: 0.6, fora: 0.3, altos: 0.5, carros: 6, pedestres: [11, 14] },
-    media: { predios: 0.3, fora: 0.12, altos: 0.2, carros: 5, pedestres: [8, 12] },
-    pequena: { predios: 0.15, fora: 0.03, altos: 0, carros: 3, pedestres: [6, 9] },
+    metropole: { predios: 0.9, fora: 0.55, altos: 0.8, carros: 8, onibus: 2, bicis: 3, pedestres: [14, 18] },
+    grande: { predios: 0.6, fora: 0.3, altos: 0.5, carros: 6, onibus: 1, bicis: 2, pedestres: [11, 14] },
+    media: { predios: 0.3, fora: 0.12, altos: 0.2, carros: 5, onibus: 1, bicis: 2, pedestres: [8, 12] },
+    pequena: { predios: 0.15, fora: 0.03, altos: 0, carros: 3, onibus: 0, bicis: 2, pedestres: [6, 9] },
   };
   const ALTOS = [1, 3, 5, 12], BAIXOS = [2, 4, 6, 7, 11];
   // os serviços (igreja 9, hospital 10, mercado 14, bombeiros 13, posto 8, padaria 7), na ordem em que entram
@@ -71,7 +71,8 @@ const CidadePlanta = (() => {
     return l;
   }
 
-  // cidade: { porte, litoral, uf, marco } (o que faltar vale cidade média, sem praia, no Sudeste)
+  // cidade: { porte, litoral, uf, marco, regiao } (o que faltar vale cidade média, sem praia, no Sudeste; a regiao, das
+  // cidades de fora do Brasil, escolhe as árvores no lugar da UF)
   function planta(id, cidade = {}) {
     const r = sorteio(String(id));
     const entre = (a, b) => a + Math.floor(r() * (b - a + 1));
@@ -80,7 +81,7 @@ const CidadePlanta = (() => {
       for (let i = l.length - 1; i > 0; i--) { const m = Math.floor(r() * (i + 1)); [l[i], l[m]] = [l[m], l[i]]; }
       return l;
     };
-    const porte = PORTES[cidade.porte] ? cidade.porte : "media", P = PORTES[porte], regiao = REGIAO[cidade.uf] || "SE";
+    const porte = PORTES[cidade.porte] ? cidade.porte : "media", P = PORTES[porte], regiao = ARVORES[cidade.regiao] ? cidade.regiao : REGIAO[cidade.uf] || "SE";
     const igreja = IGREJAS.has(cidade.marco);
     const arvore = () => "arvore-" + um(ARVORES[regiao]);
     const v0 = 176 + 4 * entre(-4, 4), v1 = 400 + 4 * entre(-4, 4), h0 = 112 + 4 * entre(-2, 2), h1 = 304 + 4 * entre(-2, 2);
@@ -266,6 +267,20 @@ const CidadePlanta = (() => {
         while (!livre(s, cruzes)) s = (s + 4) % L;
         carros.push({ eixo: f.eixo, rua: f.rua, dir: f.dir, s, v, peca: "carro-" + entre(1, 5) });
       }
+    });
+    // ônibus (mais devagar que os carros) e bicicletas (mais ainda), nas mesmas faixas: quem vem atrás espera. Cada um
+    // começa fora dos cruzamentos e longe dos outros veículos da faixa
+    const extras = [...Array(P.onibus).fill("onibus"), ...Array(P.bicis).fill("bici")];
+    extras.forEach((tipo, j) => {
+      const f = faixasCarro[(j * 3 + 1) % nF], L = f.eixo === "h" ? W : H, cruzes = f.eixo === "h" ? [v0, v1] : [h0, h1];
+      const onibus = tipo === "onibus", folga = onibus ? 24 : 16;
+      const longe = s => carros.every(o => o.eixo !== f.eixo || o.rua !== f.rua || o.dir !== f.dir || Math.abs(o.s - s) >= 36);
+      const cabe = s => cruzes.every(c => Math.abs(s - c) >= E / 2 + folga) && longe(s);
+      let s = Math.round(r() * L), k = 0;
+      for (; k < L / 4 && !cabe(s); k++) s = (s + 4) % L;
+      if (!cabe(s)) return;   // a faixa lotou: fica sem esse
+      carros.push({ eixo: f.eixo, rua: f.rua, dir: f.dir, s, v: onibus ? 12 + Math.round(r() * 4) : 8 + Math.round(r() * 5),
+        peca: onibus ? "onibus-cima-" + entre(1, 2) : "bici-" + entre(1, 3) });
     });
     const postes = [];   // nas quinas dos quatro cruzamentos do meio (os cordões das festas vão de um a outro)
     for (const x of [v0, v1]) for (const y of [h0, h1]) for (const dx of [-1, 1]) for (const dy of [-1, 1]) {

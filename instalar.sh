@@ -5,6 +5,8 @@
 # Rodar como root, com escritorio.py, acesso.py, social.py, planta.py, ajustes.py, jornal.py, avisos.py, vapid.py, novidades.py,
 # CHANGELOG.pt-BR.md, static/ e times.json (ou times.exemplo.json) ao lado. Idempotente.
 # Uso: sudo AGENTES_ORG=<id da sua organização no agentes.chat> ./instalar.sh
+#      (opcional: AGENTES_URL=<endereço da sua instalação self-host do agentes.chat, o PUBLIC_URL dela>;
+#       o padrão é a nuvem, https://app.agentes.chat)
 #      (opcional: ESCRITORIO_PORTA=<porta abaixo de 1024>; o padrão é 737)
 #      (opcional: ESCRITORIO_FONTE=<https do seu código>, o link "Código-fonte" da página, AGPL §13; se você
 #       modificou o escritório, aponte para a sua versão. O padrão é o repositório original)
@@ -17,6 +19,7 @@ ENV=/etc/escritorio.env
 CASA=/var/lib/escritorio
 PORTA="${ESCRITORIO_PORTA:-737}"
 ORG="${AGENTES_ORG:-}"
+AGENTES="${AGENTES_URL:-https://app.agentes.chat}"; AGENTES="${AGENTES%/}"
 FONTE="${ESCRITORIO_FONTE:-https://github.com/HelbertMoura/escritorio-agentes}"
 # Porta privilegiada: quando o serviço reinicia, nenhum usuário comum consegue ocupá-la e receber o
 # tráfego da tailnet já decifrado pelo tailscaled.
@@ -30,6 +33,19 @@ FONTE="${ESCRITORIO_FONTE:-https://github.com/HelbertMoura/escritorio-agentes}"
 # então nada de aspas, espaços, $, ; ou crase
 { [ "${#FONTE}" -le 200 ] && [[ "$FONTE" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~:/%+-]*)?$ ]]; } \
   || { echo "ABORTADO: ESCRITORIO_FONTE precisa ser um endereço https simples (até 200 caracteres, sem aspas nem espaços)" >&2; exit 1; }
+# A regra do servidor (erro_agentes), só com https: o http://localhost numa porta alta, que o servidor aceita para teste,
+# deixaria outro usuário da máquina ocupar a porta e receber o token quando a self-host reinicia
+[[ "$AGENTES" =~ ^https://[a-z0-9.-]+(:[0-9]{1,5})?$ && "$AGENTES" != *:443 ]] \
+  || { echo "ABORTADO: AGENTES_URL precisa ser o endereço da sua instalação, como https://agentes.minha-rede.ts.net (https, minúsculas, sem caminho)" >&2; exit 1; }
+# Self-host: o serviço só sai para a internet pública. Os IPs da sua instalação (na tailnet ou na rede local) entram
+# na lista de liberados, um a um, num drop-in que o instalador reescreve
+AGENTES_HOST=$(printf '%s' "$AGENTES" | sed -E 's#^https?://##; s#:[0-9]+$##')
+LIBERAR=""
+case "$AGENTES_HOST" in
+  app.agentes.chat) ;;
+  *) LIBERAR=$(getent ahosts "$AGENTES_HOST" | awk '{print $1}' | sort -u | tr '\n' ' ')
+     [ -n "$LIBERAR" ] || { echo "ABORTADO: o nome $AGENTES_HOST não resolve nesta máquina (na tailnet, ligue o MagicDNS)" >&2; exit 1; };;
+esac
 command -v tailscale >/dev/null || { echo "ABORTADO: Tailscale não está instalada nesta máquina" >&2; exit 1; }
 HOST=$(tailscale status --json | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
 [ -n "$HOST" ] || { echo "ABORTADO: não achei o nome desta máquina na Tailscale (MagicDNS ligado?)" >&2; exit 1; }
@@ -86,6 +102,7 @@ umask 077
   echo "ESCRITORIO_BASE=https://$HOST"
   echo "ESCRITORIO_PORTA=$PORTA"
   echo "AGENTES_ORG=$ORG"
+  echo "AGENTES_URL=$AGENTES"
   echo "ESCRITORIO_DADOS=$CASA"
   echo "ESCRITORIO_TIMES=/opt/escritorio/times.json"
   echo "ESCRITORIO_INTERVALO=30"
@@ -144,6 +161,14 @@ CPUQuota=20%
 [Install]
 WantedBy=multi-user.target
 EOF
+install -d -o root -g root -m 0755 /etc/systemd/system/escritorio.service.d
+if [ -n "$LIBERAR" ]; then
+  { echo "# Gerado pelo instalar.sh: os IPs de $AGENTES_HOST (AGENTES_URL). Para mudar, rode o instalador de novo."
+    echo "[Service]"; for ip in $LIBERAR; do echo "IPAddressAllow=$ip"; done; } > /etc/systemd/system/escritorio.service.d/agentes-url.conf
+  echo "liberado para $AGENTES_HOST: $LIBERAR"
+else
+  rm -f /etc/systemd/system/escritorio.service.d/agentes-url.conf
+fi
 systemctl daemon-reload
 systemctl enable escritorio >/dev/null 2>&1
 systemctl restart escritorio

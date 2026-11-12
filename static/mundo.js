@@ -83,6 +83,8 @@ const Mundo = (() => {
   const estado = $("mundo-estado"), botaoEntrar = $("entrar"), voltar = $("mundo-voltar"), caixaAlvos = $("mundo-alvos"), dica = $("mundo-dica");
   const menos = $("mundo-menos");
   const reduzido = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const tv = new URLSearchParams(location.search).get("tv") === "1";   // passeio sozinho (passear), sem painel nem botões
+  if (tv) document.querySelector(".mundo").classList.add("tv");
   const ORDEM = ["globo", "brasil", "cidade", "bairro"], ACIMA = { bairro: "cidade", cidade: "brasil", brasil: "globo" };
   const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], FUNDO = "#0b0d12";
 
@@ -156,8 +158,8 @@ const Mundo = (() => {
     if (!nivel || reduzido || opcoes.instantaneo) return trocar(a, opcoes);
     const cam = nivel.camera, c = a.cidade && mapa && mapa.porId.get(a.cidade);
     if (ORDEM.indexOf(a.ir) > ORDEM.indexOf(nome)) {   // descendo: mergulha na cidade (ou no meio da tela)
-      if (nome === "brasil" && c) cam.voar(c.x, c.y, cam.maximo());
-      else if (nivel.mergulho) cam.zoomPara(4, ...cam.tela(...nivel.mergulho()));   // do globo, no Brasil; da cidade, na casa
+      if (nome === "brasil" && c && !c.fora) cam.voar(c.x, c.y, cam.maximo());
+      else if (nivel.mergulho) cam.zoomPara(4, ...cam.tela(...nivel.mergulho(a)));   // do globo, no Brasil (ou na cidade de fora); da cidade, na casa
       else if (c) cam.zoomPara(4, ...cam.tela(c.x, c.y));
     } else cam.zoomPara(1, cam.W / 2, cam.H / 2);
     if (nivel.partindo) nivel.partindo();   // o nível que sai não pede mais nada (o mapa: os azulejos da vista do mergulho)
@@ -186,7 +188,9 @@ const Mundo = (() => {
     bairro: "Bairro com o chalé deste escritório, rua, pessoas, cachorro, carro e céu do horário atual",
   };
   function rotular() { if (nivel) canvas.setAttribute("aria-label", nivel.rotulo ? nivel.rotulo() : ROTULOS[nome]); }
-  function subir() { if (nivel && ACIMA[nome]) ir(ACIMA[nome], { cidade: atualCidade }); }
+  // da cidade de fora do Brasil, sobe-se direto ao globo (ela não está no mapa do Brasil)
+  const fora = () => nome === "cidade" && mapa && !!(mapa.porId.get(atualCidade) || {}).fora;
+  function subir() { if (nivel && ACIMA[nome]) ir(fora() ? "globo" : ACIMA[nome], { cidade: atualCidade }); }
   // a ação de um clique: ir a um nível ou, numa construção da cidade, anunciar no status o nome que a etiqueta mostra
   function executar(a) { if (a && a.ir) ir(a.ir, a); else if (a && a.anuncio) etiquetar(a.anuncio); }
   // o nome da etiqueta no status por 5 s (o tempo dela), e depois o texto do nível de volta. O mesmo nome de novo (o Enter
@@ -214,7 +218,8 @@ const Mundo = (() => {
   function mostrar() {
     const hora = Ceu.agora().hora, c = atualCidade && mapa && mapa.porId.get(atualCidade);
     if (!mapa) estado.textContent = `${hora} · ${Clima.texto()} · O mapa não abriu agora; o bairro e a recepção seguem aqui.`;
-    else if (nome === "globo") estado.textContent = `Terra, ${hora} em Brasília. Clique no Brasil ou aproxime para descer ao mapa.`;
+    else if (nome === "globo") estado.textContent = `Terra, ${hora} em Brasília. Clique no Brasil ou aproxime para descer ao mapa; ` +
+      "os pontos dourados são cidades de outros países.";
     else if (nome === "brasil") {
       const casa = mapa.casa && mapa.porId.get(mapa.casa);
       estado.textContent = `Brasil, ${hora}.${hojeE()} Escolha uma cidade no mapa.${casa ? ` O escritório fica em ${casa.nome}.` : ""}`;
@@ -222,7 +227,7 @@ const Mundo = (() => {
       const casa = mapa.casa && mapa.porId.get(mapa.casa);
       estado.textContent = `${c.nome} (${c.uf}), ${mapa.texto(c)}.${hojeE()} ` +
         (casa === c ? "O chalé com a placa é o escritório: clique nele para descer ao bairro."
-        : casa ? `O escritório fica em ${casa.nome}; Esc volta ao mapa.` : "Esc volta ao mapa.");
+        : casa ? `O escritório fica em ${casa.nome}; Esc volta ${c.fora ? "ao globo" : "ao mapa"}.` : `Esc volta ${c.fora ? "ao globo" : "ao mapa"}.`);
     }
     else estado.textContent = `${hora} · ${Clima.texto()}${c ? " · " + c.nome : ""}`;
   }
@@ -459,7 +464,28 @@ const Mundo = (() => {
       pedirClima();
       setInterval(pedirClima, 15 * 60 * 1000);
       setInterval(() => { if (nome === "bairro") mostrar(); }, 30000);
+      if (tv && mapa) passear();
     });
+
+  // Passeio (?tv=1): a tela da sala e o Modo TV do escritório. Do globo ao Brasil, à cidade e ao bairro da casa, e
+  // depois duas cidades sorteadas, em voltas. Um toque, a roda ou uma tecla devolvem o controle por 30 s.
+  function passear() {
+    let roteiro = [], i = 0, proximo = 0, pausa = 0;
+    const montar = () => {
+      const outras = [...mapa.porId.keys()].filter(id => id !== mapa.casa).sort(() => Math.random() - 0.5).slice(0, 2);
+      const acima = id => (mapa.porId.get(id).fora ? "globo" : "brasil");   // a cidade de fora desce do globo
+      return [["globo", 9000], ...(mapa.casa ? [[acima(mapa.casa), 8000], ["cidade", 14000, mapa.casa], ["bairro", 9000]] : [["brasil", 8000]]),
+        ...outras.flatMap(id => [[acima(id), 5000], ["cidade", 14000, id]])];
+    };
+    for (const ev of ["pointerdown", "wheel", "keydown"]) window.addEventListener(ev, () => { pausa = performance.now() + 30000; }, { passive: true });
+    setInterval(() => {
+      const agora = performance.now();
+      if (trans || document.hidden || agora < pausa || agora < proximo) return;
+      if (i >= roteiro.length) { roteiro = montar(); i = 0; }
+      const [alvo, fica, cidade] = roteiro[i++];
+      ir(alvo, { cidade }); proximo = agora + fica;
+    }, 500);
+  }
 
   return { ir: (alvo, params) => ir(alvo, params || {}), subir, Camera, niveis,
            get nivel() { return nome; }, get camera() { return nivel ? nivel.camera : null; } };

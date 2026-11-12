@@ -657,6 +657,12 @@ class Http(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertEqual(json.loads(corpo)["agentes"][0]["nome"], "Pixel")
         self.assertIn("frame-ancestors 'none'", h["Content-Security-Policy"])
+        self.assertEqual(h["X-Frame-Options"], "DENY")
+        # só o mundo abre dentro de outra página, e só do próprio escritório (o Modo TV)
+        st, _, h = self.req("/mundo.html")
+        self.assertEqual(st, 200)
+        self.assertIn("frame-ancestors 'self'", h["Content-Security-Policy"])
+        self.assertEqual(h["X-Frame-Options"], "SAMEORIGIN")
         self.assertEqual(self.req("/", cab)[0], 200)
         for rota in ("/escritorio.py", "/../escritorio.py", "/static/app.js", "/dados/oauth.json", "/entrar.html", "/acesso.py"):
             self.assertEqual(self.req(rota, cab)[0], 404, rota)
@@ -1807,6 +1813,28 @@ class Surrogate(unittest.TestCase):
 
 
 class Credenciais(unittest.TestCase):
+    def test_token_de_outra_instalacao_nao_sai(self):
+        """Trocou a AGENTES_URL (da nuvem para a self-host, ou entre instalações): o token gravado é descartado ao abrir,
+        sem pedido nenhum (nem renovação, nem revogação). O arquivo sem o campo é da nuvem e continua valendo nela."""
+        gravado = {"client_id": "c", "redirect_uri": e.BASE + "/oauth/retorno", "escopo_cliente": "read",
+                   "access_token": "a", "refresh_token": "r", "expira": time.time() + 3600, "escopo": "read"}
+        from unittest import mock
+        antes = e.AGENTES
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(e.urllib.request, "urlopen", side_effect=AssertionError("saiu")):
+            caminho = os.path.join(d, "oauth.json")
+            with open(caminho, "w", encoding="utf-8") as f:
+                json.dump(gravado, f)
+            try:
+                self.assertEqual(e.Credenciais(caminho).token(), "a")   # sem "emissor", na nuvem: segue
+                e.AGENTES = "https://agentes.minha-rede.ts.net"
+                c = e.Credenciais(caminho)
+                self.assertEqual(c.dados, {}); self.assertIsNone(c.token())   # sem token: pede para conectar de novo
+                with open(caminho, "w", encoding="utf-8") as f:   # gravado por esta instalação: segue
+                    json.dump({**gravado, "emissor": "https://agentes.minha-rede.ts.net"}, f)
+                self.assertEqual(e.Credenciais(caminho).token(), "a")
+            finally:
+                e.AGENTES = antes
+
     def test_estado_desconhecido_e_recusado(self):
         with tempfile.TemporaryDirectory() as d:
             c = e.Credenciais(os.path.join(d, "oauth.json"))
@@ -2274,6 +2302,25 @@ class Rede(unittest.TestCase):
         self.assertIsNone(e.erro_rede("https://escritorio.exemplo.com", "0.0.0.0", 7371, True))   # a porta é do container
         self.assertIsNone(e.erro_rede("http://127.0.0.1:7381", "0.0.0.0", 7371, True))   # teste local do container
         self.assertIn("defina ESCRITORIO_BASE", e.erro_rede("http://127.0.0.1:7371", "0.0.0.0", 7371, False))
+
+    def test_agentes_url_self_host(self):
+        """A AGENTES_URL é a origem da instalação (nuvem ou self-host); http só nesta máquina, como o OAuth dela."""
+        for url in ("https://app.agentes.chat", "https://agentes.minha-rede.ts.net", "https://chat.exemplo.com:8443",
+                    "http://localhost:3000", "http://127.0.0.1:4310"):
+            self.assertIsNone(e.erro_agentes(url), url)
+        for url in ("https://chat.exemplo.com/", "https://chat.exemplo.com/app", "https://Chat.exemplo.com", "chat.exemplo.com"):
+            self.assertIn("só o endereço", e.erro_agentes(url) or "", url)
+        self.assertIn("precisa ser https", e.erro_agentes("http://192.168.0.20:3000"))
+
+    def test_links_da_self_host(self):
+        """Com a self-host, os links de tarefa valem só dela e só da organização; os da nuvem deixam de valer."""
+        canal = "11111111-2222-4333-8444-555555555555"
+        re_self = e.url_app("https://agentes.minha-rede.ts.net", e.ORG)
+        self.assertTrue(re_self.fullmatch(f"https://agentes.minha-rede.ts.net/org/{e.ORG}/c/{canal}?m={canal}"))
+        self.assertFalse(re_self.fullmatch(f"https://app.agentes.chat/org/{e.ORG}/c/{canal}"))
+        self.assertFalse(re_self.fullmatch(f"https://agentes.minha-rede.ts.net.evil.com/org/{e.ORG}/c/{canal}"))
+        self.assertFalse(re_self.fullmatch(f"https://agentesXminha-rede.ts.net/org/{e.ORG}/c/{canal}"))   # o ponto é literal
+        self.assertTrue(e.url_app("http://localhost:3000", e.ORG).fullmatch(f"http://localhost:3000/org/{e.ORG}/c/{canal}"))
 
     def test_main_recusa_antes_de_subir(self):
         antes = e.BASE, e.BIND, e.ORG
@@ -3374,12 +3421,12 @@ class Previa(unittest.TestCase):
             self.assertEqual({m["autor"] for m in r["mensagens"]}, {"pessoa", "agente"}, agente)
 
     def test_previa_com_clima_do_mundo(self):
-        # sem Open-Meteo: um tempo de exemplo fixo nas 28 cidades, com todos os tipos, para ver o mapa sem rede
+        # sem Open-Meteo: um tempo de exemplo fixo nas 40 cidades (28 do Brasil e 12 de fora), com todos os tipos, para ver o mapa sem rede
         base = self.subir(os.path.join("ferramentas", "previa.exemplo.json"))
         req = urllib.request.Request(base + "/api/mundo/clima", data=b"{}", method="POST",
                                      headers={"Origin": base, "Content-Type": "application/json"})
         d = json.loads(urllib.request.urlopen(req, timeout=10).read())
-        self.assertEqual(len(d["cidades"]), 28)
+        self.assertEqual(len(d["cidades"]), 40)
         self.assertEqual({c["tipo"] for c in d["cidades"].values()}, set(e.TIPOS_CLIMA))
         self.assertTrue(all(0 <= c["vento"] <= 1 and c["noite"] is False for c in d["cidades"].values()))
 

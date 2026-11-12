@@ -47,14 +47,14 @@ class ChangelogReal(unittest.TestCase):
     def test_entradas_titulos_e_secoes(self):
         primeira = self.entradas[0]
         self.assertEqual((primeira["titulo"], primeira["versao"], primeira["data"]),
-                         ("Mundo e visitas por convite", e.VERSAO, "2026-11-10"))   # o changelog do repositório é o desta versão
+                         ("Self-host e mundo maior", e.VERSAO, "2026-11-12"))   # o changelog do repositório é o desta versão
         self.assertEqual([s["nome"] for s in primeira["secoes"]], ["Adicionado", "Mudado"])
-        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:4]],
-                         [("Novidades", "1.2.0", "2026-11-08"),
+        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:5]],
+                         [("Mundo e visitas por convite", "1.3.0", "2026-11-10"), ("Novidades", "1.2.0", "2026-11-08"),
                           ("Conectar, Configurações, modo TV, jornal e aviso no celular", "1.1.0", "2026-11-08"),
                           ("Modo construção v1", None, "2026-11-06")])
-        self.assertEqual([s["nome"] for s in self.entradas[1]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
-        self.assertEqual([s["nome"] for s in self.entradas[2]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
+        self.assertEqual([s["nome"] for s in self.entradas[2]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
+        self.assertEqual([s["nome"] for s in self.entradas[3]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
         self.assertEqual(self.entradas[-1]["titulo"], "Primeira versão pública")
         self.assertLessEqual(len(self.entradas), novidades.ENTRADAS_MAX)
         datas = [ent["data"] for ent in self.entradas]
@@ -67,7 +67,7 @@ class ChangelogReal(unittest.TestCase):
 
     def test_itens_em_markdown_cru_e_links_so_do_repositorio(self):
         itens = [i for ent in self.entradas for sec in ent["secoes"] for i in sec["itens"]]
-        self.assertTrue(itens[0].startswith("**Mundo:** `/mundo.html`, uma página pública"))
+        self.assertTrue(itens[0].startswith("**agentes.chat self-host:** a variável `AGENTES_URL`"))
         self.assertFalse(any("] (" in i for i in itens))   # nenhum "](" do changelog real foi desarmado
         todos = [u for i in itens for u in links(i)]
         self.assertTrue(todos)

@@ -55,9 +55,12 @@ from planta import PLANTA_BYTES, Planta, validar_planta  # noqa: E402
 from social import PLACAR_BYTES, PLACAR_MAX, PLACAR_TETO, Social  # noqa: E402
 from visitas_sala import Salas, LimiteRequisicoes  # noqa: E402
 
-VERSAO = "1.3.0"
-MCP = os.environ.get("AGENTES_MCP", "https://app.agentes.chat/mcp")
-EMISSOR = os.environ.get("AGENTES_EMISSOR", "https://app.agentes.chat")
+VERSAO = "1.4.0"
+AGENTES_PADRAO = "https://app.agentes.chat"
+# a nuvem ou a sua instalação self-host (o PUBLIC_URL dela): o main() confere (erro_agentes)
+AGENTES = os.environ.get("AGENTES_URL", "").strip().rstrip("/") or AGENTES_PADRAO
+MCP = os.environ.get("AGENTES_MCP", AGENTES + "/mcp")   # AGENTES_MCP e AGENTES_EMISSOR: só para testes
+EMISSOR = os.environ.get("AGENTES_EMISSOR", AGENTES)
 BASE = os.environ.get("ESCRITORIO_BASE", "http://127.0.0.1:7371")   # só origem: o main() confere (erro_rede)
 PORTA = int(os.environ.get("ESCRITORIO_PORTA", "7371"))
 BIND = os.environ.get("ESCRITORIO_BIND", "127.0.0.1")   # 0.0.0.0 só em container, atrás de um proxy HTTPS
@@ -118,12 +121,19 @@ def texto_recusa(http):
     """A mensagem nossa para o 401, o 402 e o 403 do MCP. O texto que vier do agentes.chat nunca vai para a tela."""
     if http == 401:
         return "o agentes.chat recusou o acesso (HTTP 401): conecte o escritório de novo"
-    return (f"o agentes.chat recusou a leitura (HTTP {http}): confira se a conta conectada é da organização e se o "
-            "plano permite apps externos")
+    return (f"o agentes.chat recusou a leitura (HTTP {http}): confira se a conta conectada é da organização e, na "
+            "nuvem, se o plano permite apps externos")
 
 
 ARQ_TOKEN = os.path.join(DADOS, "oauth.json")
-URL_APP = re.compile(r"https://app\.agentes\.chat/org/" + re.escape(ORG) + r"/c/[0-9a-f\-]{36}(\?m=[0-9a-f\-]{36})?")
+
+
+def url_app(agentes, org):
+    """Os links de tarefa que o escritório aceita do MCP: só da instalação configurada e só da organização."""
+    return re.compile(re.escape(agentes) + "/org/" + re.escape(org) + r"/c/[0-9a-f\-]{36}(\?m=[0-9a-f\-]{36})?")
+
+
+URL_APP = url_app(AGENTES, ORG)
 ARQUIVOS = {  # estáticos servidos (lista fechada)
     "visita.html": "text/html; charset=utf-8", "visita.js": "text/javascript; charset=utf-8",
     "visita.css": "text/css; charset=utf-8", "visitas-admin.html": "text/html; charset=utf-8",
@@ -218,6 +228,13 @@ class Credenciais:
                     self.dados = json.load(f)
             except (ValueError, OSError):
                 log(evento="oauth", resultado="arquivo_invalido")  # começa do zero; basta reconectar
+        # o token é da instalação que o emitiu (arquivo sem o campo: a nuvem). Trocou a AGENTES_URL: nada dele sai para
+        # a instalação nova (nem para revogar); o escritório pede para conectar de novo
+        if isinstance(self.dados, dict) and self.dados and self.dados.get("emissor", AGENTES_PADRAO) != AGENTES:
+            log(evento="oauth", resultado="outra_instalacao")
+            self.dados = {}
+        elif not isinstance(self.dados, dict):
+            self.dados = {}
 
     def salvar(self):
         gravar(self.caminho, json.dumps(self.dados).encode("utf-8"))
@@ -283,7 +300,7 @@ class Credenciais:
             # o dicionário novo fica pronto antes da troca: uma resposta ruim nunca derruba a conexão antiga
             try:
                 novo = {"client_id": pend["client_id"], "redirect_uri": pend["redirect_uri"], "escopo_cliente": pend["escopo"],
-                        **tokens(tok, escopo)}
+                        "emissor": AGENTES, **tokens(tok, escopo)}
             except ValueError:   # resposta que não dá para gravar: o que veio de token válido não fica vivo (B3)
                 self._revogar(tok, pend["client_id"])
                 raise
@@ -1641,11 +1658,12 @@ ARQ_MUNDO = os.path.join(ESTATICO, "mundo", "mundo.json")
 
 
 def ler_mundo(caminho=ARQ_MUNDO):
-    """(versao, [{"id", "lat", "lon"}]) das cidades do mapa do mundo; ausente ou fora do formato, (0, [])."""
+    """(versao, [{"id", "lat", "lon"}]) das cidades do mundo (as do Brasil e as de fora, do globo); ausente ou fora do
+    formato, (0, [])."""
     try:
         with open(caminho, encoding="utf-8") as f:
             d = json.loads(f.read(1_000_000))
-        cidades = [{"id": c["id"], "lat": float(c["lat"]), "lon": float(c["lon"])} for c in d["cidades"]]
+        cidades = [{"id": c["id"], "lat": float(c["lat"]), "lon": float(c["lon"])} for c in d["cidades"] + d.get("exterior", [])]
         if type(d["versao"]) is not int or not all(isinstance(c["id"], str) for c in cidades):
             raise ValueError("formato")
         return d["versao"], cidades
@@ -1888,7 +1906,7 @@ def _validar_times(bruto):
     cor = str(bruto.get("cor", "#f5b83d"))
     return {"empresa": empresa[:40] if ROTULO_OK.fullmatch(empresa[:40]) else EMPRESA_PADRAO, "times": times, "aparencia": aparencia,
             "cor": cor if re.fullmatch(r"#[0-9a-fA-F]{6}", cor) else "#f5b83d",
-            "app_url": f"https://app.agentes.chat/org/{ORG}", "clima": clima, "expediente": expediente,
+            "app_url": f"{AGENTES}/org/{ORG}", "clima": clima, "expediente": expediente,
             "conversas": bruto.get("conversas") if bruto.get("conversas") in MODOS_CONVERSA else "desligado"}
 
 
@@ -2339,7 +2357,7 @@ def pagina_aviso(titulo, texto):
     return re.sub(r"\{\{(\w+)\}\}", lambda m: valores.get(m[1], m[0]), modelo).encode()
 
 
-SEM_REDE_OAUTH = "Não consegui falar com o agentes.chat. Confira se o servidor (ou o container) alcança https://app.agentes.chat."
+SEM_REDE_OAUTH = f"Não consegui falar com o agentes.chat. Confira se o servidor (ou o container) alcança {AGENTES}."
 # o "error=" que volta do consentimento: só estes códigos têm texto próprio; o error_description nunca aparece
 ERROS_OAUTH = {
     "access_denied": "A autorização foi recusada. Se a tela do agentes.chat não deixou autorizar, confira se a conta é da "
@@ -2432,22 +2450,24 @@ class Pagina(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _cabecalhos_seguranca(self):
+    def _cabecalhos_seguranca(self, moldura=False):
+        """moldura: a página pode abrir dentro de outra do próprio escritório (o mundo no Modo TV); de fora, nunca."""
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Frame-Options", "SAMEORIGIN" if moldura else "DENY")
         self.send_header("Referrer-Policy", "same-origin")  # com no-referrer o POST de formulário sai com Origin: null
         if BASE.startswith("https://"):
             self.send_header("Strict-Transport-Security", "max-age=31536000")
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
-                         "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+                         "connect-src 'self'; frame-ancestors " + ("'self'" if moldura else "'none'") +
+                         "; base-uri 'none'; form-action 'self'")
 
-    def _envia(self, status, corpo=b"", tipo="text/plain; charset=utf-8", extra=None, cache="no-store"):
+    def _envia(self, status, corpo=b"", tipo="text/plain; charset=utf-8", extra=None, cache="no-store", moldura=False):
         self.send_response(status)
         self.send_header("Content-Type", tipo)
         self.send_header("Content-Length", str(len(corpo)))
         self.send_header("Cache-Control", cache)
-        self._cabecalhos_seguranca()
+        self._cabecalhos_seguranca(moldura)
         for k, v in (extra or {}).items():
             if isinstance(v, list):
                 for item in v:
@@ -2889,7 +2909,7 @@ class Pagina(BaseHTTPRequestHandler):
             return self._envia(404, b"")
         cache = ("no-store" if nome in ("visita.html", "visitas-admin.html", "recepcionista.html", "mundo.html") else
                  "public, max-age=3600" if nome.endswith((".png", ".ttf", ".woff2")) else "no-cache")
-        return self._envia(200, corpo, ARQUIVOS[nome], cache=cache)
+        return self._envia(200, corpo, ARQUIVOS[nome], cache=cache, moldura=nome == "mundo.html")
 
     def _post_resposta(self, rota):
         """Fase R (R2 e R2a): Origin obrigatório e igual à BASE (sem a volta para o Referer), sessão e JSON exato."""
@@ -3228,18 +3248,36 @@ def origem_agrupada(endereco):
     return str(ipaddress.ip_network(f"{endereco}/64", strict=False))
 
 
+def so_origem(url):
+    """Se a url é só a origem: esquema http(s) e host em minúsculas, porta só fora da padrão, sem caminho, query,
+    fragmento nem barra no fim."""
+    p = urllib.parse.urlsplit(url)
+    try:
+        porta = p.port
+    except ValueError:   # porta que não é número ou passa de 65535
+        return False
+    origem = f"{p.scheme}://{p.hostname}" + (f":{porta}" if porta is not None else "")
+    return p.scheme in ("http", "https") and bool(p.hostname) and url == origem \
+        and (p.scheme, porta) not in (("http", 80), ("https", 443))
+
+
+def erro_agentes(url):
+    """Por que a AGENTES_URL não serve (ou None). http só nesta máquina: o login da self-host só aceita http em
+    localhost."""
+    if not so_origem(url):
+        return ("AGENTES_URL precisa ser só o endereço do seu agentes.chat (o PUBLIC_URL da instalação), como "
+                "https://agentes.minha-rede.ts.net: minúsculas e sem caminho")
+    if url.startswith("http://") and urllib.parse.urlsplit(url).hostname not in ("localhost", "127.0.0.1"):
+        return "AGENTES_URL precisa ser https (ou http://localhost, com o agentes.chat nesta mesma máquina)"
+    return None
+
+
 def erro_rede(base, bind, porta, base_definida):
     """Por que o serviço não sobe com esse endereço, bind e porta (ou None). A BASE é só origem, porque o Origin dos
     POST é comparado com ela letra por letra: esquema e host em minúsculas, porta só fora da padrão, sem caminho, query,
     fragmento nem barra no fim."""
     p = urllib.parse.urlsplit(base)
-    try:
-        porta_base = p.port
-    except ValueError:   # porta que não é número ou passa de 65535
-        porta_base = -1
-    origem = f"{p.scheme}://{p.hostname}" + (f":{porta_base}" if porta_base is not None else "")
-    if p.scheme not in ("http", "https") or not p.hostname or base != origem or porta_base == -1 \
-            or (p.scheme, porta_base) in (("http", 80), ("https", 443)):
+    if not so_origem(base):
         return ("ESCRITORIO_BASE precisa ser só a origem, como https://escritorio.exemplo.com: esquema e host em "
                 "minúsculas, porta só se não for a padrão, sem caminho e sem barra no fim")
     if p.scheme == "http" and p.hostname != "127.0.0.1":
@@ -3255,7 +3293,7 @@ def erro_rede(base, bind, porta, base_definida):
 
 
 def main():
-    motivo = erro_rede(BASE, BIND, PORTA, "ESCRITORIO_BASE" in os.environ)
+    motivo = erro_rede(BASE, BIND, PORTA, "ESCRITORIO_BASE" in os.environ) or erro_agentes(AGENTES)
     if motivo:
         sys.exit(motivo)
     try:

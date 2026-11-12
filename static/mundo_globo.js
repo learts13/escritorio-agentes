@@ -482,6 +482,34 @@ const Globo = (() => {
       return luaTela;
     }
 
+    // as cidades de fora do Brasil: um ponto dourado de frente no globo (com brilho à noite); clicar desce direto à cidade
+    const exterior = (Array.isArray(dados.exterior) ? dados.exterior : [])
+      .filter(e => e && typeof e.id === "string" && Number.isFinite(e.lat) && Number.isFinite(e.lon))
+      .map(e => ({ id: e.id, nome: String(e.nome || e.id), pais: String(e.pais || ""), lat: e.lat, lon: e.lon }));
+    const luzDe = (lat, lon) => Math.sin(lat * RAD) * Math.sin(sol.latSol * RAD) +   // o seno da altura do sol: < 0, noite
+      Math.cos(lat * RAD) * Math.cos(sol.latSol * RAD) * Math.cos((lon - sol.lonSol) * RAD);
+    const deFrente = e => { const p = projetar(e.lat, e.lon, lon0, lat0, R); return p.visivel && visao(e.lat, e.lon) > 0.25 ? p : null; };
+    function deForaEm(x, y) {   // a cidade de fora mais perto do ponto do buffer, até 5 px
+      let melhor = null, d = 5;
+      for (const e of exterior) { const p = deFrente(e), k = p ? Math.hypot(p.x - x, p.y - y) : Infinity; if (k <= d) { d = k; melhor = e; } }
+      return melhor;
+    }
+    function alvoDeFora(e) {   // a posição segue o giro; de costas, o botão fica no meio (Enter desce do mesmo jeito)
+      const onde = () => deFrente(e) || { x: C, y: C };
+      return { id: e.id, get x() { return onde().x; }, get y() { return onde().y; }, alto: 6, titulo: `${e.nome} · ${e.pais}`,
+               texto: "Descer à cidade", rotulo: `${e.nome} (${e.pais}): descer à cidade`, acao: { ir: "cidade", cidade: e.id } };
+    }
+    function pontos(ctx, t) {
+      for (const e of exterior) {
+        const p = deFrente(e);
+        if (!p) continue;
+        const x = Math.round(p.x), y = Math.round(p.y), noite = sol && luzDe(e.lat, e.lon) < 0, pulso = reduzido ? 0 : Math.sin(t / 400 + e.lat) > 0.6;
+        ctx.fillStyle = "#120e16"; ctx.fillRect(x - 2, y - 2, 5, 5);   // o ponto: contorno escuro, miolo dourado e um brilho
+        ctx.fillStyle = noite || pulso ? "#ffe9a8" : "#f5b83d"; ctx.fillRect(x - 1, y - 1, 3, 3);
+        ctx.fillStyle = "#fffaf0"; ctx.fillRect(x - 1, y - 1, 1, 1);
+      }
+    }
+
     const nivel = {
       nome: "globo", camera, destaque: null,
       entrar(p) {   // voltando do Brasil, o globo chega com o Brasil de frente e se afasta
@@ -532,6 +560,7 @@ const Globo = (() => {
         }
         ctx.drawImage(tela, 0, 0);
 
+        pontos(ctx, t);
         if (!voo && visao(-11, -51) > 0.35) {   // a seta, ao norte do Brasil, apontando para ele (sem cobrir o país)
           const alvo = projetar(5.6, -59, lon0, lat0, R), pulo = reduzido ? 0 : Math.sin(t / 320) > 0 ? 1 : 0;
           const x0 = Math.round(alvo.x) - 5, y0 = Math.round(alvo.y) - SETA.length - pulo;
@@ -541,7 +570,11 @@ const Globo = (() => {
         }
         return acao;
       },
-      clique(x, y) { const p = ponto(x, y, lon0, lat0, R); return p && acerta(p) ? { ir: "brasil" } : null; },
+      clique(x, y) {
+        const e = deForaEm(x, y);
+        if (e) return { ir: "cidade", cidade: e.id };
+        const p = ponto(x, y, lon0, lat0, R); return p && acerta(p) ? { ir: "brasil" } : null;
+      },
       // zoom: sobre o Brasil (ou com ele de frente) desce já; fora dele, o globo gira até o Brasil e então desce
       zoom(sinal, sx, sy) {
         if (sinal <= 0) return null;
@@ -559,9 +592,17 @@ const Globo = (() => {
         ultimo = agoraMs; segurando = true; voo = null;
       },
       soltar(lancado) { segurando = false; vel = reduzido || !lancado ? 0 : velArraste; velArraste = 0; },
-      mergulho() { const p = projetar(LAT0, LON0, lon0, lat0, R); return p.visivel ? [p.x, p.y] : [C, C]; },
-      sobre(x, y) { const p = ponto(x, y, lon0, lat0, R); return p && acerta(p) ? alvoDoBrasil(x, y) : null; },
-      alvos() { return [alvoDoBrasil(C, C)]; },
+      mergulho(a) {   // a cidade de fora (de frente) ou o Brasil
+        const e = a && a.cidade && exterior.find(c => c.id === a.cidade), f = e && deFrente(e);
+        if (f) return [f.x, f.y];
+        const p = projetar(LAT0, LON0, lon0, lat0, R); return p.visivel ? [p.x, p.y] : [C, C];
+      },
+      sobre(x, y) {
+        const e = deForaEm(x, y);
+        if (e) return alvoDeFora(e);
+        const p = ponto(x, y, lon0, lat0, R); return p && acerta(p) ? alvoDoBrasil(x, y) : null;
+      },
+      alvos() { return [alvoDoBrasil(C, C), ...exterior.map(alvoDeFora)]; },
       get rotacao() { return { lon: lon0, lat: lat0 }; },
     };
     function alvoDoBrasil(x, y) {

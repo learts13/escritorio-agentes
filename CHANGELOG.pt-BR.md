@@ -4,6 +4,24 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 1.4.0 · 2026-11-12 · Self-host e mundo maior
+
+Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0). Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
+
+### Adicionado
+- **agentes.chat self-host:** a variável `AGENTES_URL` aponta o escritório para a sua instalação (o `PUBLIC_URL` dela). O login, o MCP e os botões "Responder" e "Revisar" passam a ir para lá. O instalador libera na rede do serviço só o IP dessa instalação, inclusive na tailnet. Sem a variável, tudo segue na nuvem. Veja [Com o agentes.chat self-host](./README.pt-BR.md#com-o-agenteschat-self-host).
+- **Mundo no menu:** o item **Mundo** abre o `/mundo.html`.
+- **Mundo no Modo TV:** sem notícia, a TV mostra o mundo por 45 segundos a cada 5 minutos, descendo do globo à cidade e ao bairro do escritório. Um toque no mapa fecha o mundo. Sozinho, `/mundo.html?tv=1` faz o mesmo passeio em tela cheia, para uma tela da sala.
+- **Cidades de outros países:** 12 cidades no globo (Lisboa, Luanda, Maputo, Buenos Aires, Montevidéu, Santiago, Cidade do México, Nova York, Londres, Paris, Madri e Tóquio), cada uma um ponto dourado. Clicar desce direto à cidade, com o tempo de agora. Lisboa, Nova York, Londres e Paris ganharam marco novo (Torre de Belém, Estátua da Liberdade, Big Ben e Torre Eiffel), e Buenos Aires usa o Obelisco. O escritório que fica a até 300 km de uma delas ganha o chalé lá.
+- **Cidades médias:** as 50 cidades que aparecem com o zoom do mapa (Campinas, Santos, Juiz de Fora...) também abrem, com porte pela população e orla nas de praia. O tempo é o da capital mais perto.
+- **Ônibus e bicicletas:** circulam pelas ruas junto com os carros, cada um no seu ritmo, de faróis acesos à noite.
+- **Chapéu de festa:** nas datas comemorativas, três em cada cinco pedestres da cidade usam o chapéu da festa, como os agentes do escritório.
+
+### Mudado
+- A página `/mundo.html` pode abrir dentro do próprio escritório (o Modo TV), e só dele: `frame-ancestors 'self'`. As outras páginas seguem sem moldura.
+- O token do agentes.chat fica preso à instalação que o emitiu: trocar a `AGENTES_URL` descarta o token guardado sem enviá-lo a lugar nenhum, e o escritório pede para conectar de novo.
+- O servidor busca o tempo de 40 cidades (as 28 do Brasil e as 12 de fora) na mesma consulta ao Open-Meteo, a cada 15 minutos.
+
 ## 1.3.0 · 2026-11-10 · Mundo e visitas por convite
 
 Release [`v1.3.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0), com o vídeo das novidades anexado. Commits: [`v1.2.0...v1.3.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.2.0...v1.3.0).

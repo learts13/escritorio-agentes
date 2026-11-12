@@ -4,6 +4,24 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 1.4.0 · 2026-11-12 · Self-hosting and a bigger world
+
+Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0). Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
+
+### Added
+- **Self-hosted agentes.chat:** the `AGENTES_URL` variable points the office at your install (its `PUBLIC_URL`). Sign-in, MCP and the "Reply" and "Review" buttons go there. The installer allows only that install's IP on the service's network, tailnet included. Without the variable, everything stays on the cloud. See [With self-hosted agentes.chat](./README.md#with-self-hosted-agenteschat).
+- **World in the menu:** the **Mundo** item opens `/mundo.html`.
+- **World in TV mode:** with no news, the TV shows the world for 45 seconds every 5 minutes, going from the globe down to the office's city and neighborhood. A tap on the map closes it. On its own, `/mundo.html?tv=1` runs the same tour full screen, for a lobby screen.
+- **Cities in other countries:** 12 cities on the globe (Lisbon, Luanda, Maputo, Buenos Aires, Montevideo, Santiago, Mexico City, New York, London, Paris, Madrid and Tokyo), each one a golden dot. Clicking goes straight down to the city, with its current weather. Lisbon, New York, London and Paris got new landmarks (Belém Tower, Statue of Liberty, Big Ben and Eiffel Tower), and Buenos Aires uses the Obelisk. An office within 300 km of one of them gets its chalet there.
+- **Mid-size cities:** the 50 cities that show up when you zoom into the map (Campinas, Santos, Juiz de Fora...) open too, sized by population and with a beach on the coast. The weather is the nearest capital's.
+- **Buses and bikes:** they ride the streets along with the cars, each at its own pace, with lights on at night.
+- **Party hats:** on holidays, three in five pedestrians in the city wear the holiday's hat, like the agents in the office.
+
+### Changed
+- `/mundo.html` can open inside the office itself (TV mode), and only there: `frame-ancestors 'self'`. The other pages still refuse framing.
+- The agentes.chat token is bound to the install that issued it: changing `AGENTES_URL` drops the stored token without sending it anywhere, and the office asks you to connect again.
+- The server fetches the weather of 40 cities (Brazil's 28 and the 12 abroad) in the same Open-Meteo request, every 15 minutes.
+
 ## 1.3.0 · 2026-11-10 · World and visits by invitation
 
 Release [`v1.3.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0), with the video of what is new attached. Commits: [`v1.2.0...v1.3.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.2.0...v1.3.0).

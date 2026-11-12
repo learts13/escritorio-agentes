@@ -33,6 +33,8 @@ GENERICOS = ({f"predios-{i}" for i in range(1, 15)} | {f"chale-{i}" for i in ran
              | {"praca-1", "banca-1", "ponto-onibus-1", "carrinho-1", "banco-poste-1"}
              | {f"lazer-{i}" for i in range(1, 7)} | {f"praia-{i}" for i in range(1, 5)} | {f"rua-{i}" for i in range(1, 5)}
              | {"canteiro-1", "canteiro-2"})
+# desenhados por código (montar_mundo.desenhados), sem arquivo de arte: ônibus e bicicletas vistos de cima, [w, h]
+DESENHADOS = {"onibus-cima-1": [44, 17], "onibus-cima-2": [44, 17], "bici-1": [13, 7], "bici-2": [13, 7], "bici-3": [13, 7]}
 # peças de festa que podem faltar na arte: entram no atlas quando existem, na metade como o mobiliário
 OPCIONAIS = {"festa-arvore-natal", "festa-fogueira", "festa-barraca-junina", "festa-abobora", "festa-ovo-pascoa",
              "festa-carro-alegorico", "festa-palco-anonovo"}
@@ -43,7 +45,8 @@ PORTES = {"metropole", "grande", "media", "pequena"}
 LITORAL = {"rio-de-janeiro", "salvador", "recife", "fortaleza", "natal", "joao-pessoa", "maceio", "aracaju", "vitoria",
            "florianopolis", "sao-luis"}
 # as miniaturas do mapa do Brasil: uma por marco e as dos dois aviões
-MINIS = {"mini-" + m for m in MARCOS.values()} | {"mini-aviao-1", "mini-aviao-2"}
+MARCOS_FORA = {"torre-belem", "estatua-liberdade", "big-ben", "torre-eiffel"}   # arte/mundo/exterior.json (Buenos Aires usa o obelisco)
+MINIS = {"mini-" + m for m in set(MARCOS.values()) | MARCOS_FORA} | {"mini-aviao-1", "mini-aviao-2"}
 BIOMAS = {"amazonia", "cerrado", "caatinga", "pantanal", "mata-atlantica", "pampa"}
 # um ponto bem dentro de cada bioma (lat, lon): ali o desenho tem de ser o do bioma
 NO_BIOMA = {"amazonia": (-5.0, -64.0), "cerrado": (-13.0, -46.5), "caatinga": (-6.5, -39.8),
@@ -283,9 +286,10 @@ class Montagem(unittest.TestCase):
         self.assertEqual(sobra, set(), "azulejos de 4x que a montagem não gera mais")
 
     def atlas(self, arte, pasta):
-        """Roda só montar_atlas() com a arte de `arte`, grava em `pasta` e devolve o atlas.json."""
-        montar = ("import json, sys\nsys.path.insert(0, sys.argv[1])\nimport montar_mundo as mm\n"
-                  "mm.montar_atlas(sys.argv[2], mm.ler(sys.argv[3]), sys.argv[4])")
+        """Roda só montar_atlas() com a arte de `arte` e as cidades da montagem (as do Brasil e as de fora), grava em
+        `pasta` e devolve o atlas.json."""
+        montar = ("import json, os, sys\nsys.path.insert(0, sys.argv[1])\nimport montar_mundo as mm\n"
+                  "mm.montar_atlas(sys.argv[2], mm.ler(sys.argv[3]) + mm.exterior(os.path.dirname(sys.argv[3])), sys.argv[4])")
         r = subprocess.run([sys.executable, "-B", "-c", montar, os.path.join(RAIZ, "ferramentas"), arte, CIDADES, pasta],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
         if r.returncode:
@@ -302,10 +306,13 @@ class Montagem(unittest.TestCase):
             self.assertEqual(self.sha(self.pastas[0], nome), self.sha(pasta, nome), nome)
         marcos = {"marco-" + m for m in MARCOS.values()}   # as 28 cidades: todo marco tem quadro no atlas
         self.assertEqual(len(marcos), 28)
+        marcos |= {"marco-" + m for m in MARCOS_FORA}
         self.assertEqual(set(atlas), {"versao", "quadros", "janelas"})
         self.assertIsInstance(atlas["versao"], int)
         presentes = {n for n in OPCIONAIS if os.path.exists(os.path.join(ARTE, n + ".png"))}
-        self.assertEqual(set(atlas["quadros"]), marcos | GENERICOS | presentes | MINIS)
+        self.assertEqual(set(atlas["quadros"]), marcos | GENERICOS | set(DESENHADOS) | presentes | MINIS)
+        for nome, tam in DESENHADOS.items():
+            self.assertEqual(atlas["quadros"][nome][2:], tam, nome)
         self.assertFalse(any(n.startswith("bicho-") for n in atlas["quadros"]), "os bichos ficam fora")
         self.assertFalse(any(n.startswith("bicho-") for n in os.listdir(ARTE)), "os bichos nem entram na arte")
         with open(os.path.join(pasta, "atlas.png"), "rb") as f:
@@ -750,8 +757,12 @@ class Montagem(unittest.TestCase):
         medias, mapa = self.mundo["niveis"]["brasil"]["medias"], self.ufs()
         self.assertTrue(40 <= len(medias) <= 60, len(medias))
         self.assertEqual(len({m["nome"] for m in medias}), len(medias))
+        self.assertEqual(len({m["id"] for m in medias} | {c["id"] for c in self.mundo["cidades"]}),
+                         len(medias) + len(self.mundo["cidades"]))   # o id não repete o de uma capital
         for m in medias:
-            self.assertEqual(set(m), {"nome", "uf", "x", "y", "pop"})
+            self.assertEqual(set(m), {"nome", "uf", "x", "y", "pop", "id", "porte", "litoral"})
+            self.assertRegex(m["id"], r"^[a-z0-9-]{1,40}$")
+            self.assertIn(m["porte"], {"grande", "media", "pequena"})
             self.assertEqual(mapa[m["y"]][m["x"]], m["uf"], m["nome"])
             for c in self.mundo["cidades"]:   # a mais de 3 px (uns 35 km) de toda capital e de Mateus Leme
                 self.assertGreater((m["x"] - c["x"]) ** 2 + (m["y"] - c["y"]) ** 2, 9, (m, c["id"]))
@@ -760,6 +771,20 @@ class Montagem(unittest.TestCase):
         agua = {mt.CORES[n] for n in mt.AGUA if not n.startswith("rio")} | mt.cores_apagadas()
         for m, cor in zip(medias, self.cores([[m["x"], m["y"]] for m in medias])):
             self.assertNotIn(cor, agua, m["nome"])
+
+    def test_cidades_de_fora(self):
+        """As cidades de fora do Brasil (o globo): só os campos que a página usa, id que não repete o de uma capital nem o
+        de uma média, porte e região conhecidos, e coordenadas fora da caixa do mapa do Brasil."""
+        import montar_mundo as mm
+        fora, brasil = self.mundo["exterior"], self.mundo["cidades"] + self.mundo["niveis"]["brasil"]["medias"]
+        self.assertGreaterEqual(len(fora), 10)
+        self.assertFalse({c["id"] for c in fora} & {c["id"] for c in brasil})
+        self.assertEqual(len({c["id"] for c in fora}), len(fora))
+        for c in fora:
+            self.assertEqual(tuple(c), mm.CAMPOS_EXTERIOR, c["id"])
+            self.assertRegex(c["id"], r"^[a-z0-9-]{1,40}$")
+            self.assertIn(c["porte"], PORTES); self.assertIn(c["regiao"], {"N", "NE", "CO", "SE", "S"})
+            self.assertTrue(-90 <= c["lat"] <= 90 and -180 <= c["lon"] <= 180, c["id"])
 
     def test_paises_vizinhos(self):
         """Os nomes dos vizinhos (o sudoeste e a borda deixam de ser só terra apagada): o ponto de cada um na terra dele."""

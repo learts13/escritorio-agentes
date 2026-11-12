@@ -7,6 +7,8 @@ services:
     environment:
       ESCRITORIO_BASE: ${ESCRITORIO_BASE:?defina ESCRITORIO_BASE com o endereço https público, sem barra no fim}
       AGENTES_ORG: ${AGENTES_ORG:?defina AGENTES_ORG com o id da organização no agentes.chat}
+      # Self-host do agentes.chat: o PUBLIC_URL da sua instalação. Vazia, é a nuvem (https://app.agentes.chat).
+      AGENTES_URL: ${AGENTES_URL:-}
       # Agente na sala de visitas: as duas juntas (handles separados por vírgula e o uuid do canal só de visitas).
       # Vazias, a sala fica só com pessoas da equipe. TELA=1 deixa a tela do recepcionista salvar sem a lista.
       ESCRITORIO_VISITAS_ANFITRIOES: ${ESCRITORIO_VISITAS_ANFITRIOES:-}
