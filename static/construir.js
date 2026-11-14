@@ -22,12 +22,19 @@
   let dpr = 1, vw = 0, vh = 0, pedidoDesenho = 0;
   let FIXOS = new Set(), SEM_ESPELHO = new Set();
 
-  for (const a of document.querySelectorAll("[data-voltar]")) a.href = DEMO ? "./?demo=1" : "./";
+  for (const a of document.querySelectorAll("[data-voltar]")) a.href = DEMO ? "./?demo=1" : "./" + (Andar.atual === Andar.PRINCIPAL ? "" : `#andar=${Andar.atual}`);   // volta ao andar editado
 
   // ---------- carga ------------------------------------------------------------------
+  // o editor trabalha na planta do andar atual (expediente.js: Andar); o principal não leva nada na query. Andar que
+  // sumiu (404 {"codigo":"andar"}): volta para o principal e relê.
   async function json(url) {
-    const r = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+    const api = url.startsWith("api/");
+    const r = await fetch(api ? Andar.com(url) : url, { cache: "no-store", credentials: "same-origin" });
     if (r.status === 401) { sair("/entrar"); throw new Error("sessão expirou"); }
+    if (r.status === 404 && api && Andar.atual !== Andar.PRINCIPAL) {
+      const d = await r.json().catch(() => null);
+      if (d && d.codigo === "andar") { Andar.limpar(); return json(url); }
+    }
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }
@@ -66,6 +73,10 @@
     const fora = ignorados.length;
     if (fora) avisoIgnorados(fora);
     if (DEMO) $("ed-sub").textContent = "Demonstração: mexa à vontade, nada é salvo.";
+    else if (Andar.atual !== Andar.PRINCIPAL) {   // vários andares: diz em qual a planta está sendo editada
+      const a = (Array.isArray(config.andares) ? config.andares : []).find(x => x && x.id === Andar.atual);
+      if (a && typeof a.nome === "string" && a.nome.length <= 80) $("ed-sub").textContent = `Editando a planta do andar ${a.nome}. Mova, espelhe, tire e ponha móveis e pinte as salas.`;
+    }
     $("carregando").hidden = true;
     medir(); verTudo();
     montarAmostras(); montarCatalogo();

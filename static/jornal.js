@@ -25,7 +25,7 @@ const Jornal = (() => {
     const n = ++pedido;
     if (!dados) aviso("Carregando o jornal…");
     let r = null, d = null;
-    try { r = await fetch("api/jornal", { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); } catch (e) { r = null; }
+    try { r = await fetch(Andar.com("api/jornal"), { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); } catch (e) { r = null; }
     if (n !== pedido) return;
     if (r && r.status === 401) { location.href = "/entrar"; return; }
     if (r && r.status === 404 && d && d.erro === "jornal_desligado") { dados = null; return esconder("O jornal está desligado neste escritório."); }
@@ -36,7 +36,7 @@ const Jornal = (() => {
   }
   async function lerPlacar() {
     try {
-      const r = await fetch("api/social/placar", { cache: "no-store", credentials: "same-origin" });
+      const r = await fetch(Andar.com("api/social/placar"), { cache: "no-store", credentials: "same-origin" });
       const d = r.ok ? await r.json() : null;
       return d && Array.isArray(d.ranking) ? d : null;
     } catch (e) { return null; }
@@ -158,7 +158,10 @@ const Jornal = (() => {
 
   function el(tag, classe, texto) { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; }
 
-  return { iniciar, abrir };
+  // trocou de andar: o jornal e o placar lidos eram do outro
+  function reiniciar() { dados = null; placar = null; lido = 0; pedido++; desenhado = ""; }
+
+  return { iniciar, abrir, reiniciar };
 })();
 
 window.Jornal = Jornal;

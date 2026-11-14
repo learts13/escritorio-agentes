@@ -4,9 +4,37 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 1.5.0 · 2026-11-14 · Floors and team
+
+Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0). Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
+<!-- PENDING (Helbert): once the video is attached to the release, change "Release [`v1.5.0`](...)." to "Release [`v1.5.0`](...), with the video of what is new attached." here and in CHANGELOG.pt-BR.md, as in commit 046b5fb for 1.4.0. -->
+
+### Added
+- **Floors:** each agentes.chat workspace can become a floor of the building, with its own connection, teams, floor plan, social life and newspaper. Settings › Floors creates, renames and removes them (up to 6 extra, with the account password), and the elevator in the top bar switches floors without reloading. With no extra floors, everything stays as before. See [Floors](./README.md#floors-several-workspaces-in-one-building).
+- **Team:** admins invite teammates with a personal, single-use link valid for 48 hours, in Settings › Members, which also changes each account's role (admin or member) and floors. The person creates the account with a name and a character and changes them later in **My profile**. Members see the office on the floors they were given, but cannot read the agents' conversations or change settings. See [Team](./README.md#team).
+- **People on the map:** each signed-in person shows up on the floor with their own name and character, comes in from the street and walks to where they click. The "N pessoas olhando" (N people watching) line counts who is on the floor, and the sidebar shows how many people are in each room without desks.
+- **Room chat:** each room has a text chat for whoever is in it. It lives only in the server's memory (the last 50 messages for up to 10 minutes), newcomers do not see what was said before, and restarting the office wipes it all.
+- **Pull the departments from agentes.chat:** a button in Settings › Teams copies each agentes.chat department as a team (name, color and icon) and each agent's appearance. It needs an agentes.chat whose `list_agents` sends the `department`. A team with the same name keeps its type, wall and floor, and nothing applies before **Salvar times** (save teams).
+
+### Changed
+- The anonymous **Visitante** (visitor) badge is gone from the map: whoever has the office open shows up with their own account's name and character. The **Aparecer no escritório** (show me in the office) box and the TV work as before (they watch without showing up). See [Visitors](./README.md#visitors).
+- **Sign out of all devices** only ends the sessions of whoever asked. Only an admin also turns off phone alerts on every device.
+
+### Fixed
+- **Reply from another device:** answered an agent's question on your phone with the office open on your computer? The agent leaves **Waiting for you** on both screens without waiting for the next agentes.chat read (on the device that replied, right away; on the other, within 10 s), and the request you already answered no longer takes the same answer again. A tab coming back from the background reads the state at once.
+- **Tests on Windows:** the account and member tests pass on Windows (the first-access code file is closed before it is deleted, and the 0600 permission is only checked outside Windows).
+
+### Security
+- **Members only see what they may:** the server denies by default. Every route with a session checks the role before answering, and a member cannot read conversations, open reply mode or change settings, branding, floor plan, teams, floors, members or visits.
+- **Invitations:** the link shows only once, and the server keeps only a fingerprint of it (sha256), never the link. Once used, expired or revoked, it no longer works; two acceptances of the same link at the same time create a single account. The invitation page has a per-origin request limit.
+- **Changing a role or floors asks for the admin's password**, like inviting and removing. The office never runs out of admins.
+- **Removing an account** signs the person out before saving the change, and their character leaves the map at once. A new account with an old account's name does not inherit the old sessions.
+- **Isolated floors:** each floor reads agentes.chat with its own token. A floor that does not exist and a floor you cannot access get the same answer (404), and a floor connected to an account from another workspace says so and shows nothing from it.
+- **Presence and chat only in memory:** who is on each floor and the room messages never go to disk or to the log, have per-person limits, and the server only takes a message for the room its author is in. Outside visitors do not see the team. See [where each piece of data goes](./docs/visitas-privadas-plano.md#equipe-presença-no-mapa-e-chat-por-sala) (in Portuguese).
+
 ## 1.4.0 · 2026-11-12 · Self-hosting and a bigger world
 
-Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0). Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
+Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0), with the video of what is new attached. Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
 
 ### Added
 - **Self-hosted agentes.chat:** the `AGENTES_URL` variable points the office at your install (its `PUBLIC_URL`). Sign-in, MCP and the "Reply" and "Review" buttons go there. The installer allows only that install's IP on the service's network, tailnet included. Without the variable, everything stays on the cloud. See [With self-hosted agentes.chat](./README.md#with-self-hosted-agenteschat).

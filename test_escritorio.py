@@ -8,6 +8,7 @@ import itertools
 import json
 import os
 import random
+import uuid
 import re
 import shutil
 import signal
@@ -90,6 +91,25 @@ class Resumo(unittest.TestCase):
                          [("r1", "still_running", "2026-11-04T10:00:00Z"), ("r2", "waiting_input", "2026-11-04T11:00:00Z")])
         self.assertEqual(r["trabalhos"][0]["run_id"], "r2")  # o front segue com uma por agente
         self.assertEqual(set(r["tarefas"][0]), {"agente_id", "run_id", "status", "started_at"})  # sem rótulo nem url
+
+    def test_setor_e_aparencia_do_agentes_chat(self):
+        # o list_agents novo manda o setor e a aparência; só o que está nas listas fechadas passa
+        bruto = [{"id": "a1", "name": "Pixel", "handle": "pixel", "role": "",
+                  "department": {"name": "  Engenharia  ", "color": "teal", "icon": "code", "position": 2},
+                  "appearance": {"color": "rose", "eyes": "happy", "accessory": "scarf"}},
+                 {"id": "a2", "name": "Órbita", "handle": "orbita", "role": "",
+                  "department": {"name": "X", "color": "#ff0000", "icon": "<svg>", "position": True},
+                  "appearance": {"color": "#123456", "eyes": "happy", "accessory": "crown"}},
+                 {"id": "a3", "name": "Sem setor", "handle": "solto", "role": "", "department": None, "appearance": None},
+                 {"id": "a4", "name": "Antigo", "handle": "antigo", "role": ""}]
+        a1, a2, a3, a4 = e.resumir(bruto, [])["agentes"]
+        self.assertEqual(a1["setor"], {"nome": "Engenharia", "cor": "teal", "icone": "code", "ordem": 2})
+        self.assertEqual(a1["aparencia"], {"color": "rose", "eyes": "happy", "accessory": ""})   # cachecol: o escritório não desenha
+        self.assertEqual(a2["setor"], {"nome": "X", "cor": None, "icone": None, "ordem": 999})
+        self.assertIsNone(a2["aparencia"])   # cor própria (#rrggbb) o boneco do escritório não tem
+        self.assertEqual((a3["setor"], a3["aparencia"]), (None, None))
+        self.assertNotIn("setor", a4)   # agentes.chat que ainda não manda: a tela diz para atualizar
+        self.assertNotIn("aparencia", a4)
 
 
 def tarefa(run_id, status, agente="a1"):
@@ -2851,7 +2871,7 @@ class Docker(unittest.TestCase):
                     [no.module] if isinstance(no, ast.ImportFrom) and no.module else []
                 pendentes += [n for n in nomes if os.path.isfile(os.path.join(raiz, n + ".py"))]
         esperados = {n + ".py" for n in locais}
-        self.assertEqual(esperados, {"escritorio.py", "acesso.py", "social.py", "planta.py", "ajustes.py", "jornal.py",
+        self.assertEqual(esperados, {"escritorio.py", "acesso.py", "andares.py", "presenca.py", "social.py", "planta.py", "ajustes.py", "jornal.py",
                                  "avisos.py", "vapid.py", "novidades.py", "visitas_sala.py"})
         self.assertLessEqual(esperados, copiados)
         self.assertLessEqual(esperados, liberados)
@@ -2971,6 +2991,7 @@ class Responder(unittest.TestCase):
             self.chamadas, self.sessao, self.falha, self.falha_canais = [], "s", None, None
             self.canais = [{"id": CANAL, "is_member": True}]
             self.leitura = {"messages": []}
+            self.tarefas, self.pedidos = [], 0
 
         def iniciar(self, token):
             self.sessao = "s"
@@ -2983,6 +3004,8 @@ class Responder(unittest.TestCase):
                 if self.falha_canais:
                     raise self.falha_canais
                 return {"channels": self.canais, "next_cursor": None}
+            if nome == "list_recent_tasks":   # a leitura de fundo (Leitor.ciclo)
+                return {"tasks": self.tarefas, "next_cursor": None}
             if self.falha:
                 raise self.falha
             return {"status": "still_running", "task_id": "tarefa-nova", "reply": "TEXTO-DO-AGENTE"}
@@ -3021,9 +3044,10 @@ class Responder(unittest.TestCase):
         self.leitor.mcp = self.Mcp()
         self.leitor.estado = {**self.leitor.estado, **e.resumir(AG, [])}
         self.leitor.canais = ({CANAL}, True, time.time())   # o que o Leitor guardou do list_channels
-        self.foto([self.tarefa("r1", "waiting_input"), self.tarefa("r2", "waiting_approval", "a2"),
-                   self.tarefa("r3", "running", "a1", CANAL), self.tarefa("r4", "waiting_input", "a2", DM2, None),
-                   self.tarefa("r8", "waiting_input", "a2", CANAL)])
+        self.tarefas = [self.tarefa("r1", "waiting_input"), self.tarefa("r2", "waiting_approval", "a2"),
+                        self.tarefa("r3", "running", "a1", CANAL), self.tarefa("r4", "waiting_input", "a2", DM2, None),
+                        self.tarefa("r8", "waiting_input", "a2", CANAL)]
+        self.foto(self.tarefas)
         self.srv.leitor, self.srv.cred, self.srv.acesso = self.leitor, self.cred, self.acesso
         self.srv.conversas = e.Conversas(self.leitor)
         self.srv.respostas = e.Respostas(self.leitor, self.srv.conversas)
@@ -3041,6 +3065,10 @@ class Responder(unittest.TestCase):
         mem = mem or e.ConversasDoDia()
         self.leitor.memoria = mem
         self.leitor.conversas = mem.atualizar(e.normalizar(AG, tarefas)[1], {}, True, agora or time.time())
+
+    def perguntou_de_novo(self):
+        """O agente voltou a esperar a resposta no mesmo run (o envio que deu certo o pôs trabalhando): os ids ficam."""
+        self.foto(self.tarefas, self.leitor.memoria)
 
     def item(self, agente, canal=DM):
         return next(it for it in self.leitor.conversas["por_id"].values() if it["agente_id"] == agente and it["canal"] == canal)
@@ -3232,6 +3260,7 @@ class Responder(unittest.TestCase):
         saida = io.StringIO()
         with contextlib.redirect_stdout(saida):
             st, corpo, _ = self.post("/api/conversa/responder", self.envio(texto="  Leve‮, por​ favor.\r\n"), cab)
+            self.perguntou_de_novo()   # o mesmo pedido não aceita a mesma resposta duas vezes (o agente trabalha)
             st2, corpo2, _ = self.post("/api/conversa/responder", self.envio(), cab)
         self.assertEqual((st, st2), (200, 200))
         self.assertEqual((corpo["status"], corpo["resta_s"], corpo["teto_s"] <= 28800), ("still_running", 3600, True))
@@ -3298,6 +3327,33 @@ class Responder(unittest.TestCase):
             del self.acesso.modo
         self.assertEqual((st, corpo), (200, {"resta_s": 0, "teto_s": 0}))
 
+    def test_resposta_pelo_celular_tira_o_pedido_do_pc_na_hora(self):
+        """Responder pelo celular com o escritório aberto no PC: o agente sai de "Esperando você" nas duas telas já,
+        sem esperar a leitura de fundo, e nenhuma tela fica com o pedido antigo pedindo a mesma resposta."""
+        tarefas = [self.tarefa("r1", "waiting_input"), self.tarefa("r3", "running", "a1", CANAL)]
+        self.leitor.estado = {**self.leitor.estado, **e.resumir(AG, tarefas)}
+        self.foto(tarefas)
+        celular, _, _ = self.abrir()
+        pc = self.entrar()   # outra sessão da mesma conta, sem o modo resposta
+        self.assertEqual(self.post("/api/conversa/responder", self.envio(), celular)[0], 200)
+        self.assertTrue(self.leitor.acordado.is_set())   # a leitura de verdade sai agora, sem esperar o intervalo
+        for cab in (pc, celular):
+            estado = json.loads(self.req("/api/estado", cab)[1])
+            self.assertEqual([t["status"] for t in estado["trabalhos"] if t["agente_id"] == "a1"], ["still_running"])
+            self.assertEqual({c["run_id"]: (c["status"], c["responder"]) for c in estado["conversas"]}["r1"],
+                             ("still_running", False))
+        st, corpo, _ = self.post("/api/conversa/responder", self.envio(chave=str(uuid.uuid4())), celular)
+        self.assertEqual((st, corpo["erro"]), (409, "trabalhando"))   # a mesma resposta não sai duas vezes
+        self.assertEqual(len(self.enviados()), 1)
+        # o agentes.chat ainda não retomou o run: a leitura logo depois do envio não traz o pedido de volta...
+        self.leitor.mcp.tarefas, self.leitor.agentes, self.leitor.agentes_em = tarefas, AG, time.time()
+        self.leitor.ciclo(time.time() + 5)
+        self.assertEqual([t["status"] for t in self.leitor.foto()["trabalhos"] if t["agente_id"] == "a1"], ["still_running"])
+        self.assertEqual(self.item("a1")["status"], "still_running")
+        # ...mas passada a carência vale o que o agentes.chat disser (o agente pode perguntar de novo no mesmo run)
+        self.leitor.ciclo(time.time() + e.ATENDIDO_CARENCIA + 1)
+        self.assertEqual([t["status"] for t in self.leitor.foto()["trabalhos"] if t["agente_id"] == "a1"], ["waiting_input"])
+
     def test_envio_invalida_o_cache_da_conversa(self):
         cab, _, _ = self.abrir()
         conv = self.srv.conversas
@@ -3307,7 +3363,9 @@ class Responder(unittest.TestCase):
 
     def test_tetos_e_pausas(self):
         r, it = self.srv.respostas, self.item("a1")
-        enviar = lambda agora: r.enviar("dono", it["id"], it["run_id"], "oi", CHAVE, agora)
+        def enviar(agora):   # cada envio que dá certo põe o agente trabalhando: ele pergunta de novo antes do próximo
+            self.perguntou_de_novo()
+            return r.enviar("dono", it["id"], it["run_id"], "oi", CHAVE, agora)
         t = time.time()
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual([enviar(t + i)[0] for i in range(6)], [200] * 5 + [429])   # o 6º no minuto

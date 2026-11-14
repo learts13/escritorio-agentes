@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Convite · Escritório dos agentes</title>
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="entrar.css?v=16">
+  <link rel="stylesheet" href="convite.css?v=1">
+</head>
+<body>
+  <main class="tela tela-convite">
+    <section class="lado">
+      <div class="cartao">
+        <span class="etiqueta">ESCRITÓRIO DE AGENTES</span>
+
+        <!-- 1. conferindo o convite -->
+        <div id="cv-carregando" role="status">
+          <h1>Conferindo o convite…</h1>
+        </div>
+
+        <!-- 2. convite que não vale (apagado, usado, vencido) ou muitas tentativas -->
+        <div id="cv-invalido" hidden>
+          <h1>Convite indisponível</h1>
+          <p id="cv-invalido-txt" class="suave" role="alert"></p>
+          <button id="cv-de-novo" class="enviar" type="button" hidden>Tentar de novo</button>
+          <a class="link-entrar" href="/entrar">Ir para a tela de entrar</a>
+        </div>
+
+        <!-- 3. o formulário -->
+        <form id="cv-form" novalidate hidden>
+          <h1>Você foi convidado</h1>
+          <p class="suave">Crie a sua conta para entrar no escritório.</p>
+          <p id="cv-erro" class="erro" role="alert" hidden><span class="erro-ic" aria-hidden="true">!</span><span id="cv-erro-txt"></span></p>
+
+          <label for="cv-usuario">Usuário</label>
+          <input id="cv-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required aria-describedby="cv-usuario-ajuda">
+          <p id="cv-usuario-ajuda" class="dica">De 3 a 32 caracteres: letras minúsculas, números, ponto, hífen e sublinhado.</p>
+
+          <label for="cv-senha">Senha</label>
+          <div class="campo-senha">
+            <input id="cv-senha" type="password" autocomplete="new-password" maxlength="256" required aria-describedby="cv-senha-ajuda caps">
+            <button class="ver-senha" type="button" aria-controls="cv-senha" aria-pressed="false">Mostrar</button>
+          </div>
+          <p id="cv-senha-ajuda" class="dica">No mínimo 10 caracteres.</p>
+          <label for="cv-confirmar">Confirmar senha</label>
+          <div class="campo-senha">
+            <input id="cv-confirmar" type="password" autocomplete="new-password" maxlength="256" required aria-describedby="caps">
+            <button class="ver-senha" type="button" aria-controls="cv-confirmar" aria-pressed="false">Mostrar</button>
+          </div>
+          <p id="caps" class="caps" aria-live="polite"></p>
+
+          <label for="cv-nome">Nome</label>
+          <input id="cv-nome" autocomplete="name" maxlength="40" required aria-describedby="cv-nome-ajuda">
+          <p id="cv-nome-ajuda" class="dica">Como você aparece para o time. Até 40 caracteres.</p>
+
+          <fieldset class="boneco">
+            <legend>Seu boneco</legend>
+            <div id="cv-boneco" class="seletor-boneco"></div>
+          </fieldset>
+
+          <button id="cv-enviar" class="enviar" type="submit">Criar conta e entrar</button>
+          <p class="rodape suave">Este convite vale uma vez só.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script src="avatar.js?v=16"></script>
+  <script src="convite.js?v=1"></script>
+</body>
+</html>

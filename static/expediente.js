@@ -18,3 +18,41 @@ const Expediente = (() => {
   return { definir, fora, valido, duracao, proximaAbertura: () => abre, get abre() { return abre; }, get fecha() { return fecha; } };
 })();
 window.Expediente = Expediente;
+
+// Andar atual (cada workspace do agentes.chat é um andar do prédio). Mora aqui porque este arquivo já é carregado no
+// escritório e no modo construção, e arquivo estático novo precisa constar do ARQUIVOS do servidor.
+// O andar principal é o padrão e NÃO vai na URL: os pedidos dele ficam idênticos aos de antes dos andares. Os outros levam
+// `andar=<8 hex>` na query. Fontes, em ordem: #andar=<id> no endereço, depois o localStorage (sempre com try/catch).
+const Andar = (() => {
+  const PRINCIPAL = "principal", CHAVE = "escritorio:andar";
+  const valido = id => typeof id === "string" && (id === PRINCIPAL || /^[0-9a-f]{8}$/.test(id));
+  const doHash = h => { const m = /^#andar=([^&]*)$/.exec(typeof h === "string" ? h : ""); return m && valido(m[1]) ? m[1] : null; };
+  let atual = PRINCIPAL;
+  const guardar = id => { try { if (id === PRINCIPAL) localStorage.removeItem(CHAVE); else localStorage.setItem(CHAVE, id); } catch (e) { /* aba anônima ou armazenamento bloqueado */ } };
+  function ler() {   // endereço primeiro, depois o que ficou guardado; nada válido, principal
+    let id = null;
+    try { id = doHash(location.hash); } catch (e) { /* sem location */ }
+    if (!id) try { const g = localStorage.getItem(CHAVE); id = valido(g) ? g : null; } catch (e) { /* sem localStorage */ }
+    atual = id || PRINCIPAL;
+    return atual;
+  }
+  // devolve true se o andar mudou; id inválido vira o principal
+  function definir(id) {
+    const novo = valido(id) ? id : PRINCIPAL, mudou = novo !== atual;
+    atual = novo; guardar(novo);
+    return mudou;
+  }
+  // põe `andar=<id>` na query da url (relativa ou absoluta, com ou sem #). No principal devolve a url como veio.
+  function com(url, id = atual) {
+    if (id === PRINCIPAL || !valido(id) || typeof url !== "string") return url;
+    const i = url.indexOf("#"), corpo = i < 0 ? url : url.slice(0, i), fim = i < 0 ? "" : url.slice(i);
+    return `${corpo}${corpo.includes("?") ? "&" : "?"}andar=${id}${fim}`;
+  }
+  // como a conexão de cada andar aparece na tela; valor que o servidor ainda não conhece vira "sem leitura"
+  const CONEXAO = { conectado: "conectado", sem_conexao: "sem conexão", outra_org: "conectado no workspace errado, reconecte", recusada: "conexão recusada",
+    pausa: "em pausa", falha: "sem resposta", carregando: "conectando…" };
+  const rotuloConexao = c => (typeof c === "string" && Object.hasOwn(CONEXAO, c) ? CONEXAO[c] : "sem leitura");
+  ler();
+  return { PRINCIPAL, valido, rotuloConexao, doHash, ler, definir, com, limpar: () => definir(PRINCIPAL), get atual() { return atual; } };
+})();
+window.Andar = Andar;
