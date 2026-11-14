@@ -286,7 +286,34 @@ const Avatar = (() => {
     return { color: cores[h % cores.length], eyes: olhosTipos[(h >>> 3) % olhosTipos.length], accessory: acess[(h >>> 6) % acess.length] };
   }
 
-  return { desenhar: desenharAvatar, boneco, chapeu, padrao: aparenciaPadrao, TAM, CORES, POSES };
+  // Escolha do boneco (cor, olhos, acessório) com prévia, para o convite (página pública) e o "Meu perfil". Os ids são os que
+  // o servidor aceita; os rótulos, o que a pessoa lê. Devolve { valor() } com a aparência escolhida.
+  const OPCOES = {
+    cores: [["sky", "Céu"], ["indigo", "Anil"], ["violet", "Violeta"], ["rose", "Rosa"], ["amber", "Âmbar"], ["green", "Verde"], ["teal", "Turquesa"], ["graphite", "Grafite"]],
+    olhos: [["happy", "Felizes"], ["sleepy", "Sonolentos"], ["round", "Redondos"], ["wide", "Arregalados"], ["dots", "Pontinhos"]],
+    acessorios: [["", "Nenhum"], ["crown", "Coroa"], ["hat", "Chapéu"], ["headphones", "Fones"], ["headset", "Headset"], ["flower", "Flor"], ["antenna", "Antena"], ["cap", "Boné"], ["bow", "Laço"]],
+  };
+  function seletor(raiz, inicial, aoMudar, prefixo) {
+    const noLista = (lista, v, reserva) => (lista.some(([k]) => k === v) ? v : reserva);
+    const ap = { color: noLista(OPCOES.cores, inicial && inicial.color, "amber"), eyes: noLista(OPCOES.olhos, inicial && inicial.eyes, "happy"),
+      accessory: noLista(OPCOES.acessorios, inicial && inicial.accessory, "") };
+    const cv = document.createElement("canvas"), campos = document.createElement("div"), c = cv.getContext("2d");
+    cv.width = cv.height = TAM * 4; cv.className = "boneco-previa"; cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "Prévia do seu boneco");
+    campos.className = "boneco-campos";
+    const desenhar = () => { c.clearRect(0, 0, cv.width, cv.height); c.imageSmoothingEnabled = false; c.drawImage(desenharAvatar({ ...ap }), 0, 0, cv.width, cv.height); };   // cópia nova a cada vez: o cache guarda por objeto
+    for (const [chave, rotulo, lista] of [["color", "Cor", OPCOES.cores], ["eyes", "Olhos", OPCOES.olhos], ["accessory", "Acessório", OPCOES.acessorios]]) {
+      const campo = document.createElement("div"), l = document.createElement("label"), s = document.createElement("select");
+      s.id = `${prefixo}-${chave}`; l.htmlFor = s.id; l.textContent = rotulo;
+      for (const [k, nome] of lista) { const o = document.createElement("option"); o.value = k; o.textContent = nome; s.append(o); }
+      s.value = ap[chave];
+      s.addEventListener("change", () => { ap[chave] = s.value; desenhar(); if (aoMudar) aoMudar({ ...ap }); });
+      campo.append(l, s); campos.append(campo);
+    }
+    raiz.replaceChildren(cv, campos); desenhar();
+    return { valor: () => ({ ...ap }) };
+  }
+
+  return { desenhar: desenharAvatar, boneco, chapeu, padrao: aparenciaPadrao, OPCOES, seletor, TAM, CORES, POSES };
 })();
 
 window.Avatar = Avatar;

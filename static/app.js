@@ -20,28 +20,31 @@ let dpr = 1, vw = 0, vh = 0;
 const $ = id => document.getElementById(id);
 
 // ---------- carga --------------------------------------------------------------------
+// O andar atual (expediente.js: Andar) vai na query de todo pedido a api/; no andar principal nada é acrescentado.
+// 404 {"codigo":"andar"}: o andar não existe mais ou perdeu o acesso; quem chamou volta para o principal.
+class AndarInvalido extends Error {}
 async function json(url) {
-  const r = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+  const api = url.startsWith("api/");
+  const r = await fetch(api ? Andar.com(url) : url, { cache: "no-store", credentials: "same-origin" });
   if (r.status === 401) { location.href = "/entrar"; throw new Error("sessão expirou"); }
+  if (r.status === 404 && api && Andar.atual !== Andar.PRINCIPAL) {
+    const d = await r.json().catch(() => null);
+    if (d && d.codigo === "andar") throw new AndarInvalido("andar");
+  }
   if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json();
 }
 function imagem(src) { return new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = src; }); }
 
 async function iniciar() {
-  config = Brincar.demo ? Brincar.configDemo() : await json("api/config");   // demonstração: nada vem do servidor
+  config = Brincar.demo ? Brincar.configDemo()   // demonstração: nada vem do servidor
+    : await json("api/config").catch(e => { if (!(e instanceof AndarInvalido)) throw e; sairDoAndarInvalido(); return json("api/config"); });
   Expediente.definir(config.expediente);   // sem a chave (demonstração, servidor antigo): 07:00 às 20:00
   const pasta = `tema/`;
   const mapaJson = await json(pasta + "atlas.json");
   const img = await imagem(`${pasta}atlas.png?v=${encodeURIComponent(mapaJson.versao || "")}`);
   atlas = { img, json: mapaJson };
   try { logoImg = await imagem(config.logo || "logo.png"); } catch (e) { logoImg = null; }
-  // o Personalizar grava config.logo assim que o /api/logo responde: o logo do topo e o do mapa trocam na hora
-  // (mesmo se o salvar do nome e da cor falhar depois), sem esperar recarregar
-  let logoAtual = config.logo;
-  Object.defineProperty(config, "logo", { configurable: true, enumerable: true, get: () => logoAtual, set: v => { logoAtual = v; trocarLogo(v); } });
-  Festas.configurar(config.festas, config.cor);   // datas próprias e festas desligadas (Personalizar)
-  festa = Festas.ativa();
-  aplicarMarca();
+  aplicarConfig();
   paginaConversas();
   Brincar.iniciar();
   medirFaixa();
@@ -49,11 +52,34 @@ async function iniciar() {
   try { await document.fonts.load(Mapa.PLACA_FONTE); } catch (e) { /* sem a fonte, a placa usa a reserva monoespaçada */ }
   if (!$("v-personalizar").hidden) { Personalizar.abrir(config); Ajustes.abrir(config); }   // abriu direto em #personalizar
   await buscar();
+  ligarAoVivo();
   irAoAgentePedido();
   ligarTV();
-  Assistente.talvez(config, () => estado);   // nome de exemplo ou sem conexão: o assistente (uma vez por sessão, e na volta do OAuth)
+  if (!souMembro()) Assistente.talvez(config, () => estado);   // nome de exemplo ou sem conexão: o assistente (uma vez por sessão, e na volta do OAuth)
   setInterval(buscar, 10000);
   requestAnimationFrame(quadro);
+}
+
+// o que sai do config de cada andar (a marca, as datas e o expediente são do prédio e vêm iguais em todos)
+function aplicarConfig() {
+  // o Personalizar grava config.logo assim que o /api/logo responde: o logo do topo e o do mapa trocam na hora
+  // (mesmo se o salvar do nome e da cor falhar depois), sem esperar recarregar
+  let logoAtual = config.logo;
+  Object.defineProperty(config, "logo", { configurable: true, enumerable: true, get: () => logoAtual, set: v => { logoAtual = v; trocarLogo(v); } });
+  Festas.configurar(config.festas, config.cor);   // datas próprias e festas desligadas (Personalizar)
+  festa = Festas.ativa();
+  aplicarMarca();
+  mostrarElevador();
+  aplicarPapel();
+}
+
+// O papel da conta ("admin" | "membro") vem no /api/config; sem o campo (servidor antigo) vale admin, a tela de sempre.
+// A regra mora aqui: o body ganha data-papel e o CSS esconde tudo que tem class "so-admin" (estilo.css). O servidor também
+// barra no back (403); isto só evita mostrar botões que não funcionam. Conversas e o assistente de instalação dependem daqui.
+const souMembro = () => !!config && config.papel === "membro";
+function aplicarPapel() {
+  document.body.dataset.papel = souMembro() ? "membro" : "admin";
+  if (souMembro() && location.hash === "#conversas") rota();   // abriu direto numa tela de admin: o rota() manda para o mapa
 }
 
 function aplicarMarca() {
@@ -122,9 +148,12 @@ function montar(agentes) {
 }
 
 async function buscar() {
-  const pedido = performance.now();
+  if (trocando) return;   // a troca de andar chama de novo quando o config novo chegar
+  const pedido = performance.now(), andar = Andar.atual;
   try {
-    estado = Brincar.demo ? Brincar.estadoDemo() : await json(TV.invisivel || !aparecer ? "api/estado?invisivel=1" : "api/estado");   // a TV e quem desligou não contam como visitante
+    const lido = Brincar.demo ? Brincar.estadoDemo() : await json(TV.invisivel || !aparecer ? "api/estado?invisivel=1" : "api/estado");   // a TV e quem desligou não contam como visitante
+    if (andar !== Andar.atual) return;   // trocou de andar no meio do pedido: esta leitura é do andar de antes
+    estado = lido;
     modoDoServidor(estado.modo_resposta, pedido);
     Clima.definir(estado.clima);
     // "Olá de novo" na tela de entrada: só o nome de quem já entrou com sucesso (o servidor só manda usuario com sessão válida)
@@ -134,7 +163,6 @@ async function buscar() {
     for (const s of predio.salas) for (const m of s.mesas || []) if (m.handle) mesas.set(m.handle, m);
     Vida.sincronizar(mundo, estado.agentes || [], estado.trabalhos || [], mesas, aparencia, novo);
     Vida.social(mundo, !naSimulacao() && estado.social && typeof estado.social === "object" ? estado.social : null);   // null desliga a camada
-    Vida.visitantes(mundo, TV.invisivel ? [] : estado.visitantes);   // na TV (também na 1ª leitura do /?tv=1), sem visitantes
     mostrarOlhando();
     falhou = false;
     desenharPainel(); desenharEventos(); mostrarConexao(); paginaConversas();
@@ -143,6 +171,8 @@ async function buscar() {
     if (!$("ficha").hidden) renderFicha();
     vigiarSocial(); vigiarGreve();
   } catch (e) {
+    if (e instanceof AndarInvalido && andar === Andar.atual) { voltarAoPrincipal(); return; }
+    if (andar !== Andar.atual) return;
     falhou = true; mostrarConexao();
   }
 }
@@ -252,7 +282,7 @@ function desenharCena(t) {
   }
   const cs = mundo.cenaSocial, naNuvem = b => !!cs && cs.fase === "luta" && (b.id === cs.a || b.id === cs.b);   // na luta, a nuvem cobre os dois (Efeitos.cena)
   for (const b of mundo.bonecos.values()) if (visivel(b) && !naNuvem(b)) cena.push({ chave: b.chave ?? b.y + 0.5, desenha: () => desenharBoneco(b, t) });
-  const visitas = [...mundo.visitas.values()].filter(v => v.x > -20);   // visitantes (vida.js): figurantes com crachá
+  const visitas = Vida.pessoas();   // as pessoas da equipe neste andar e o meu boneco (vida.js: /api/ao-vivo)
   for (const v of visitas) cena.push({ chave: v.chave ?? v.y + 0.5, desenha: () => Avatar.boneco(ctx, v, t, escala) });
   cena.sort((a, b) => a.chave - b.chave).forEach(c => c.desenha());
   desenharPortas(t);
@@ -823,7 +853,7 @@ function montarSalas() {
 }
 function atualizarSalas() {
   if (!mundo) return;
-  const bs = [...mundo.bonecos.values()];
+  const bs = [...mundo.bonecos.values()], gente = Vida.pessoas();   // gente: as pessoas da equipe neste andar e eu (vida.js)
   for (const s of [...predio.salas, ...predio.baixo]) {
     const b = $("salas").querySelector(`[data-sala="${CSS.escape(s.nome)}"]`); if (!b) continue;
     let txt, ativa, espera = false;
@@ -832,8 +862,8 @@ function atualizarSalas() {
       const na = donos.filter(x => x.lugar && x.lugar.tipo === "mesa" && x.trabalho).length;
       txt = `${na}/${donos.length}`; ativa = na > 0; espera = donos.some(x => situacao(x) === "esp");
     } else {
-      const aqui = bs.filter(x => visivel(x) && salaEm(x) === s);   // pela posição de agora (quem está chegando já conta)
-      txt = aqui.length ? `${aqui.length} aqui` : "vazia"; ativa = false;
+      const aqui = bs.filter(x => visivel(x) && salaEm(x) === s).length + gente.filter(p => salaEm(p) === s).length;   // pela posição de agora (quem está chegando já conta)
+      txt = aqui ? `${aqui} aqui` : "vazia"; ativa = false;
     }
     const n = b.querySelector(".sala-n");
     if (n.textContent !== txt) n.textContent = txt;
@@ -906,7 +936,7 @@ function renderFicha() {
   }
   const fim = [];
   if (social) { // o motivo fica à vista embaixo do botão desabilitado (o servidor confere tudo de novo no envio)
-    const rg = elem("button", "botao fantasma ringue", "Mandar pro ringue"); rg.type = "button"; rg.setAttribute("aria-haspopup", "dialog");
+    const rg = elem("button", "botao fantasma ringue so-admin", "Mandar pro ringue"); rg.type = "button"; rg.setAttribute("aria-haspopup", "dialog");
     if (motivo) { rg.disabled = true; rg.setAttribute("aria-describedby", "ficha-motivo"); const p = elem("p", "ficha-motivo", motivo); p.id = "ficha-motivo"; fim.push(p); }
     rg.addEventListener("click", () => abrirRingue(b, rg)); acoes.append(rg);
   }
@@ -922,7 +952,7 @@ let amizades = null, pedidoAmizades = 0, cenaVista = null, releitura = 0, releit
 async function carregarAmizades(id) {
   const n = ++pedidoAmizades;
   let r = null, d = null;
-  try { r = await fetch(`api/social?agente=${encodeURIComponent(id)}`, { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
+  try { r = await fetch(Andar.com(`api/social?agente=${encodeURIComponent(id)}`), { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
   catch (e) { r = null; }
   if (n !== pedidoAmizades || selecionado !== id) return;   // fechou ou trocou de agente enquanto esperava
   if (r && r.status === 401) { location.href = "/entrar"; return; }
@@ -1052,7 +1082,7 @@ async function carregarPlacar() {
   if (Brincar.demo) { r = { ok: true, status: 200 }; d = Brincar.placarDemo(); }   // demonstração: placar local, nada vai ao servidor
   else {
     aviso.textContent = "Carregando o placar…";
-    try { r = await fetch("api/social/placar", { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); } catch (e) { r = null; }
+    try { r = await fetch(Andar.com("api/social/placar"), { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); } catch (e) { r = null; }
     if (n !== placarVez || !$("dlg-placar").open) return;
     if (r && r.status === 401) { location.href = "/entrar"; return; }
   }
@@ -1147,7 +1177,7 @@ $("dlg-ringue").addEventListener("close", () => { // o foco volta ao botão; a f
 
 // ---------- conversa do trabalho atual (contrato L, fase 1): só leitura pelo GET /api/conversa; texto puro, sem markdown
 // nem autolink. Aparece no lugar da ficha; o nome de pessoas nunca vem do servidor, então quem não é agente aparece como "Pessoa".
-const conversaLigada = () => !!config && (config.conversas === "ler" || config.conversas === "responder") && !Brincar.demo
+const conversaLigada = () => !!config && !souMembro() && (config.conversas === "ler" || config.conversas === "responder") && !Brincar.demo
   && !["data", "hora", "clima"].some(k => new URLSearchParams(location.search).has(k));   // escondida na demonstração e na Simulação
 const ERROS_CONVERSA = { 404: "Esta conversa não está disponível agora: a tarefa pode ter terminado.", 429: "Muitas leituras de conversa agora. Tente de novo em um minuto.",
   503: "O agentes.chat pediu uma pausa nas leituras. Tente de novo daqui a pouco.", 502: "O agentes.chat não respondeu agora. Tente de novo daqui a pouco." };
@@ -1182,7 +1212,7 @@ async function carregarConversa(b) {
   const n = ++pedidoConversa, c = $("conversa"), aviso = c.querySelector(".conversa-estado"), lista = c.querySelector(".conversa-lista"), bt = c.querySelector(".conversa-pe button");
   aviso.className = "conversa-estado"; aviso.textContent = "Carregando a conversa…"; lista.setAttribute("aria-busy", "true"); bt.disabled = true;
   let r = null, d = null;
-  try { r = await fetch(`api/conversa?agente=${encodeURIComponent(b.id)}`, { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
+  try { r = await fetch(Andar.com(`api/conversa?agente=${encodeURIComponent(b.id)}`), { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
   catch (e) { r = null; }
   if (n !== pedidoConversa) return;   // fechou ou pediu de novo enquanto esperava
   lista.removeAttribute("aria-busy"); bt.disabled = false;
@@ -1373,7 +1403,7 @@ async function carregarConvPagina(it) {
   est.textContent = "Carregando a conversa…"; lista.setAttribute("aria-busy", "true"); bt.setAttribute("aria-disabled", "true");
   pintarCaixa(it);
   let r = null, d = null;
-  try { r = await fetch(`api/conversa?id=${encodeURIComponent(it.id)}`, { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
+  try { r = await fetch(Andar.com(`api/conversa?id=${encodeURIComponent(it.id)}`), { cache: "no-store", credentials: "same-origin" }); d = await r.json().catch(() => null); }
   catch (e) { r = null; }
   if (n !== pedidoConv) return;   // fechou ou pediu de novo enquanto esperava
   lista.removeAttribute("aria-busy"); bt.removeAttribute("aria-disabled");
@@ -1407,7 +1437,8 @@ async function carregarConvPagina(it) {
   lista.scrollTop = lista.scrollHeight;   // a mais nova fica embaixo, à vista
 }
 // a aba voltou a ficar visível: se o item aberto mudou enquanto ela estava escondida, relê agora
-document.addEventListener("visibilitychange", () => { if (!document.hidden) paginaConversas(); });
+// a aba voltou (o navegador segura o setInterval de aba escondida): relê já, e um pedido respondido em outro aparelho sai
+document.addEventListener("visibilitychange", () => { if (!document.hidden) buscar(); });
 
 // ---------- resposta pela página Conversas (fase R) -------------------------------------
 // O modo resposta vive no servidor (1 h renovada a cada envio, teto de 8 h, só nesta sessão do navegador): o navegador só
@@ -1446,7 +1477,7 @@ $("modo-fechar").addEventListener("click", async () => {
 
 async function postarResposta(url, corpo) {   // POST same-origin com JSON exato (o navegador manda o Origin); status 0: sem conexão
   try {
-    const r = await fetch(url, { method: "POST", cache: "no-store", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    const r = await fetch(Andar.com(url), { method: "POST", cache: "no-store", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
     return { status: r.status, d: await r.json().catch(() => null) };
   } catch (e) { return { status: 0, d: null }; }
 }
@@ -1592,6 +1623,7 @@ async function enviarResposta() {
     if (r.d) { modoMudou = performance.now(); modoDoServidor(r.d, modoMudou); }
     ta.value = ""; crescerTexto(ta); contarResposta();
     avisoEnvio("ok", `Mensagem enviada às ${horaDe(new Date().toISOString())}. Para ver a resposta, use Atualizar (ou abra no agentes.chat).`);
+    buscar();   // o servidor já tirou o pedido de "Esperando você": o painel e o mapa acompanham sem esperar os 10 s
     ta.focus({ preventScroll: true });
     const reler = () => { const atual = itensConv().find(x => x.id === it.id); if (atual && convAberta === it.id) carregarConvPagina(atual); };
     reler();
@@ -1826,7 +1858,7 @@ const CONEXAO = {
 };
 const capitular = t => t.charAt(0).toUpperCase() + t.slice(1).replace(/\.?$/, ".");
 // o link que o "Copiar o link" leva: o endereço configurado (ESCRITORIO_BASE), para onde o agentes.chat devolve
-const linkConectar = () => (typeof config?.base === "string" && config.base ? config.base : location.origin) + "/oauth/conectar";
+const linkConectar = () => Andar.com((typeof config?.base === "string" && config.base ? config.base : location.origin) + "/oauth/conectar");
 // aberto por um endereço diferente da BASE: o retorno do OAuth cai na BASE, não aqui
 function enderecoTrocado() {
   if (typeof config?.base !== "string" || !config.base) return "";
@@ -1976,6 +2008,7 @@ tela.addEventListener("pointerup", ev => {
   if (s) { focarSala(s); return; }
   if (Brincar.tocar(p, ev.pointerType)) return;   // objeto do mapa (TV, café, sino…)
   fecharFicha();
+  Vida.irAte(mundo, p);   // o chão: o meu boneco anda até lá (na TV e com "Aparecer" desligado não há boneco)
 });
 // cartão rápido ao passar o mouse (no toque, a ficha faz esse papel)
 tela.addEventListener("pointermove", ev => {
@@ -2040,11 +2073,15 @@ $("aparecer").addEventListener("change", () => {
   try { localStorage.setItem("escritorio:aparecer", aparecer ? "sim" : "nao"); } catch (e) { /* fica só nesta visita */ }
   mostrarOlhando(); buscar();   // o servidor fica sabendo já na próxima leitura (quem desliga some em até 45 s)
 });
+// as pessoas da equipe no mapa (vida.js); a TV e quem desligou "Aparecer" leem sem marcar presença. Na prévia não há conta
+addEventListener("aovivo", mostrarOlhando);   // a cada leitura das pessoas do andar
+function ligarAoVivo() { if (!Brincar.demo && !config.previa) Vida.aoVivo({ invisivel: () => TV.invisivel || !aparecer }); }
+// os outros vêm das pessoas deste andar no mapa (vida.js); antes da 1ª leitura e na prévia, do /api/estado
 function mostrarOlhando() {
-  const lista = estado && Array.isArray(estado.visitantes) ? estado.visitantes : null;
-  $("olhando").hidden = !lista || Brincar.demo;   // servidor antigo ou demonstração: sem a linha
-  if (!lista) return;
-  const outros = Math.min(lista.length, 50), n = outros + (aparecer ? 1 : 0);
+  const lista = estado && Array.isArray(estado.visitantes) ? estado.visitantes : null, noMapa = Vida.olhando();
+  $("olhando").hidden = (noMapa === null && !lista) || Brincar.demo;   // servidor antigo ou demonstração: sem a linha
+  if ($("olhando").hidden) return;
+  const outros = Math.min(noMapa ?? lista.length, 50), n = outros + (aparecer ? 1 : 0);
   textoSe($("olhando-txt"), aparecer && n === 1 ? "Só você está olhando" : !n ? "Ninguém mais olhando" : `${n} ${n === 1 ? "pessoa olhando" : "pessoas olhando"}`);
 }
 
@@ -2178,13 +2215,104 @@ for (const id of ["t-salas", "t-agentes"]) $(id).addEventListener("click", () =>
 });
 aplicarLateral();
 
+// ---------- andares: o elevador do prédio -----------------------------------------------
+// Cada workspace do agentes.chat é um andar, com a sua conexão e os seus times. O /api/config traz "andares" (o principal
+// primeiro) e "andar" (o atual). Com um andar só, o elevador fica escondido e a tela é a de sempre. Trocar de andar não
+// recarrega a página: relê o config, zera o que era do outro andar e o prédio é refeito na próxima leitura do estado.
+let andares = [], chaveElevador = "", trocando = false;
+function lerAndares(c) {   // só ids e nomes conferidos; texto vem do servidor e entra por textContent
+  const lista = c && Array.isArray(c.andares) ? c.andares : [];
+  return lista.filter(a => a && Andar.valido(a.id) && typeof a.nome === "string" && a.nome && a.nome.length <= 80)
+    .map(a => ({ id: a.id, nome: a.nome, conexao: typeof a.conexao === "string" ? a.conexao : "" })).slice(0, 7);
+}
+const nomeDoAndar = id => (andares.find(a => a.id === id) || { nome: "principal" }).nome;
+const anunciarAndar = t => { $("modo-anuncio").textContent = t; };
+function mostrarElevador() {
+  andares = lerAndares(config);
+  const varios = andares.length >= 2 && !Brincar.demo;
+  // os links do escritório que levam ao OAuth e ao modo construção seguem o andar atual
+  const principal = Andar.atual === Andar.PRINCIPAL;
+  for (const a of document.querySelectorAll("[data-conectar]")) a.setAttribute("href", "/oauth/conectar" + (principal ? "" : `?andar=${Andar.atual}`));
+  if (!Brincar.demo) for (const a of document.querySelectorAll("#as-construcao a, #m-construcao a")) a.setAttribute("href", "construir.html" + (principal ? "" : `#andar=${Andar.atual}`));
+  const chave = JSON.stringify(andares);
+  const atual = andares.find(a => a.id === Andar.atual) || andares[0];
+  for (const caixa of document.querySelectorAll("[data-elevador]")) {
+    caixa.hidden = !varios;
+    if (!varios) continue;
+    const sel = caixa.querySelector("select");
+    if (chave !== chaveElevador || sel.options.length !== andares.length) {   // sem refazer a lista aberta a cada leitura
+      sel.replaceChildren(...andares.map(a => { const o = elem("option", null, a.conexao && a.conexao !== "conectado" ? `${a.nome} · ${Andar.rotuloConexao(a.conexao)}` : a.nome); o.value = a.id; return o; }));
+    }
+    sel.value = atual.id;
+    caixa.querySelector(".elevador-led").dataset.conexao = atual.conexao;
+    const estadoAndar = caixa.querySelector(".elevador-estado"); if (estadoAndar) { textoSe(estadoAndar, Andar.rotuloConexao(atual.conexao)); estadoAndar.dataset.conexao = atual.conexao; }
+    sel.title = `Andar ${atual.nome}: ${Andar.rotuloConexao(atual.conexao)}`;
+  }
+  chaveElevador = chave;
+  document.body.classList.toggle("com-andares", varios);
+}
+for (const sel of document.querySelectorAll("[data-elevador] select")) sel.addEventListener("change", () => trocarAndar(sel.value));
+// só a lista de andares (a conexão de cada um muda sem o config do andar atual mudar)
+async function recarregarAndares() {
+  if (Brincar.demo || trocando) return;
+  try { const c = await json("api/config"); config.andares = c.andares; config.andar = c.andar; mostrarElevador(); }
+  catch (e) { if (e instanceof AndarInvalido) voltarAoPrincipal(); }
+}
+setInterval(() => { if (!document.hidden && andares.length >= 2) recarregarAndares(); }, 60000);
+
+// o endereço leva #andar=<id> enquanto se está no mapa (as outras telas usam o # para a rota; o andar continua guardado)
+function marcarAndarNaUrl() {
+  const h = location.hash, base = location.pathname + location.search;
+  if (Andar.atual !== Andar.PRINCIPAL) { if (!h || h === "#escritorio" || Andar.doHash(h)) history.replaceState(history.state, "", `${base}#andar=${Andar.atual}`); }
+  else if (Andar.doHash(h)) history.replaceState(history.state, "", base);
+}
+function sairDoAndarInvalido() { Andar.limpar(); marcarAndarNaUrl(); }   // 404 {"codigo":"andar"}: o guardado não vale mais
+function voltarAoPrincipal() { trocarAndar(Andar.PRINCIPAL, "Esse andar não está mais disponível. Você voltou para o andar principal."); }
+
+// zera o que era do andar de antes: ficha, conversa aberta, eventos e pedidos deduzidos, social e greve
+function reiniciarAndar() {
+  Vida.aoVivo(null);   // as pessoas e o seq são do andar de antes
+  assinatura = ""; selecionado = null;
+  eventosLocais = []; statusAnterior = null; vistosEvento.clear();
+  resolvidosLocais = []; pedidosAnteriores = null; resolvidosDaLeitura = leituraDosResolvidos = null; chaveAprov = "";
+  convAberta = null; convLida = ""; convDesenho = ""; pedidoConv++; pedidoConversa++; $("conv-aberta").replaceChildren();
+  amizades = null; pedidoAmizades++; cenaVista = null; releitura = releituraPlacar = 0; greveVista = null;
+  if ($("dlg-placar").open) $("dlg-placar").close();
+  Jornal.reiniciar();
+  if (window.Ajustes) Ajustes.esquecerAndar();
+}
+async function trocarAndar(id, aviso) {
+  if (Brincar.demo || trocando || !Andar.valido(id)) { mostrarElevador(); return; }
+  const anterior = Andar.atual;
+  if (id === anterior) { mostrarElevador(); return; }
+  trocando = true;
+  Andar.definir(id);
+  try {
+    const c = await json("api/config");   // com o andar novo; falhando, nada do andar de antes é mexido
+    reiniciarAndar();
+    config = c; Expediente.definir(c.expediente); aplicarConfig();
+    marcarAndarNaUrl();
+    if (!$("v-personalizar").hidden) Ajustes.abrir(config);
+    trocando = false;
+    await buscar();
+    ligarAoVivo();
+    anunciarAndar(aviso || `Você está no andar ${nomeDoAndar(id)}.`);
+  } catch (e) {
+    trocando = false;
+    if (id === Andar.PRINCIPAL) { falhou = true; mostrarConexao(); setTimeout(() => location.reload(), 10000); return; }   // como a carga inicial
+    Andar.definir(anterior); mostrarElevador();
+    anunciarAndar(e instanceof AndarInvalido ? "Esse andar não está mais disponível." : "Não deu para ir para esse andar agora. Tente de novo.");
+    if (e instanceof AndarInvalido) recarregarAndares();
+  }
+}
+
 // ---------- telas (rotas pelo #) ---------------------------------------------------
 function rota() {
   if (gavetaAberta()) { fecharGaveta(); $("principal").focus({ preventScroll: true }); }   // item do menu na gaveta: o foco vai ao conteúdo
   const r = (location.hash || "#escritorio").slice(1);
   const TELAS = ["escritorio", "conversas", "aprovacoes", "jornal", "personalizar", "novidades", "ajuda"];
   // na demonstração o Personalizar não existe: ele grava a marca no servidor de verdade
-  const valida = TELAS.includes(r) && !(r === "personalizar" && Brincar.demo) ? r : "escritorio";
+  const valida = TELAS.includes(r) && !(r === "personalizar" && Brincar.demo) && !(r === "conversas" && souMembro()) ? r : "escritorio";
   for (const v of TELAS) $(`v-${v}`).hidden = v !== valida;
   if (valida === "personalizar" && window.Personalizar) { Personalizar.abrir(config); if (window.Ajustes) Ajustes.abrir(config); }
   if (valida === "conversas") paginaConversas();
@@ -2271,6 +2399,7 @@ Jornal.iniciar({
 Novidades.iniciar();
 
 pintarIcones(document);
+window.addEventListener("hashchange", () => { const id = Andar.doHash(location.hash); if (id && id !== Andar.atual) trocarAndar(id); });
 window.addEventListener("hashchange", rota);
 window.addEventListener("resize", () => { medirFaixa(); ajustarEscala(); });
 rota();

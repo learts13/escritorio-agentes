@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Dev Maniac's
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Instala o Escritório dos agentes na VPS e publica SÓ na rede Tailscale (tailscale serve, HTTPS).
-# Rodar como root, com escritorio.py, acesso.py, social.py, planta.py, ajustes.py, jornal.py, avisos.py, vapid.py, novidades.py,
+# Rodar como root, com escritorio.py, acesso.py, andares.py, presenca.py, social.py, planta.py, ajustes.py, jornal.py, avisos.py, vapid.py, novidades.py,
 # CHANGELOG.pt-BR.md, static/ e times.json (ou times.exemplo.json) ao lado. Idempotente.
 # Uso: sudo AGENTES_ORG=<id da sua organização no agentes.chat> ./instalar.sh
 #      (opcional: AGENTES_URL=<endereço da sua instalação self-host do agentes.chat, o PUBLIC_URL dela>;
@@ -65,7 +65,7 @@ install -d -o escritorio -g escritorio -m 0700 "$CASA"
 # 2. Código e página, só do root (o serviço não reescreve o que executa nem o que serve)
 install -d -o root -g root -m 0755 /opt/escritorio /opt/escritorio/static /opt/escritorio/static/tema /opt/escritorio/static/fontes
 # o CHANGELOG.pt-BR.md é a página Novidades (novidades.py)
-install -o root -g root -m 0644 escritorio.py acesso.py social.py planta.py ajustes.py jornal.py avisos.py vapid.py novidades.py visitas_sala.py \
+install -o root -g root -m 0644 escritorio.py acesso.py andares.py presenca.py social.py planta.py ajustes.py jornal.py avisos.py vapid.py novidades.py visitas_sala.py \
   CHANGELOG.pt-BR.md /opt/escritorio/
 if [ ! -f /opt/escritorio/times.json ]; then
   TIMES=times.json; [ -f "$TIMES" ] || TIMES=times.exemplo.json   # sem times.json, começa pelo exemplo
@@ -78,7 +78,7 @@ done
 install -o root -g root -m 0644 static/tema/atlas.png static/tema/atlas.json /opt/escritorio/static/tema/
 install -o root -g root -m 0644 static/fontes/* /opt/escritorio/static/fontes/
 rm -f /opt/escritorio/static/maquete.js; rm -rf /opt/escritorio/static/vendor   # sobras da maquete 3D (removida), caminho fixo
-python3 -I -m py_compile /opt/escritorio/escritorio.py /opt/escritorio/acesso.py /opt/escritorio/social.py /opt/escritorio/planta.py \
+python3 -I -m py_compile /opt/escritorio/escritorio.py /opt/escritorio/acesso.py /opt/escritorio/andares.py /opt/escritorio/presenca.py /opt/escritorio/social.py /opt/escritorio/planta.py \
   /opt/escritorio/ajustes.py /opt/escritorio/jornal.py /opt/escritorio/avisos.py /opt/escritorio/vapid.py \
   /opt/escritorio/novidades.py /opt/escritorio/visitas_sala.py && rm -rf /opt/escritorio/__pycache__
 # Comando do administrador: em /usr/sbin, que está no secure_path do sudo (RHEL e Debian; /usr/local/bin não está).

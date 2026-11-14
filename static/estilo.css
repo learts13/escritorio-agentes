@@ -67,7 +67,7 @@ kbd { font: 600 11px "Source Sans 3", system-ui, sans-serif; padding: 1px 6px; b
 
 /* ---------------- casca: lateral fixa no computador; no celular, barra de 52 px e gaveta */
 .casca { display: flex; min-height: 100vh; }
-.topo { display: none; position: sticky; top: 0; z-index: 12; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px;
+.topo { display: none; position: sticky; top: 0; z-index: 12; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 4px;
   min-height: 52px; padding: 4px 8px; padding-top: max(4px, env(safe-area-inset-top)); border-bottom: 1px solid var(--borda); background: color-mix(in srgb, var(--fundo) 94%, transparent); backdrop-filter: blur(8px); }
 .topo-bt { position: relative; width: 44px; height: 44px; border: 0; border-radius: var(--r-botao); background: transparent; color: var(--texto2); display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .topo-bt:hover { background: var(--cartao2); color: var(--texto); }
@@ -1059,3 +1059,60 @@ body:has(.sim-aviso) main { padding-bottom: calc(96px + env(safe-area-inset-bott
 .form-bv input[name=senha] { height: 46px; border-radius: var(--r-item); border: 1px solid var(--borda-forte); background: var(--campo); color: var(--texto); padding: 0 12px; font-size: 15px; }
 .form-bv input[name=senha]:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
 .dlg-senha .botao[aria-disabled="true"] { opacity: .7; cursor: progress; }
+
+/* elevador (andares): um seletor na barra de cima (celular e menu recolhido) e outro no topo da lateral; só aparece com 2 andares ou mais */
+.elevador[hidden] { display: none; }
+.elevador-led { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--fora); }
+.elevador-led[data-conexao="conectado"] { background: var(--verde); }
+.elevador-led[data-conexao="sem_conexao"], .elevador-led[data-conexao="falha"] { background: var(--fora); }
+.elevador-led[data-conexao="outra_org"], .elevador-led[data-conexao="recusada"], .elevador-led[data-conexao="pausa"] { background: var(--ambar); }
+.elevador select { min-width: 0; max-width: 100%; height: max(var(--ctl), 36px); padding: 0 8px; border-radius: var(--r-item); border: 1px solid var(--borda-forte); background: var(--campo); color: var(--texto);
+  font-size: 13.5px; text-overflow: ellipsis; }
+.elevador select:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
+.elevador-topo { display: flex; align-items: center; gap: 6px; min-width: 0; padding-left: 2px; }
+.elevador-topo select { width: min(150px, 36vw); height: 40px; }
+.elevador-lat { display: flex; flex-direction: column; gap: 4px; padding: 0 6px; }
+.elevador-rot { font: 650 11.5px "Source Sans 3", system-ui, sans-serif; letter-spacing: .5px; text-transform: uppercase; color: var(--suave); }
+.elevador-campo { display: flex; align-items: center; gap: 8px; }
+.elevador-campo select { flex: 1 1 auto; }
+.elevador-estado { margin: 0; font-size: 12px; color: var(--suave); }
+.elevador-estado:empty { display: none; }
+.elevador-estado[data-conexao="outra_org"], .elevador-estado[data-conexao="recusada"] { color: var(--ambar-texto); }
+@media (max-width: 380px) { .elevador-topo select { width: min(124px, 34vw); } }
+
+/* Configurações > Andares */
+.andares-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.andar-linha { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--borda); min-width: 0; }
+.andar-linha:first-child { border-top: 0; }
+.andar-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.andar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.andar-info strong { overflow-wrap: anywhere; }
+.andar-org { font: 12px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--suave); overflow-wrap: anywhere; }
+.andar-conexao { font-size: 12.5px; color: var(--texto2); }
+.andar-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.andar-acoes .botao, .andar-form .botao { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; }
+.andar-painel { padding: 4px 0 2px; }
+.andar-form { display: flex; flex-direction: column; gap: 8px; }
+.andar-form .ajuda { margin: 0; }
+.form-andar { display: flex; flex-direction: column; gap: 8px; }
+.form-andar .ajuste-sub { margin-top: 14px; }
+.botao.perigo { background: #fca5a5; color: #3b1212; }
+
+/* Papel da conta (app.js: aplicarPapel põe data-papel no body). Quem é membro não vê o que só o admin usa; o servidor barra no back */
+body[data-papel="membro"] .so-admin { display: none !important; }
+body:not([data-papel="membro"]) .so-membro { display: none !important; }
+
+/* Meu perfil (personalizar.js) e Membros (ajustes.js) */
+.form-perfil, .cv-link { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+.seletor-boneco { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+.boneco-previa { flex: none; width: 88px; height: 88px; image-rendering: pixelated; background: var(--campo); border-radius: 12px; }
+.boneco-campos { flex: 1 1 180px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.boneco-campos > div { display: flex; flex-direction: column; gap: 4px; }
+.boneco-campos label { font-size: 12.5px; color: var(--texto2); }
+.membro-papel { display: flex; flex-direction: column; gap: 2px; min-width: 130px; }
+.membro-papel label { font-size: 12.5px; color: var(--texto2); }
+.membro-usuario { font: 12px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--suave); overflow-wrap: anywhere; }
+.cv-andares { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cv-andares legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 4px; }
+.cv-andares > div, .membro-andares { display: flex; flex-direction: column; gap: 2px; }
+#cv-link-campo { flex: 1 1 260px; min-width: 0; font: 13px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }

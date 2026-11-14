@@ -165,10 +165,11 @@ const Personalizar = (() => {
     esquecerLogo(); configApp = cfg;
     salvo = { empresa: cfg.empresa || "", cor: cfg.cor || "#f5b83d", logo: cfg.logo || LOGO_PADRAO, abre: Expediente.abre, fecha: Expediente.fecha, serio: cfg.serio === true };
     $("m-social").hidden = !temSocial();   // servidor sem a vida social (ou a demonstração): a caixa nem aparece
-    montarConstrucao(); $("m-construcao").querySelector("a").href = window.Brincar && Brincar.demo ? "construir.html?demo=1" : "construir.html";
+    montarConstrucao(); $("m-construcao").querySelector("a").href = window.Brincar && Brincar.demo ? "construir.html?demo=1" : "construir.html" + (Andar.atual === Andar.PRINCIPAL ? "" : `#andar=${Andar.atual}`);   // o editor abre no andar de agora
     $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio;
     mostrarLogo(salvo.logo);
     aviso(""); mudou();
+    lerPerfil();
   }
   window.addEventListener("hashchange", () => { // saiu sem salvar: volta a cor e descarta o logo escolhido
     if (salvo && location.hash !== "#personalizar") { aplicarCor(salvo.cor); if (logoNovo || tirarLogo) { esquecerLogo(); mostrarLogo(salvo.logo); } }
@@ -224,6 +225,42 @@ const Personalizar = (() => {
   zona.addEventListener("dragleave", () => zona.classList.remove("sobre"));
   zona.addEventListener("drop", ev => { ev.preventDefault(); zona.classList.remove("sobre"); escolherLogo(ev.dataTransfer.files[0]); });
   $("m-remover").addEventListener("click", () => { esquecerLogo(); tirarLogo = true; mostrarLogo(LOGO_PADRAO); mudou(); });
+
+  // ---------- Meu perfil (qualquer papel): GET e POST /api/perfil, só da própria conta ---------------
+  // Lido uma vez por página aberta; um servidor sem a rota (404/403) deixa a seção escondida. Mensagens do servidor, só por textContent.
+  let perfilLido = false, perfilBoneco = null;
+  const avisoPerfil = (t, tipo) => { const a = $("pf-aviso"); a.textContent = t; a.className = "aviso-form" + (tipo ? ` ${tipo}` : ""); };
+  async function pedirPerfil(corpo) {
+    const r = await fetch("api/perfil", corpo === undefined ? { credentials: "same-origin", cache: "no-store" }
+      : { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    if (r.status === 401) { location.href = "/entrar"; throw new Error("A sessão venceu."); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(typeof d.mensagem === "string" && d.mensagem ? d.mensagem : `O servidor respondeu ${r.status}.`); e.status = r.status; throw e; }
+    return d;
+  }
+  function mostrarPerfil(d) {
+    $("pf-nome").value = typeof d.nome === "string" ? d.nome : "";
+    if (typeof d.usuario === "string") $("pf-conta").textContent = `Conta: ${d.usuario}${d.papel === "membro" ? " (membro)" : d.papel === "admin" ? " (admin)" : ""}`;
+    // "aparencia": o boneco efetivo, decidido pelo servidor (o salvo ou o padrão da conta), o mesmo que os outros veem no mapa
+    const ap = d.aparencia && typeof d.aparencia === "object" ? d.aparencia : d.avatar && typeof d.avatar === "object" ? d.avatar : Avatar.padrao(d.usuario || "");
+    perfilBoneco = Avatar.seletor($("pf-boneco"), ap, null, "pf");
+    $("a-perfil").hidden = false;
+  }
+  async function lerPerfil() {
+    if (perfilLido || (window.Brincar && Brincar.demo)) return;
+    try { mostrarPerfil(await pedirPerfil()); perfilLido = true; } catch (e) { if (e.status !== 401) $("a-perfil").hidden = true; }
+  }
+  $("form-perfil").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const nome = $("pf-nome").value.trim(), bt = $("pf-salvar");
+    if (nome.length < 1 || nome.length > 40 || /[\u0000-\u001f\u007f]/.test(nome)) { avisoPerfil("Dê um nome de 1 a 40 caracteres.", "ruim"); $("pf-nome").focus(); return; }
+    bt.disabled = true; avisoPerfil("Salvando…");
+    try {
+      const d = await pedirPerfil({ nome, avatar: perfilBoneco.valor() });
+      mostrarPerfil(d); avisoPerfil("Perfil salvo.", "ok");
+    } catch (e) { avisoPerfil(`Não salvou: ${e.message}`, "ruim"); }
+    finally { bt.disabled = false; }
+  });
 
   // o assistente de instalação (assistente.js) usa a mesma paleta, a mesma conferência do logo e o mesmo envio
   return { abrir, montarPaleta, erroDoLogo, enviar, PALETA };

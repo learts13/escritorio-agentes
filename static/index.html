@@ -11,17 +11,22 @@
   <meta name="theme-color" content="#0f0f0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="estilo.css?v=102">
+  <link rel="stylesheet" href="estilo.css?v=105">
+  <link rel="stylesheet" href="chat_sala.css?v=105">
 </head>
 <body>
   <a class="pular" href="#principal">Ir para o conteúdo</a>
-  <a id="pular-greve" class="pular" href="#aviso-greve" hidden>Ir para a greve (atender o pedido)</a>
+  <a id="pular-greve" class="pular so-admin" href="#aviso-greve" hidden>Ir para a greve (atender o pedido)</a>
   <!-- barra de 52 px: só no celular e com o menu recolhido (menu, nome da empresa e ações) -->
   <header id="topo" class="topo">
     <button id="abrir-menu" class="topo-bt" type="button" aria-controls="lateral" aria-expanded="false" aria-label="Abrir o menu">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
     </button>
     <a class="marca topo-marca" href="#escritorio"><img id="logo-topo" src="logo.png" alt="" width="24" height="24"><strong id="empresa-topo">Escritório</strong></a>
+    <div id="elevador-topo" class="elevador elevador-topo" data-elevador hidden>
+      <i class="elevador-led" aria-hidden="true"></i>
+      <select aria-label="Andar do prédio"></select>
+    </div>
     <div class="topo-acoes">
       <button id="topo-busca" class="topo-bt" type="button" aria-label="Ir para um agente">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
@@ -42,6 +47,11 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
           </button>
         </div>
+        <div id="elevador-lat" class="elevador elevador-lat" data-elevador hidden>
+          <label class="elevador-rot" for="elevador-lat-sel">Andar</label>
+          <div class="elevador-campo"><i class="elevador-led" aria-hidden="true"></i><select id="elevador-lat-sel"></select></div>
+          <p class="elevador-estado" role="status"></p>
+        </div>
         <a id="marca-exemplo" class="etiqueta-exemplo" href="#personalizar" hidden>Nome e logo de exemplo · troque no Personalizar</a>
         <div class="org-busca">
           <div class="busca" role="search">
@@ -60,9 +70,9 @@
         <div class="lat-nav">
           <a href="#escritorio" data-rota="escritorio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M9 21v-5h6v5M8 8h2M14 8h2M8 12h2M14 12h2"></path></svg><span>Escritório</span></a>
           <a href="/mundo.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"></path></svg><span>Mundo</span></a>
-          <a href="/visitas-admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Convidar para uma visita</span></a>
+          <a class="so-admin" href="/visitas-admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Convidar para uma visita</span></a>
           <a href="#aprovacoes" data-rota="aprovacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"></path></svg><span>Aprovações</span><span class="contador ambar" id="nav-aprovacoes" hidden></span></a>
-          <a href="#conversas" data-rota="conversas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Conversas</span><span class="contador" id="nav-conversas" hidden></span></a>
+          <a class="so-admin" href="#conversas" data-rota="conversas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Conversas</span><span class="contador" id="nav-conversas" hidden></span></a>
           <a href="#jornal" data-rota="jornal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5"></path></svg><span>Jornal</span></a>
           <a href="#personalizar" data-rota="personalizar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l6 6-9 9H5v-6z"></path></svg><span>Personalizar</span></a>
           <a href="#novidades" data-rota="novidades"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 15.5v5M16 18h5"></path></svg><span>Novidades</span><span class="contador novo" id="nav-novidades" hidden>Novo</span></a>
@@ -101,7 +111,7 @@
     </nav>
     <main id="principal" tabindex="-1">
       <!-- modo resposta aberto (fase R): selo de todas as telas; o tempo vem do servidor (/api/estado.modo_resposta) -->
-      <div id="modo-resposta" class="modo-resposta" role="region" aria-label="Modo resposta" hidden>
+      <div id="modo-resposta" class="modo-resposta so-admin" role="region" aria-label="Modo resposta" hidden>
         <i class="led pergunta" aria-hidden="true"></i>
         <p><strong>Modo resposta</strong> · <span id="modo-tempo">fecha em 60 min</span><span class="modo-mais"> · só neste navegador</span></p>
         <button id="modo-fechar" class="botao fantasma" type="button">Fechar agora</button>
@@ -128,11 +138,11 @@
           <div id="faixa-erro" class="faixa-erro" role="alert" hidden>
             <p class="faixa-erro-txt"><strong id="faixa-base" hidden></strong><span id="faixa-erro-txt"></span></p>
             <div class="faixa-acoes">
-              <a id="conectar" class="botao" href="/oauth/conectar" hidden>Conectar ao agentes.chat</a>
-              <button id="copiar-link" class="secundario" type="button" hidden>Copiar o link</button>
+              <a id="conectar" class="botao so-admin" href="/oauth/conectar" data-conectar hidden>Conectar ao agentes.chat</a>
+              <button id="copiar-link" class="secundario so-admin" type="button" hidden>Copiar o link</button>
               <button id="tentar" type="button">Tentar agora</button>
             </div>
-            <p id="faixa-link" class="faixa-link" hidden><label for="faixa-link-campo">Copie o endereço e abra na barra do navegador:</label><input id="faixa-link-campo" type="text" readonly spellcheck="false" autocomplete="off"></p>
+            <p id="faixa-link" class="faixa-link so-admin" hidden><label for="faixa-link-campo">Copie o endereço e abra na barra do navegador:</label><input id="faixa-link-campo" type="text" readonly spellcheck="false" autocomplete="off"></p>
           </div>
           <p id="faixa-fora" class="faixa-fora" role="status" hidden><i class="led fora" aria-hidden="true"></i><span><strong id="faixa-fora-txt"></strong><span class="faixa-fora-mais"> · quem está sem tarefa foi para casa</span></span><a id="faixa-fora-mudar" href="#personalizar">Mudar o horário</a></p>
           <div id="palco" class="palco">
@@ -140,7 +150,7 @@
             <p class="selo-vivo" aria-hidden="true"><span id="ao-vivo" class="ao-vivo"></span><span id="relogio" class="relogio"></span></p>
             <div id="aviso-greve" class="aviso-greve" hidden>
               <p class="greve-linha"><span class="greve-ic" aria-hidden="true">✊</span><span><strong id="greve-texto">Greve</strong> <span id="greve-motivo" class="greve-motivo"></span></span></p>
-              <button id="greve-atender" class="botao" type="button" aria-describedby="greve-texto greve-motivo">Atender o pedido</button>
+              <button id="greve-atender" class="botao so-admin" type="button" aria-describedby="greve-texto greve-motivo">Atender o pedido</button>
             </div>
             <div class="controles" role="toolbar" aria-label="Câmera">
               <button id="zoom-menos" type="button" aria-label="Afastar">−</button>
@@ -163,6 +173,32 @@
             <div id="ficha" class="ficha" role="dialog" aria-labelledby="ficha-nome" hidden></div>
             <section id="conversa" class="conversa" role="dialog" aria-labelledby="conversa-titulo" tabindex="-1" hidden></section>
             <p id="social-anuncio" class="oculto" role="status"></p>
+            <!-- chat da sala onde estou (chat_sala.js): só com sala, fora da TV; o servidor decide a sala -->
+            <div id="chat-sala" class="chat-sala" hidden>
+              <button id="chat-sala-abrir" class="chat-sala-abrir" type="button" aria-controls="chat-sala-painel" aria-expanded="false" aria-label="Chat da sala">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+                <span class="chat-sala-rot" aria-hidden="true">Chat da sala</span>
+                <span id="chat-sala-n" class="chat-sala-n" aria-hidden="true" hidden></span>
+              </button>
+              <section id="chat-sala-painel" class="chat-sala-painel" aria-labelledby="chat-sala-titulo" hidden>
+                <header class="chat-sala-topo">
+                  <div><p class="chat-sala-sobre">Chat da sala</p><h2 id="chat-sala-titulo"></h2></div>
+                  <button id="chat-sala-fechar" class="chat-sala-fechar" type="button" aria-label="Fechar o chat da sala">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+                  </button>
+                </header>
+                <p id="chat-sala-vazio" class="chat-sala-vazio">Só quem está nesta sala lê. Ao sair, a conversa fica para trás.</p>
+                <ol id="chat-sala-lista" class="chat-sala-lista" aria-live="polite" aria-relevant="additions" aria-label="Mensagens da sala" tabindex="0"></ol>
+                <p id="chat-sala-aviso" class="chat-sala-aviso" role="status" hidden></p>
+                <form id="chat-sala-form" class="chat-sala-form">
+                  <label class="oculto" for="chat-sala-campo">Mensagem para a sala</label>
+                  <input id="chat-sala-campo" type="text" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Escreva para a sala…">
+                  <button id="chat-sala-enviar" type="submit" aria-label="Enviar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 20 4l-6 16-3-7z"></path></svg>
+                  </button>
+                </form>
+              </section>
+            </div>
           </div>
         </section>
         <div class="widgets">
@@ -180,10 +216,10 @@
           <ol id="eventos" class="cartao lista-agrupada" role="log" aria-labelledby="t-agora"></ol>
         </section>
       </section>
-      <section id="v-conversas" class="visao" hidden>
+      <section id="v-conversas" class="visao so-admin" hidden>
         <div class="cabeca"><h1>Conversas</h1><p id="conv-resumo" class="resumo">Ler e responder os agentes por aqui ainda não está disponível.</p></div>
         <!-- modo "responder" com a conexão só de leitura: o envio fica desligado até reconectar (pode_responder do /api/config) -->
-        <p id="conv-reconectar" class="conv-reconectar" hidden><span>O envio por aqui está desligado: a conexão com o agentes.chat é só de leitura.</span> <a href="/oauth/conectar">Reconecte para liberar o envio</a></p>
+        <p id="conv-reconectar" class="conv-reconectar" hidden><span>O envio por aqui está desligado: a conexão com o agentes.chat é só de leitura.</span> <a href="/oauth/conectar" data-conectar>Reconecte para liberar o envio</a></p>
         <!-- desligada (times.json), na demonstração e na Simulação: o "em breve" de antes -->
         <div id="conv-breve" class="vazio-grande cartao">
           <span class="ic ic-grande" data-icone="balao" aria-hidden="true"></span>
@@ -204,8 +240,8 @@
         </div>
       </section>
       <section id="v-personalizar" class="visao" hidden>
-        <div class="cabeca cabeca-pers"><div><h1>Personalizar</h1><p class="resumo">A marca, o clima, as datas e os times do seu escritório. Vale para todo mundo que abre este endereço.</p></div><button id="abrir-assistente" class="botao secundario" type="button">Assistente de instalação</button></div>
-        <div class="personalizar">
+        <div class="cabeca cabeca-pers"><div><h1>Personalizar</h1><p class="resumo so-admin">A marca, o clima, as datas e os times do seu escritório. Vale para todo mundo que abre este endereço.</p><p class="resumo so-membro">O seu perfil: o nome e o boneco que o time vê.</p></div><button id="abrir-assistente" class="botao secundario so-admin" type="button">Assistente de instalação</button></div>
+        <div class="personalizar so-admin">
           <form id="form-marca" class="cartao form-marca">
             <fieldset>
               <legend>Nome</legend>
@@ -266,7 +302,18 @@
           </aside>
         </div>
         <div class="ajustes">
-          <section id="a-clima" class="cartao ajuste" aria-labelledby="t-clima">
+          <section id="a-perfil" class="cartao ajuste" aria-labelledby="t-perfil" hidden>
+            <h2 id="t-perfil">Meu perfil</h2>
+            <p id="pf-conta" class="ajuda"></p>
+            <form id="form-perfil" class="form-perfil" novalidate>
+              <label for="pf-nome">Nome</label>
+              <input id="pf-nome" maxlength="40" required autocomplete="name">
+              <div id="pf-boneco" class="seletor-boneco"></div>
+              <p id="pf-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="pf-salvar" class="botao" type="submit">Salvar perfil</button></div>
+            </form>
+          </section>
+          <section id="a-clima" class="cartao ajuste so-admin" aria-labelledby="t-clima">
             <h2 id="t-clima">Clima</h2>
             <p class="ajuda">A chuva, a neve e o céu lá fora seguem o tempo desta cidade, atualizado a cada 15 minutos. Muda sem recarregar.</p>
             <dl class="clima-agora">
@@ -284,7 +331,7 @@
             <div class="acoes"><button id="clima-sem" class="botao fantasma" type="button">Sem clima</button><button id="clima-arquivo" class="link-botao" type="button" hidden>Voltar ao times.json</button></div>
             <p id="clima-aviso" class="aviso-form" role="status"></p>
           </section>
-          <section id="a-datas" class="cartao ajuste" aria-labelledby="t-datas">
+          <section id="a-datas" class="cartao ajuste so-admin" aria-labelledby="t-datas">
             <h2 id="t-datas">Datas comemorativas</h2>
             <p class="ajuda">Na época de cada data o escritório ganha enfeites, chapéus e falas. Uma data sua vale mais que a do calendário no mesmo dia.</p>
             <h3 class="ajuste-sub">Suas datas</h3>
@@ -327,11 +374,12 @@
             <p id="datas-aviso" class="aviso-form" role="status"></p>
             <div class="acoes"><button id="datas-salvar" class="botao" type="button">Salvar datas</button><button id="datas-desfazer" class="botao fantasma" type="button">Desfazer</button></div>
           </section>
-          <section id="a-equipe" class="cartao ajuste" aria-labelledby="t-equipe">
+          <section id="a-equipe" class="cartao ajuste so-admin" aria-labelledby="t-equipe">
             <h2 id="t-equipe">Times e aparência</h2>
             <p class="ajuda">Cada time ganha uma sala no prédio, com a cor e o ícone da placa. Quem não está em nenhum time senta na sala “Novos”. Tipo de sala: “Mesas” para um time comum, “Ops” com sala de servidores e telas de monitoramento, “Gabinete” sem divisórias e com tapete. A pintura e os móveis de cada sala são do Modo construção.</p>
             <p id="equipe-origem" class="origem"></p>
             <h3 class="ajuste-sub">Times</h3>
+            <p class="acoes"><button id="equipe-puxar" class="botao secundario" type="button">Puxar os setores do agentes.chat</button></p>
             <p id="equipe-sem-times" class="ajuda">Nenhum time ainda: todo mundo fica na sala “Novos”.</p>
             <ol id="equipe-times" class="times-lista"></ol>
             <button id="equipe-novo" class="botao secundario" type="button">Novo time</button>
@@ -340,6 +388,53 @@
             <ul id="equipe-agentes" class="agentes-lista" aria-describedby="equipe-agentes-ajuda"></ul>
             <p id="equipe-aviso" class="aviso-form" role="status"></p>
             <div class="acoes"><button id="equipe-salvar" class="botao" type="button">Salvar times</button><button id="equipe-desfazer" class="botao fantasma" type="button">Desfazer</button><button id="equipe-arquivo" class="link-botao" type="button" hidden>Voltar ao times.json</button></div>
+          </section>
+          <section id="a-andares" class="cartao ajuste so-admin" aria-labelledby="t-andares" hidden>
+            <h2 id="t-andares">Andares</h2>
+            <p class="ajuda">Cada andar é um workspace do agentes.chat, com a sua conexão e os seus times, e aparece no prédio como um andar próprio. O andar principal é o workspace do servidor e não se edita aqui. Remover um andar só desconecta e tira da lista: a pasta de dados dele continua no servidor.</p>
+            <ul id="andares-lista" class="andares-lista"></ul>
+            <p id="andares-vazio" class="ajuda">Nenhum andar extra ainda.</p>
+            <p id="andares-aviso-lista" class="aviso-form" role="status"></p>
+            <p id="andares-cheio" class="ajuda" hidden>O prédio chegou ao limite de 6 andares extras. Remova um para criar outro.</p>
+            <form id="form-andar" class="form-andar" novalidate aria-labelledby="t-form-andar">
+              <h3 id="t-form-andar" class="ajuste-sub">Novo andar</h3>
+              <label for="an-nome">Nome do andar</label>
+              <input id="an-nome" maxlength="40" required autocomplete="off" placeholder="Ex.: Marketing">
+              <label for="an-org">Workspace (código do agentes.chat)</label>
+              <input id="an-org" maxlength="36" required autocomplete="off" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000" aria-describedby="an-org-ajuda">
+              <p id="an-org-ajuda" class="ajuda">É o código (uuid) que aparece no endereço do workspace no agentes.chat, depois de <code>/org/</code>. Depois de criar, use “Conectar” e autorize com uma conta daquele workspace.</p>
+              <label for="an-senha">Sua senha</label>
+              <input id="an-senha" type="password" autocomplete="current-password" maxlength="256" required>
+              <p id="an-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="an-criar" class="botao" type="submit">Criar andar</button></div>
+            </form>
+          </section>
+          <section id="a-membros" class="cartao ajuste so-admin" aria-labelledby="t-membros" hidden>
+            <h2 id="t-membros">Membros</h2>
+            <p class="ajuda">Quem trabalha com você entra com a própria conta. Membro vê o mapa, o painel, o jornal e as novidades, e escolhe o próprio nome e boneco; só quem é admin mexe em marca, andares, conversas e conexões.</p>
+            <ul id="membros-lista" class="andares-lista"></ul>
+            <p id="membros-vazio" class="ajuda" hidden>Nenhuma conta ainda.</p>
+            <h3 class="ajuste-sub" id="t-convites">Convites pendentes</h3>
+            <ul id="convites-lista" class="andares-lista" aria-labelledby="t-convites"></ul>
+            <p id="convites-vazio" class="ajuda">Nenhum convite pendente.</p>
+            <p id="membros-aviso-lista" class="aviso-form" role="status"></p>
+            <form id="form-convite" class="form-andar" novalidate aria-labelledby="t-form-convite">
+              <h3 id="t-form-convite" class="ajuste-sub">Convidar alguém</h3>
+              <label for="cv-nome">Nome sugerido</label>
+              <input id="cv-nome" maxlength="40" required autocomplete="off" placeholder="Ex.: Ana">
+              <fieldset class="cv-andares"><legend>Andares que a pessoa vê</legend><div id="cv-andares"></div></fieldset>
+              <label for="cv-senha">Sua senha</label>
+              <input id="cv-senha" type="password" autocomplete="current-password" maxlength="256" required>
+              <p id="cv-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="cv-criar" class="botao" type="submit">Gerar convite</button></div>
+            </form>
+            <div id="cv-link" class="cv-link" role="group" aria-labelledby="t-cv-link" hidden>
+              <h3 id="t-cv-link" class="ajuste-sub">Link do convite</h3>
+              <p class="ajuda">Mande este link para a pessoa. Ele vale 48 horas e uma vez só, e não aparece de novo: se perder, gere outro.</p>
+              <div class="st-linha"><input id="cv-link-campo" type="text" readonly spellcheck="false" autocomplete="off" aria-label="Link do convite"><button id="cv-copiar" class="botao secundario" type="button">Copiar</button></div>
+              <p id="cv-link-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="cv-link-fechar" class="botao fantasma" type="button">Já copiei, fechar</button></div>
+            </div>
           </section>
           <section id="a-acesso" class="cartao ajuste" aria-labelledby="t-acesso">
             <h2 id="t-acesso">Acesso</h2>
@@ -411,7 +506,7 @@
             <details><summary>Isso gasta tokens ou usa IA?</summary><p>Não. O servidor só lê o agentes.chat a cada 30 segundos pelo conector de apps externos (MCP), com permissão só de leitura (escrita só no modo <code>"responder"</code>, se ligado). Tudo o que você vê (animações, conversas, sons) é desenhado no seu navegador, sem modelo de IA.</p></details>
             <details><summary>Quem consegue abrir o escritório?</summary><p>Quem chega ao endereço e tem usuário e senha. Instalado com o <code>instalar.sh</code>, o escritório fica só na sua rede Tailscale: no celular, basta ligar o app da Tailscale e abrir o endereço.</p><p>Num endereço público (Docker ou Coolify), qualquer pessoa vê a tela de entrar, com o nome e o logo, e a senha passa a ser a única barreira. Use uma senha longa (14 caracteres ou mais, ou uma frase) e crie o usuário logo depois de instalar. Se puder, ponha uma camada na frente, como Cloudflare Access, Tailscale ou uma lista de IPs no proxy. Os detalhes estão na seção Segurança do README.</p></details>
             <details><summary>Esqueci a senha. E agora?</summary><p>Apague o usuário e as sessões, reinicie o serviço e leia o novo código de primeiro acesso para criar o usuário de novo.</p><p>Instalado com o <code>instalar.sh</code>:</p><p class="comandos"><code class="cmd">sudo rm /var/lib/escritorio/usuarios.json /var/lib/escritorio/sessoes.json</code> <code class="cmd">sudo systemctl restart escritorio</code> <code class="cmd">sudo cat /var/lib/escritorio/codigo-primeiro-acesso.txt</code></p><p>No Docker, troque <code>&lt;container&gt;</code> pelo nome que aparece em <code>docker ps</code> (no Coolify, rode no Terminal do serviço só o que vem depois de <code>&lt;container&gt;</code> e reinicie pelo painel):</p><p class="comandos"><code class="cmd">docker exec &lt;container&gt; rm /dados/usuarios.json /dados/sessoes.json</code> <code class="cmd">docker restart &lt;container&gt;</code> <code class="cmd">docker exec -it &lt;container&gt; python3 -I -B escritorio.py codigo</code></p></details>
-            <details><summary>Como conecto (ou reconecto) ao agentes.chat?</summary><p>Enquanto o escritório não estiver conectado, a faixa acima do mapa traz o botão “Conectar ao agentes.chat”. Ele também está aqui: <a href="/oauth/conectar">Conectar ao agentes.chat</a>. Autorize com uma conta da organização do escritório; na volta, a primeira leitura sai na hora. “Copiar o link” serve para abrir a conexão em outra aba ou navegador.</p><p>Se a faixa disser que o agentes.chat recusou a leitura (HTTP 401, 402 ou 403), confira se a conta conectada é da organização e se o plano permite apps externos, e use “Reconectar”. O endereço que você abre precisa ser o mesmo de <code>ESCRITORIO_BASE</code>, porque é para lá que o agentes.chat devolve você; se não for, a faixa avisa.</p><p>Com as conversas desligadas ou em <code>"ler"</code>, o escritório só pede leitura; se o agentes.chat conceder mais que isso, a conexão é recusada. Com <code>"responder"</code>, ele pede também escrita (“Lê e manda tarefas”, na tela de autorização), para mandar as mensagens que você escrever na página Conversas; permissão de administrar é recusada sempre. Trocar de modo pede uma conexão nova. Os detalhes estão na seção Segurança do README.</p></details>
+            <details><summary>Como conecto (ou reconecto) ao agentes.chat?</summary><p>Enquanto o escritório não estiver conectado, a faixa acima do mapa traz o botão “Conectar ao agentes.chat”. Ele também está aqui: <a href="/oauth/conectar" data-conectar>Conectar ao agentes.chat</a>. Autorize com uma conta da organização do escritório; na volta, a primeira leitura sai na hora. “Copiar o link” serve para abrir a conexão em outra aba ou navegador.</p><p>Se a faixa disser que o agentes.chat recusou a leitura (HTTP 401, 402 ou 403), confira se a conta conectada é da organização e se o plano permite apps externos, e use “Reconectar”. O endereço que você abre precisa ser o mesmo de <code>ESCRITORIO_BASE</code>, porque é para lá que o agentes.chat devolve você; se não for, a faixa avisa.</p><p>Com as conversas desligadas ou em <code>"ler"</code>, o escritório só pede leitura; se o agentes.chat conceder mais que isso, a conexão é recusada. Com <code>"responder"</code>, ele pede também escrita (“Lê e manda tarefas”, na tela de autorização), para mandar as mensagens que você escrever na página Conversas; permissão de administrar é recusada sempre. Trocar de modo pede uma conexão nova. Os detalhes estão na seção Segurança do README.</p></details>
             <details><summary>O que fica guardado no servidor?</summary><p>Na pasta de dados, que só o serviço lê (<code>/var/lib/escritorio</code> com o <code>instalar.sh</code>, o volume <code>/dados</code> no Docker): o token do agentes.chat, o hash da sua senha, as sessões (só o hash), a marca, o logo e a planta. Nenhuma conversa é gravada; o estado dos agentes fica só na memória. No Docker, faça backup cifrado do volume e nunca o deixe público.</p></details>
             <details><summary>É open source? Posso usar na minha empresa?</summary><p>Sim. Cada empresa instala o seu, com a própria marca, times, clima e sons. A arte dos móveis foi gerada para o projeto, os pisos, paredes e avatares são desenhados em código e as fontes são de licença livre. Veja o README para instalar e personalizar.</p></details>
           </div>
@@ -473,7 +568,7 @@
       <p class="ajuda">Conecte ao agentes.chat para os seus agentes aparecerem no mapa. Você autoriza na tela do agentes.chat e volta para cá, neste passo.</p>
       <p id="as-conexao" class="as-status" role="status"></p>
       <p id="as-base" class="as-alerta" hidden></p>
-      <div class="acoes"><a id="as-conectar" class="botao" href="/oauth/conectar">Conectar ao agentes.chat</a><button class="botao fantasma" type="button" data-seguir>Pular</button></div>
+      <div class="acoes"><a id="as-conectar" class="botao" href="/oauth/conectar" data-conectar>Conectar ao agentes.chat</a><button class="botao fantasma" type="button" data-seguir>Pular</button></div>
     </section>
     <section class="form-bv as-passo" data-passo="cidade" hidden>
       <p class="ajuda">O céu, a chuva e a noite lá fora seguem o tempo da cidade do escritório.</p>
@@ -557,25 +652,26 @@
       </div>
     </div>
   </dialog>
-  <script src="avatar.js?v=102"></script>
-  <script src="mapa.js?v=102"></script>
-  <script src="expediente.js?v=102"></script>
-  <script src="vida.js?v=102"></script>
-  <script src="som.js?v=102"></script>
-  <script src="ceu.js?v=102"></script>
-  <script src="clima.js?v=102"></script>
-  <script src="festas.js?v=102"></script>
-  <script src="simular.js?v=102"></script>
-  <script src="efeitos.js?v=102"></script>
-  <script src="brincar.js?v=102"></script>
-  <script src="tv.js?v=102"></script>
-  <script src="jornal.js?v=102"></script>
-  <script src="novidades.js?v=102"></script>
-  <script src="timelapse.js?v=102"></script>
-  <script src="avisar.js?v=102"></script>
-  <script src="app.js?v=102"></script>
-  <script src="personalizar.js?v=102"></script>
-  <script src="ajustes.js?v=102"></script>
-  <script src="assistente.js?v=102"></script>
+  <script src="avatar.js?v=105"></script>
+  <script src="mapa.js?v=105"></script>
+  <script src="expediente.js?v=105"></script>
+  <script src="vida.js?v=105"></script>
+  <script src="som.js?v=105"></script>
+  <script src="ceu.js?v=105"></script>
+  <script src="clima.js?v=105"></script>
+  <script src="festas.js?v=105"></script>
+  <script src="simular.js?v=105"></script>
+  <script src="efeitos.js?v=105"></script>
+  <script src="brincar.js?v=105"></script>
+  <script src="tv.js?v=105"></script>
+  <script src="jornal.js?v=105"></script>
+  <script src="novidades.js?v=105"></script>
+  <script src="timelapse.js?v=105"></script>
+  <script src="avisar.js?v=105"></script>
+  <script src="app.js?v=105"></script>
+  <script src="personalizar.js?v=105"></script>
+  <script src="ajustes.js?v=105"></script>
+  <script src="assistente.js?v=105"></script>
+  <script src="chat_sala.js?v=105"></script>
 </body>
 </html>

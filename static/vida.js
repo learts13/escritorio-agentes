@@ -163,8 +163,7 @@ const Vida = (() => {
     const m = { predio, vagas, bonecos: new Map(), lista: [], grades: new Map(), eventos: [], roda: null,
       proxPapo: 4, proxTrabalho: 10, proxJogo: 0, proxVisita: entre(12, 25), proxRoda: entre(40, 80), proxGato: entre(30, 60), proxRobo: 1, proxPasso: 0,
       proxToca: 0.4, proxMusica: 2, proxViolao: entre(30, 60), proxPapel: entre(20, 40), proxAviao: entre(40, 80), proxGuerra: 8,
-      cena: null, cenaSocial: null, vistos: new Set(),   // vida social: a cena desta tela, o que o efeitos.js desenha e os eventos já encenados
-      visitas: new Map() };   // visitantes (pessoas olhando o escritório), por id
+      cena: null, cenaSocial: null, vistos: new Set() };   // vida social: a cena desta tela, o que o efeitos.js desenha e os eventos já encenados
     for (const v of vagas) {   // a mesa de xadrez vem do mapa com duas vagas de papo: aqui viram partida (a cópia é da vida.js)
       if (v.tipo === "papo" && movelPerto(predio, v, /^mesa_xadrez/, 40)) v.tipo = "xadrez";
       if (v.tipo === "musica") v.jukebox = !!movelPerto(predio, v, /^jukebox/, 48);
@@ -620,7 +619,7 @@ const Vida = (() => {
       if (!mo) m.rodaDoCafe = false;
     }
     if ((m.proxRobo -= dt) <= 0) { m.proxRobo = 1; verRobo(m, agora); }
-    for (const v of m.visitas.values()) passoVisita(m, v, dt, agora);
+    passoPessoas(m, dt, agora);
     jogosSozinho(m, dt);
     if (!m.fora) brincadeiras(m, dt, agora);
     papo(m, dt, agora);
@@ -1403,32 +1402,200 @@ const Vida = (() => {
     else falar(b, sorteia(FRASES.trabalho[b.papel] || FRASES.trabalho.geral), 4);
   }
 
-  // --- visitantes: as pessoas olhando o escritório agora --------------------------------------
+  // --- pessoas da equipe: quem está com o escritório aberto neste andar (presenca.py) --------------------------
   // Figurantes, como o entregador: fora do m.bonecos, da vida social, das mesas e das vagas (não tiram o lugar de
-  // ninguém). Do /api/estado vêm só o id e a cor; na tela aparecem como "Visitante", com crachá. Entram pela rua,
-  // passeiam entre a recepção e a sala comunal e, quando somem da lista, vão embora pela rua.
-  const COR_VISITA = /^#[0-9a-f]{6}$/i;
-  const salasDeVisita = m => [...m.predio.salas, ...m.predio.baixo].filter(s => s.tipo === "recepcao" || s.tipo === "lounge");
-  function visitantes(m, lista) {
-    const ids = new Set();
-    for (const it of Array.isArray(lista) ? lista.slice(0, 8) : []) {
-      if (!it || typeof it.id !== "string" || !/^[0-9a-f]{8}$/.test(it.id) || !COR_VISITA.test(it.cor)) continue;
-      ids.add(it.id);
-      let v = m.visitas.get(it.id);
-      if (!v) {
-        v = { id: it.id, nome: "Visitante", visitante: true, ap: { color: it.cor.toLowerCase(), eyes: "round", accessory: "cracha" }, x: -24, y: 0, rota: [], sala: null,
-          pose: "parado", olha: "dir", passos: 0, desde: 0, fica: 0, saindo: false, semente: parseInt(it.id.slice(0, 4), 16) % 997 };
-        m.visitas.set(it.id, v);
-        irVisita(m, v, null);
-      } else if (v.saindo) { v.saindo = false; irVisita(m, v, null); }   // voltou antes de sair: entra de novo
-    }
-    for (const v of m.visitas.values()) if (!ids.has(v.id) && !v.saindo) { // fechou a aba: termina o trecho e vai embora pela rua
-      const fim = v.rota.length ? v.rota[v.rota.length - 1] : [v.x, v.y];
-      v.saindo = true;
-      v.rota = v.sala ? [...v.rota, ...rotaDaSala(m, v.sala, fim), ...rotaRua(m)] : [];
-      v.sala = null;
-    }
+  // ninguém). Este arquivo é o único dono do polling do GET /api/ao-vivo: a cada resposta dispara o evento "aovivo"
+  // (o chat da sala lê as mensagens dele) e, quando a minha sala muda, o "minha-sala". O meu boneco anda pelo clique e
+  // manda ao servidor só o destino (POST /api/presenca, no máximo 2 por segundo); os outros andam até o destino deles
+  // com o mesmo caminho dos agentes. Fica fora do mundo (m) porque o app.js remonta o mundo quando os times mudam.
+  // O meu nome e boneco são os do servidor (fonte única, os mesmos que os outros veem): o /api/perfil, relido a cada
+  // PERFIL_A_CADA ms (mudou no "Meu perfil", o mapa acompanha), ou a minha entrada no /api/ao-vivo, se vier.
+  const AO_VIVO_VISIVEL = 1500, AO_VIVO_ESCONDIDO = 10000, ENVIO_MIN = 500, RENOVAR = 20000, PERFIL_A_CADA = 15000, COORD_MAX = 8192;
+  const vivo = { ger: 0, ligado: false, lido: false, andar: null, seq: 0, falhas: 0, timer: 0, envio: 0, enviado: -1e9, perfilEm: -1e9,
+    invisivel: () => true, perfil: null, m: null, eu: null, avisada: null,   // avisada: a última sala do evento "minha-sala"
+    pessoas: new Map() };   // pessoas: os outros, por usuário
+
+  // liga (ou religa, ao trocar de andar) o polling; null desliga. invisivel(): a TV e quem desligou "Aparecer" só leem
+  function aoVivo(opcoes) {
+    vivo.ger++; clearTimeout(vivo.timer); clearTimeout(vivo.envio); vivo.envio = 0;
+    if (vivo.eu) { vivo.eu = null; avisarSala(null); }
+    vivo.pessoas.clear(); vivo.seq = 0; vivo.falhas = 0; vivo.avisada = null; vivo.lido = false; vivo.ligado = !!opcoes;
+    if (!opcoes) return;
+    vivo.andar = Andar.atual; vivo.invisivel = opcoes.invisivel || (() => false);
+    lerPerfil(vivo.ger);
+    lerAoVivo(vivo.ger);
   }
+  function lerPerfil(ger) {
+    vivo.perfilEm = performance.now();
+    fetch(Andar.com("api/perfil", vivo.andar), { cache: "no-store", credentials: "same-origin" })
+      .then(r => (r.ok ? r.json() : null)).then(p => {
+        if (ger !== vivo.ger || !p || typeof p.usuario !== "string") return;   // prévia (sem conta) ou outro andar: sem o meu boneco
+        meuPerfil(p.usuario, p.nome, p.aparencia || p.avatar);   // aparencia: a efetiva (a salva ou o padrão do servidor)
+      }).catch(() => {});
+  }
+  function meuPerfil(usuario, nome, ap) {
+    vivo.perfil = { usuario, nome: nomeDe(nome, usuario), ap: apDe(ap, usuario) };
+    if (vivo.eu) { vivo.eu.nome = `${vivo.perfil.nome} (você)`; vivo.eu.ap = vivo.perfil.ap; }
+  }
+  const nomeDe = (nome, usuario) => String(typeof nome === "string" && nome.trim() ? nome : usuario).slice(0, 40);
+  // servidor antigo, sem a aparência efetiva: o padrão do front (o mesmo do "Meu perfil")
+  const apDe = (ap, usuario) => (ap && typeof ap === "object" && typeof ap.color === "string" ? ap : Avatar.padrao(usuario));
+  const coord = v => Math.max(0, Math.min(COORD_MAX, Math.round(v)));
+
+  async function lerAoVivo(ger) {
+    try {
+      const url = `api/ao-vivo?desde=${vivo.seq}${vivo.invisivel() ? "&invisivel=1" : ""}`;
+      const r = await fetch(Andar.com(url, vivo.andar), { cache: "no-store", credentials: "same-origin" });
+      if (ger !== vivo.ger) return;
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      if (ger !== vivo.ger) return;
+      if (!d || !Number.isInteger(d.seq) || !Array.isArray(d.pessoas)) throw new Error("resposta inválida");
+      vivo.falhas = 0; vivo.seq = d.seq; vivo.lido = true;
+      receber(d.pessoas);
+      if (performance.now() - vivo.perfilEm >= PERFIL_A_CADA) lerPerfil(ger);
+      window.dispatchEvent(new CustomEvent("aovivo", { detail: d }));
+    } catch (e) {
+      if (ger !== vivo.ger) return;
+      vivo.falhas++;
+    }
+    const base = document.hidden ? AO_VIVO_ESCONDIDO : AO_VIVO_VISIVEL;   // 429, queda ou servidor antigo: espaça
+    vivo.timer = setTimeout(() => lerAoVivo(ger), vivo.falhas ? Math.min(60000, base * 2 ** Math.min(vivo.falhas, 5)) : base);
+  }
+  document.addEventListener("visibilitychange", () => {   // voltou para a aba: lê já, sem esperar os 10 s
+    if (document.hidden || !vivo.ligado || vivo.falhas) return;
+    clearTimeout(vivo.timer); lerAoVivo(vivo.ger);
+  });
+
+  function receber(lista) {
+    const vistos = new Set(), m = vivo.m;
+    for (const it of lista.slice(0, 64)) {
+      if (!it || typeof it.usuario !== "string" || !Number.isFinite(it.x) || !Number.isFinite(it.y)) continue;
+      const alvo = Array.isArray(it.destino) && it.destino.length === 2 && it.destino.every(Number.isFinite) ? it.destino : [it.x, it.y];
+      if (vivo.perfil && it.usuario === vivo.perfil.usuario) { meuPerfil(it.usuario, it.nome, it.aparencia); continue; }   // eu (outra aba)
+      vistos.add(it.usuario);
+      let p = vivo.pessoas.get(it.usuario);
+      if (!p) { p = novaPessoa(it.usuario, it.x, it.y); vivo.pessoas.set(it.usuario, p); }
+      p.nome = nomeDe(it.nome, it.usuario); p.ap = apDe(it.aparencia, it.usuario);
+      p.parado = DIRECOES.has(it.olha) ? it.olha : "baixo";
+      if (p.alvo && p.alvo[0] === alvo[0] && p.alvo[1] === alvo[1]) continue;
+      p.alvo = alvo;   // destino novo: anda até lá (sem caminho, aparece direto)
+      p.rota = (m && rotaAte(m, [p.x, p.y], alvo)) || [];
+      if (!p.rota.length) { p.x = alvo[0]; p.y = alvo[1]; }
+    }
+    for (const u of [...vivo.pessoas.keys()]) if (!vistos.has(u)) vivo.pessoas.delete(u);   // fechou o escritório (TTL) ou trocou de andar
+  }
+  const DIRECOES = new Set(["baixo", "cima", "esq", "dir"]);
+  const novaPessoa = (id, x, y) => ({ id: "pessoa:" + id, nome: "", ap: null, x, y, rota: [], alvo: null, sala: "", pose: "parado",
+    olha: "baixo", parado: "baixo", passos: 0, pausa: 0, semente: semente(id) });
+  const semente = txt => { let h = 7; for (const ch of txt) h = (h * 31 + ch.charCodeAt(0)) % 997; return h; };
+
+  // de a até b, com o caminho dos agentes: dentro da sala, porta, corredor, porta e dentro da outra sala
+  function rotaAte(m, a, b) {
+    const sa = salaEm(m, a[0], a[1]), sb = salaEm(m, b[0], b[1]), cy = m.predio.corredorY;
+    if (sa && sa === sb) return rotaNaSala(m, sa, a, b);
+    const ida = sa ? rotaDaSala(m, sa, a) : [[a[0], cy]];
+    if (!sb) return [...ida, [b[0], cy], [b[0], b[1]]];
+    const e = portaPerto(m, sb, b[0]), dentro = rotaNaSala(m, sb, e.dentro, b);
+    return dentro && [...ida, ...[...e.fora].reverse(), e.dentro, ...dentro];
+  }
+  // o ponto de chão livre mais perto do clique, numa sala ou no corredor; fora disso (rua, telhado), nenhum
+  function pontoDoClique(m, x, y) {
+    const s = salaEm(m, x, y), p = m.predio;
+    if (!s) {
+      const r = p.predioRet, topo = p.corredorTopo;
+      return x >= r.x + 16 && x <= r.x + r.w - 16 && y >= topo && y <= topo + p.corredorAlt ? [x, Math.max(topo + 8, Math.min(topo + p.corredorAlt - 4, y))] : null;
+    }
+    const g = grade(m, s), i0 = Math.floor((x - g.x0) / GRADE), j0 = Math.floor((y - g.y0) / GRADE);
+    let melhor = null, dm = 1e9;
+    for (let j = Math.max(0, j0 - 6); j <= Math.min(g.lins - 1, j0 + 6); j++)
+      for (let i = Math.max(0, i0 - 6); i <= Math.min(g.cols - 1, i0 + 6); i++) {
+        const d = (i - i0) ** 2 + (j - j0) ** 2;
+        if (g.livre[j * g.cols + i] && d < dm) { dm = d; melhor = [g.x0 + i * GRADE + GRADE / 2, g.y0 + j * GRADE + GRADE / 2]; }
+      }
+    return melhor;
+  }
+
+  // o clique no chão do mapa (app.js): o meu boneco vai até lá. Devolve true quando andou
+  function irAte(m, p) {
+    const eu = vivo.eu;
+    if (!eu || m !== vivo.m || !p) return false;
+    const alvo = pontoDoClique(m, p.x, p.y), rota = alvo && rotaAte(m, [eu.x, eu.y], alvo);
+    if (!rota || !rota.length) return false;
+    eu.rota = rota;
+    enviarPresenca();
+    return true;
+  }
+
+  // entra pela rua até um canto livre da recepção
+  function nascer(m) {
+    const { nome, ap } = vivo.perfil, e = m.predio.entrada, cy = m.predio.corredorY;
+    const recepcao = m.predio.salas.find(s => s.tipo === "recepcao"), alvo = recepcao && pontoDeVisita(m, recepcao);
+    vivo.eu = { ...novaPessoa("eu", e.x - 22, e.calcadaY), id: "eu", nome: `${nome} (você)`, ap, eu: true, salaNome: "Corredor",
+      rota: alvo ? [[e.x - 22, cy], [e.x, cy], ...alvo.r] : [[e.x - 22, cy], [e.x, cy]] };
+    enviarPresenca();
+  }
+
+  // "minha-sala" {sala, nome, andar, seq}: só quando o servidor aceitou a sala nova (é ele quem decide a sala do chat).
+  // sala null: o meu boneco saiu (outro andar, TV, "Aparecer" desligado). seq: o do POST que mudou a sala (sem ele, o da
+  // última leitura); o chat ignora mensagens de seq menor, que só podem ser da sala de antes (um GET atrasado)
+  function avisarSala(sala, nome = null, seq = vivo.seq) {
+    if (sala === vivo.avisada) return;
+    vivo.avisada = sala;
+    window.dispatchEvent(new CustomEvent("minha-sala", { detail: { sala, nome: sala === null ? null : nome, andar: vivo.andar, seq } }));
+  }
+
+  // POST /api/presenca com a posição e o destino do meu boneco: no máximo 1 a cada ENVIO_MIN ms (o que chega no meio
+  // espera e sai com o estado mais novo). Falhou (429, queda): tenta de novo em 2 s
+  function enviarPresenca() {
+    if (!vivo.eu || vivo.envio) return;
+    const falta = vivo.enviado + ENVIO_MIN - performance.now();
+    if (falta > 0) { vivo.envio = setTimeout(() => { vivo.envio = 0; enviarPresenca(); }, falta); return; }
+    const eu = vivo.eu, fim = eu.rota.length ? eu.rota[eu.rota.length - 1] : null;
+    vivo.enviado = performance.now();
+    const corpo = { x: coord(eu.x), y: coord(eu.y), destino: fim && [coord(fim[0]), coord(fim[1])], sala: eu.sala, olha: eu.olha };
+    const ger = vivo.ger, nome = eu.salaNome, falhou = () => {
+      if (ger === vivo.ger && vivo.eu && !vivo.envio) vivo.envio = setTimeout(() => { vivo.envio = 0; enviarPresenca(); }, 2000);
+    };
+    fetch(Andar.com("api/presenca", vivo.andar), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo) }).then(async r => {
+      if (!r.ok) return falhou();
+      const d = await r.json().catch(() => null);
+      if (ger === vivo.ger && vivo.eu === eu) avisarSala(corpo.sala, nome, d && Number.isInteger(d.seq) ? d.seq : vivo.seq);
+    }).catch(falhou);
+  }
+
+  // a cada quadro (Vida.passo): os outros e o meu boneco andam; a minha sala é a do chão onde piso
+  function passoPessoas(m, dt, agora) {
+    if (vivo.m !== m) { // o app.js remontou o prédio: quem andava chega direto, no mundo novo
+      if (vivo.m) for (const p of [...vivo.pessoas.values(), ...(vivo.eu ? [vivo.eu] : [])]) {
+        const fim = p.rota.length ? p.rota[p.rota.length - 1] : null;
+        if (fim) { p.x = fim[0]; p.y = fim[1]; p.rota = []; }
+      }
+      vivo.m = m;
+    }
+    if (!vivo.ligado) return;
+    for (const p of vivo.pessoas.values()) andarPessoa(m, p, dt, agora);
+    if (vivo.eu && vivo.invisivel()) { vivo.eu = null; avisarSala(null); }   // desligou "Aparecer" (a marca some no servidor pelo TTL)
+    if (!vivo.eu && vivo.perfil && !vivo.invisivel()) nascer(m);
+    const eu = vivo.eu;
+    if (!eu) return;
+    const andava = eu.rota.length > 0;
+    andarPessoa(m, eu, dt, agora);
+    const s = salaEm(m, eu.x, eu.y), sala = s && typeof s.chave === "string" ? s.chave : "";
+    if (sala !== eu.sala) { eu.sala = sala; eu.salaNome = s ? s.nome : "Corredor"; enviarPresenca(); }
+    else if ((andava && !eu.rota.length) || performance.now() - vivo.enviado > RENOVAR) enviarPresenca();   // chegou, ou renova
+  }
+  function andarPessoa(m, p, dt, agora) {
+    if (p.rota.length) andar(m, p, dt, agora);
+    if (!p.rota.length && !p.eu) p.olha = p.parado;   // parado: olha para onde a pessoa olha na tela dela
+    p.pose = p.rota.length ? "andando" : "parado"; p.chave = p.y + 0.5;
+  }
+  // quem desenhar (app.js): os outros e eu, fora quem ainda está na rua, fora da tela
+  const pessoas = () => [...vivo.pessoas.values(), ...(vivo.eu ? [vivo.eu] : [])].filter(p => p.x > -20);
+  // quantos outros estão neste andar agora (a linha "N pessoas olhando"); null antes da 1ª leitura ou desligado
+  const olhando = () => (vivo.ligado && vivo.lido ? vivo.pessoas.size : null);
+
   // um ponto de chão livre na sala, longe das vagas dos agentes e com caminho até a porta
   function pontoDeVisita(m, s) {
     const g = grade(m, s);
@@ -1443,28 +1610,6 @@ const Vida = (() => {
     return null;
   }
   function rotaDaSala(m, s, p) { const e = portaPerto(m, s, p[0]); return [...(rotaNaSala(m, s, p, e.dentro) || [e.dentro]), ...e.fora]; }
-  // próxima parada: a outra sala (ou outro canto da mesma, se só houver uma)
-  function irVisita(m, v, agora) {
-    const salas = salasDeVisita(m);
-    if (!salas.length) return;
-    const outra = salas.filter(s => s !== v.sala), s = outra.length ? sorteia(outra) : salas[0], alvo = pontoDeVisita(m, s);
-    if (!alvo) return;
-    const ida = v.sala ? rotaDaSala(m, v.sala, [v.x, v.y]) : v.x <= -20 ? rotaRua(m).reverse().slice(1) : [];
-    if (v.x <= -20) { const r = rotaRua(m); v.x = r[r.length - 1][0]; v.y = r[r.length - 1][1]; }   // aparece na calçada, fora da tela
-    v.rota = [...ida, ...alvo.r]; v.sala = s;
-    if (agora !== null) v.desde = agora;
-  }
-  function passoVisita(m, v, dt, agora) {
-    if (v.saindo && !v.rota.length) { m.visitas.delete(v.id); return; }
-    if (v.rota.length) {
-      andar(m, v, dt, agora);
-      if (!v.rota.length) {
-        if (v.saindo) { m.visitas.delete(v.id); return; }
-        v.desde = agora; v.fica = entre(15, 40); v.olha = "baixo";
-      }
-    } else if (!v.saindo && agora - v.desde > v.fica) irVisita(m, v, agora);
-    v.pose = v.rota.length ? "andando" : "parado"; v.chave = v.y + 0.5;
-  }
 
   function digitando(m) {
     let n = 0;
@@ -1472,7 +1617,7 @@ const Vida = (() => {
     return n;
   }
 
-  return { criarMundo, sincronizar, passo, digitando, momento, objetoClicado, festaGeral, social, visitantes, textoGreve, FRASES };
+  return { criarMundo, sincronizar, passo, digitando, momento, objetoClicado, festaGeral, social, aoVivo, irAte, pessoas, olhando, textoGreve, FRASES };
 })();
 
 window.Vida = Vida;

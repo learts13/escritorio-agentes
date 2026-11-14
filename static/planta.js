@@ -223,7 +223,7 @@ const Planta = (() => {
   async function salvar(planta) {
     let r, d = null;
     try {
-      r = await fetch("/api/planta", { method: "POST", cache: "no-store", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: corpo(planta) });
+      r = await fetch(typeof Andar === "object" ? Andar.com("/api/planta") : "/api/planta", { method: "POST", cache: "no-store", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: corpo(planta) });
       d = await r.json().catch(() => null);
     } catch (e) {
       return { status: 0, erro: "rede", mensagem: "Sem conexão com o servidor. O rascunho continua aqui." };

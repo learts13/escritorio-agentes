@@ -592,8 +592,13 @@ class Social(threading.Thread):
             self._zerar()
             self.carregado, self.sujo = None, True
 
+    parado = False   # parar(): andar removido
+
+    def parar(self):
+        self.parado = True
+
     def run(self):
-        while True:
+        while not self.parado:
             try:
                 self.passo(time.time(), self.leitor.foto(), self.config())
             except Exception as x:   # um passo com erro não para o diretor: 1 linha de log por tipo de erro

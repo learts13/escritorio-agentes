@@ -1,11 +1,11 @@
 {
   "agents": [
-    {"id": "exemplo-atlas", "name": "Atlas", "handle": "atlas", "role": "Diretoria"},
-    {"id": "exemplo-bento", "name": "Bento", "handle": "bento", "role": "Infraestrutura"},
-    {"id": "exemplo-cora", "name": "Cora", "handle": "cora", "role": "Desenvolvimento"},
-    {"id": "exemplo-duda", "name": "Duda", "handle": "duda", "role": "Design"},
-    {"id": "exemplo-eco", "name": "Eco", "handle": "eco", "role": "Qualidade"},
-    {"id": "exemplo-faro", "name": "Faro", "handle": "faro", "role": "Prospecção"},
+    {"id": "exemplo-atlas", "name": "Atlas", "handle": "atlas", "role": "Diretoria", "department": {"name": "Diretoria", "color": "indigo", "icon": "shield", "position": 0}, "appearance": {"color": "indigo", "eyes": "happy", "accessory": "crown"}},
+    {"id": "exemplo-bento", "name": "Bento", "handle": "bento", "role": "Infraestrutura", "department": {"name": "Operações", "color": "teal", "icon": "bolt", "position": 2}, "appearance": {"color": "teal", "eyes": "sleepy", "accessory": "headset"}},
+    {"id": "exemplo-cora", "name": "Cora", "handle": "cora", "role": "Desenvolvimento", "department": {"name": "Produto", "color": "violet", "icon": "code", "position": 1}, "appearance": {"color": "violet", "eyes": "round", "accessory": "headphones"}},
+    {"id": "exemplo-duda", "name": "Duda", "handle": "duda", "role": "Design", "department": {"name": "Produto", "color": "violet", "icon": "code", "position": 1}, "appearance": {"color": "rose", "eyes": "wide", "accessory": "flower"}},
+    {"id": "exemplo-eco", "name": "Eco", "handle": "eco", "role": "Qualidade", "department": {"name": "Operações", "color": "teal", "icon": "bolt", "position": 2}, "appearance": {"color": "green", "eyes": "dots", "accessory": ""}},
+    {"id": "exemplo-faro", "name": "Faro", "handle": "faro", "role": "Prospecção", "department": {"name": "Comercial", "color": "laranja", "icon": "chart", "position": 3}, "appearance": {"color": "amber", "eyes": "happy", "accessory": "cap"}},
     {"id": "exemplo-gaia", "name": "Gaia", "handle": "gaia", "role": "Atendimento"}
   ],
   "tasks": [

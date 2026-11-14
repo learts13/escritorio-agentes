@@ -4,9 +4,37 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 1.5.0 · 2026-11-14 · Andares e equipe
+
+Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0). Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
+<!-- PENDENTE (Helbert): com o vídeo anexado à release, trocar "Release [`v1.5.0`](...)." por "Release [`v1.5.0`](...), com o vídeo das novidades anexado." aqui e no CHANGELOG.md, como no commit 046b5fb da 1.4.0. -->
+
+### Adicionado
+- **Andares:** cada workspace do agentes.chat pode virar um andar do prédio, com a sua conexão, os seus times, a sua planta, a sua vida social e o seu jornal. Configurações › Andares cria, renomeia e remove (até 6 extras, com a senha da conta), e o elevador da barra troca de andar sem recarregar. Sem andares extras, tudo fica como antes. Veja [Andares](./README.pt-BR.md#andares-vários-workspaces-no-mesmo-prédio).
+- **Equipe:** quem administra convida pessoas da equipe por um link pessoal, de uso único e válido por 48 horas, em Configurações › Membros, que também muda o papel (admin ou membro) e os andares de cada conta. A pessoa cria a conta com nome e boneco e os muda depois em **Meu perfil**. O membro vê o escritório dos andares liberados, mas não lê as conversas dos agentes nem mexe nas configurações. Veja [Equipe](./README.pt-BR.md#equipe).
+- **Pessoas no mapa:** cada pessoa conectada aparece no andar com o próprio nome e boneco, entra pela rua e anda até onde clicar. A linha "N pessoas olhando" conta quem está no andar, e a lateral mostra quantas pessoas há em cada sala sem mesa.
+- **Chat da sala:** cada sala tem um chat de texto para quem está nela. Fica só na memória do servidor (as últimas 50 mensagens por até 10 minutos), quem chega não lê o que foi dito antes, e reiniciar o escritório apaga tudo.
+- **Puxar os setores do agentes.chat:** um botão em Configurações › Times copia cada setor do agentes.chat como um time (nome, cor e ícone) e a aparência de cada agente. Exige um agentes.chat cujo `list_agents` mande o `department`. Time de mesmo nome mantém o tipo, a parede e o piso, e nada vale antes do **Salvar times**.
+
+### Mudado
+- O crachá de **Visitante** anônimo saiu do mapa: quem está com o escritório aberto aparece com o nome e o boneco da própria conta. A caixa **Aparecer no escritório** e a TV seguem como antes (olham sem aparecer). Veja [Visitantes](./README.pt-BR.md#visitantes).
+- **Sair de todos os aparelhos** encerra só as sessões de quem pediu. Só quem administra desliga também o aviso no celular de todos os aparelhos.
+
+### Corrigido
+- **Resposta em outro aparelho:** respondeu a pergunta de um agente pelo celular com o escritório aberto no PC? O agente sai de **Esperando você** nas duas telas sem esperar a próxima leitura do agentes.chat (no aparelho que respondeu, na hora; no outro, em até 10 s), e o pedido já respondido não aceita a mesma resposta de novo. A aba que volta do segundo plano relê o estado na hora.
+- **Testes no Windows:** os testes das contas e dos membros passam no Windows (o arquivo do código de primeiro acesso é fechado antes de ser apagado, e a permissão 0600 só é conferida fora do Windows).
+
+### Segurança
+- **Membro só vê o que pode:** o servidor nega por padrão. Toda rota com sessão confere o papel antes de responder, e o membro não lê conversas, não abre o modo resposta nem muda configurações, marca, planta, times, andares, membros ou visitas.
+- **Convite:** o link aparece uma vez só, e o servidor guarda apenas uma impressão dele (sha256), nunca o link. Usado, vencido ou revogado, não vale mais; dois aceites ao mesmo tempo com o mesmo link criam uma conta só. A página do convite tem limite de pedidos por origem.
+- **Mudar papel ou andares pede a senha** de quem administra, como convidar e remover. O escritório nunca fica sem um admin.
+- **Remover uma conta** derruba as sessões da pessoa antes de gravar a mudança, e o boneco dela sai do mapa na hora. Uma conta nova com o nome de uma antiga não herda as sessões velhas.
+- **Andares isolados:** cada andar lê o agentes.chat com o seu próprio token. Um andar que não existe e um andar sem acesso dão a mesma resposta (404), e um andar conectado a uma conta de outro workspace avisa e não mostra nada dele.
+- **Presença e chat só na memória:** quem está em cada andar e as mensagens das salas não vão ao disco nem ao log, têm limite por pessoa, e o servidor só aceita mensagem na sala onde o autor está. Visitantes de fora não veem a equipe. Veja [para onde vai cada dado](./docs/visitas-privadas-plano.md#equipe-presença-no-mapa-e-chat-por-sala).
+
 ## 1.4.0 · 2026-11-12 · Self-host e mundo maior
 
-Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0). Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
+Release [`v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.4.0), com o vídeo das novidades anexado. Commits: [`v1.3.0...v1.4.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.3.0...v1.4.0).
 
 ### Adicionado
 - **agentes.chat self-host:** a variável `AGENTES_URL` aponta o escritório para a sua instalação (o `PUBLIC_URL` dela). O login, o MCP e os botões "Responder" e "Revisar" passam a ir para lá. O instalador libera na rede do serviço só o IP dessa instalação, inclusive na tailnet. Sem a variável, tudo segue na nuvem. Veja [Com o agentes.chat self-host](./README.pt-BR.md#com-o-agenteschat-self-host).

@@ -44,6 +44,31 @@ Tudo o que é da visita fica só na memória do processo. Reiniciar o escritóri
 
 **O que os testes não provam.** Os testes não comprovam o que guardam o proxy, a Cloudflare (logs, Logpush, cache, inclusive o corpo dos pedidos com o convite e a sessão), o sistema operacional e o navegador do visitante. O que o agentes.chat guarda das salas com agente também fica fora deles. Isso se confere no ambiente real, como descrito em "Antes de disponibilizar na internet".
 
+## Equipe: presença no mapa e chat por sala
+
+Isto vale para as contas de membro e de admin, não para visitantes: as rotas de visita não leem a presença, e o visitante não vê a equipe no mapa. A posição e o texto do chat ficam só na memória do processo (`presenca.py`), separados por andar. Não há limpeza periódica: o que venceu sai da memória no próximo pedido de presença, mapa ou chat daquele andar. Reiniciar o escritório apaga tudo. Os testes estão em `test_presenca.py` e `test_membros.py`.
+
+| Dado | Onde passa | Quanto tempo fica | Quando some | Teste que prova |
+|---|---|---|---|---|
+| Posição no mapa | Na memória, por andar: x e y, o destino do último clique, a sala e para onde a pessoa olha. Vai em `POST /api/presenca` (até 2 por segundo) e chega a quem está no mesmo andar pelo `GET /api/ao-vivo`. A sala é conferida contra as salas do andar. Uma conta é um boneco só: abas e aparelhos dividem a posição | Até 30 segundos depois do último pedido (`PRESENCA_TTL`). A TV (`?invisivel=1`) lê sem renovar | No fim desses 30 segundos, ao sair (`/sair`), quando a conta é removida ou no reinício | `test_presenca.py`: `test_quem_esta_e_quem_saiu_pelo_ttl`, `test_a_tv_le_sem_renovar`, `test_sair_some_na_hora`; `test_membros.py`: `test_presenca_e_chat_por_sala_e_andar` |
+| Nome e boneco no mapa | Saem da conta (`usuarios.json`), nunca do pedido: um pedido com nome é recusado. Na memória, ficam junto da posição | Como a posição | Como a posição | `test_membros.py`: `test_presenca_e_chat_por_sala_e_andar` |
+| Texto do chat | Na memória, num anel de até 50 mensagens por sala (`ANEL`), por andar, com o usuário, o nome e a hora. Vai para a sala em que o autor está no servidor, e o cliente não escolhe a sala. Só quem está na mesma sala do mesmo andar recebe, e só o que foi dito depois de entrar nela. Até 500 caracteres, sem caracteres de controle, 1 por segundo com rajada de 5 | Até 10 minutos (`MENSAGEM_VIDA`) | Quando vence, quando passa do anel (saem as mais antigas) ou no reinício. Remover a conta tira a pessoa do mapa, mas o que ela escreveu fica até vencer | `test_presenca.py`: `test_chat_vai_para_a_sala_do_autor_no_servidor`, `test_quem_chega_nao_le_o_que_foi_dito_antes`, `test_mensagens_vencem_e_o_anel_tem_teto`, `test_limites_por_pessoa` |
+| Contadores de limite | Na memória: o nome de usuário, o tipo de pedido e o instante, para os limites por pessoa | Até a varredura, que só roda quando há mais de 768 contadores e tira os parados há 60 segundos ou mais | Na varredura ou no reinício | `test_presenca.py`: `test_limites_por_pessoa`. A varredura vem da leitura do código (`_andar`) |
+| Conta da pessoa | No disco, em `dados/usuarios.json`: o usuário, a senha como hash scrypt com sal, o nome, o boneco, a data de criação e o papel em cada andar que a conta vê. A sessão fica em `dados/sessoes.json`, só como sha256 do token, por até 30 dias | Até a conta ser removida | Remover a conta apaga o registro e derruba as sessões dela na hora | `test_membros.py`: `test_convite_de_ponta_a_ponta`, `test_aba_membros_papel_andares_e_remover` |
+| Convite pessoal | O link (`/convite#<token>`) aparece uma vez para quem convidou; o token fica no fragmento. No disco, em `dados/convites.json`, ficam só o sha256 do token, o nome sugerido, os andares, a criação e o vencimento. Até 20 pendentes | Até 48 horas (`CONVITE_VALIDADE`) | Ao ser aceito (uso único), ao ser revogado ou, depois de vencido, na próxima gravação dos convites | `test_membros.py`: `test_convite_de_ponta_a_ponta` (inclusive o token e a senha fora do log), `test_convidar_exige_senha_e_revogar_tira_da_lista` |
+
+**Disco.** A posição e o texto do chat nunca vão ao disco. O teste `test_so_memoria` confere que o `presenca.py` não abre arquivo, não escreve, não imprime nem chama o log, e só importa `collections`, `math`, `threading`, `time` e `unicodedata`. Os dois arquivos da equipe são `usuarios.json` e `convites.json`, gravados de forma atômica com permissão 0600.
+
+**Logs.** O texto do chat e a posição não vão ao log: `test_presenca_e_chat_por_sala_e_andar` confere que enviar uma mensagem não deixa nada na saída. Da equipe, vão ao log o `evento=convite` (o resultado e, no aceite, o usuário criado), o `evento=membros` (a ação, o usuário de quem administra e, ao convidar, o id do convite, nunca o token) e o `evento=perfil` numa falha de gravação. Um pedido de presença ou de chat de outra origem registra só a rota e `origem_recusada`.
+
+**Conversas dos agentes.** O membro não lê as conversas dos agentes: para ele, o `/api/estado` sai sem conversas e sem o modo resposta, e as rotas de conversa ficam barradas (`test_membros.py`: `test_membro_ve_o_escritorio_sem_conversas_nem_modo_resposta`, `test_matriz_membro_so_passa_na_lista`).
+
+**Ver sem aparecer.** O `GET /api/ao-vivo?invisivel=1` lê o andar sem renovar a presença, e não é só da TV: qualquer membro com acesso ao andar pode usá-lo para ver quem está lá e onde, sem aparecer no mapa dos outros (para ler o chat de uma sala, a pessoa precisa estar nela). A sala não é fronteira entre pessoas da equipe; o andar é.
+
+**Limite do convite.** A página `/convite` não usa o balde de tentativas do login. Ela usa o limite por origem da recepção pública (a mesma tabela, com o IP em HMAC). Com 256 bits no token, adivinhar um convite por força bruta é inviável; o limite só segura o volume de pedidos.
+
+**O que os testes não provam.** O que o navegador, o proxy e a CDN guardam dos pedidos de presença e de chat fica fora dos testes, como nas visitas. Quem está na sala lê a mensagem e pode copiá-la; o escritório não impede isso.
+
 ## Limites encontrados
 
 - `/api/estado` combina a leitura dos agentes com conversas internas, usuário e outras informações. Não é uma API para visitantes; o controle precisa ocorrer no servidor, antes de responder.
