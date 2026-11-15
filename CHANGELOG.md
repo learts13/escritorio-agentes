@@ -4,10 +4,24 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 1.5.1 · 2026-11-14 · Chat on the right and tweaks
+
+Release [`v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.1). Commits: [`v1.5.0...v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.0...v1.5.1).
+
+### Changed
+- **Room chat on the right:** on a computer, the chat pill and panel sit in the bottom right corner of the map, away from the agent card, the conversation and the strike. "Tap an agent" moves up above the pill. On a phone, the chat stays on the left.
+- **Elevator on the phone:** the top bar shows the connection light and a shortened floor name, so the company name fits again. The open list shows each floor's full name and state.
+- **Floor state:** under the sidebar elevator, the state only shows when something is wrong, like "This floor: not connected".
+- **Switching pages starts at the top:** going back from Customize to the Office shows the map, not the end of the page.
+- **No admin shortcuts for members:** members no longer see "Sample name and logo" or "Change hours", which led to settings only admins have.
+- **Members:** the "Remove" button on your own account is disabled. To leave, ask another admin.
+
+### Fixed
+- **Agents on first load:** opening the office on an extra floor right after the server restarted showed an empty map for about 20 s. Now the floor's first read happens right away, and the page rereads every 1 s until it arrives (for at most 1 minute).
+
 ## 1.5.0 · 2026-11-14 · Floors and team
 
-Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0). Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
-<!-- PENDING (Helbert): once the video is attached to the release, change "Release [`v1.5.0`](...)." to "Release [`v1.5.0`](...), with the video of what is new attached." here and in CHANGELOG.pt-BR.md, as in commit 046b5fb for 1.4.0. -->
+Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0), with the video of what is new attached. Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
 
 ### Added
 - **Floors:** each agentes.chat workspace can become a floor of the building, with its own connection, teams, floor plan, social life and newspaper. Settings › Floors creates, renames and removes them (up to 6 extra, with the account password), and the elevator in the top bar switches floors without reloading. With no extra floors, everything stays as before. See [Floors](./README.md#floors-several-workspaces-in-one-building).

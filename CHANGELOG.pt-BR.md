@@ -4,10 +4,24 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 1.5.1 · 2026-11-14 · Chat à direita e ajustes
+
+Release [`v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.1). Commits: [`v1.5.0...v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.0...v1.5.1).
+
+### Mudado
+- **Chat da sala à direita:** no computador, a pílula e o painel do chat ficam no canto de baixo à direita do mapa, longe da ficha do agente, da conversa e da greve. O "Toque num agente" sobe para cima da pílula. No celular, o chat continua à esquerda.
+- **Elevador no celular:** a barra de cima mostra a luz da conexão e o andar abreviado, e o nome da empresa volta a caber. A lista aberta traz o nome inteiro e o estado de cada andar.
+- **Estado do andar:** embaixo do elevador da lateral, o estado só aparece quando há problema, como "Este andar: sem conexão".
+- **Trocar de tela começa no topo:** voltar do Personalizar ao Escritório mostra o mapa, e não o fim da página.
+- **Membro sem atalhos de admin:** quem é membro não vê mais "Nome e logo de exemplo" nem "Mudar o horário", que levavam a ajustes que só o admin tem.
+- **Membros:** o "Remover" da própria conta fica desabilitado. Para sair, peça a outro admin.
+
+### Corrigido
+- **Agentes no primeiro carregamento:** quem abria o escritório num andar extra logo depois de reiniciar o servidor via o mapa vazio por uns 20 s. Agora a primeira leitura do andar vem na hora, e a tela relê a cada 1 s até ela chegar (por no máximo 1 minuto).
+
 ## 1.5.0 · 2026-11-14 · Andares e equipe
 
-Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0). Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
-<!-- PENDENTE (Helbert): com o vídeo anexado à release, trocar "Release [`v1.5.0`](...)." por "Release [`v1.5.0`](...), com o vídeo das novidades anexado." aqui e no CHANGELOG.md, como no commit 046b5fb da 1.4.0. -->
+Release [`v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.0), com o vídeo das novidades anexado. Commits: [`v1.4.0...v1.5.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.4.0...v1.5.0).
 
 ### Adicionado
 - **Andares:** cada workspace do agentes.chat pode virar um andar do prédio, com a sua conexão, os seus times, a sua planta, a sua vida social e o seu jornal. Configurações › Andares cria, renomeia e remove (até 6 extras, com a senha da conta), e o elevador da barra troca de andar sem recarregar. Sem andares extras, tudo fica como antes. Veja [Andares](./README.pt-BR.md#andares-vários-workspaces-no-mesmo-prédio).

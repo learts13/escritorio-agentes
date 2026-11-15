@@ -58,7 +58,7 @@ from social import PLACAR_BYTES, PLACAR_MAX, PLACAR_TETO, Social  # noqa: E402
 from visitas_sala import Salas, LimiteRequisicoes  # noqa: E402
 from presenca import Limite as LimitePresenca, Presenca  # noqa: E402
 
-VERSAO = "1.5.0"
+VERSAO = "1.5.1"
 AGENTES_PADRAO = "https://app.agentes.chat"
 # a nuvem ou a sua instalação self-host (o PUBLIC_URL dela): o main() confere (erro_agentes)
 AGENTES = os.environ.get("AGENTES_URL", "").strip().rstrip("/") or AGENTES_PADRAO
@@ -980,6 +980,7 @@ class Leitor(threading.Thread):
     def run(self):
         if self.atraso:
             self.acordado.wait(self.atraso)
+            self.atraso = 0
             self.acordado.clear()
         while not self.parado:
             self.acordado.wait(self.ciclo())
@@ -993,6 +994,11 @@ class Leitor(threading.Thread):
     def acordar(self):
         """A próxima leitura sai agora (a volta do OAuth). A pausa de um 429 continua: o ciclo() confere antes."""
         self.acordado.set()
+
+    def ver(self):
+        """Alguém abriu este andar (/api/estado): a 1ª leitura, escalonada na partida, sai agora em vez de na vez dele."""
+        if self.atraso:
+            self.acordar()
 
     def foto(self):
         with self.trava:
@@ -3080,6 +3086,8 @@ class Pagina(BaseHTTPRequestHandler):
             return self._sem_andar()
         if rota == "/api/estado":
             clima, leitor = getattr(self.server, "clima", None), andar.leitor
+            if hasattr(leitor, "ver"):
+                leitor.ver()
             do_dia = getattr(leitor, "conversas_do_dia", None)   # modo e meia-noite conferidos aqui, a cada pedido
             agora, pode = time.time(), not membro and self._pode_responder(andar)
             aceita = (lambda it: andar.respostas.aceita(it, agora)) if pode else None

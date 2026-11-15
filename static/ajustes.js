@@ -626,6 +626,7 @@ const Ajustes = (() => {
     const ed = el("button", "botao fantasma", "Andares"), rm = el("button", "botao fantasma", "Remover");
     ed.type = rm.type = "button"; ed.hidden = c.papel !== "membro";
     ed.setAttribute("aria-label", `Editar os andares de ${quem}`); rm.setAttribute("aria-label", `Remover a conta de ${quem}`);
+    if (eu) { rm.disabled = true; rm.title = "Para sair, peça a outro admin para remover a sua conta"; rm.setAttribute("aria-label", "Remover a sua conta: para sair, peça a outro admin"); }
     const acoes = el("div", "andar-acoes"); acoes.append(papel, ed, rm);
     topo.append(info, acoes);
     const painel = el("div", "andar-painel"); painel.hidden = true;
@@ -669,12 +670,10 @@ const Ajustes = (() => {
       painel.append(f); const primeira = f.querySelector("input:not(:disabled)"); (primeira || ok).focus();
     }));
     rm.addEventListener("click", () => abrirPainel(painel, rm, () => painelConfirmar(painel, () => rm.focus(), {
-      texto: eu ? "Remover a sua própria conta? Você sai agora e não entra mais com ela. Digite a sua senha para confirmar."
-        : `Remover a conta de ${quem} (${c.usuario})? Ela perde o acesso na hora. Digite a sua senha para confirmar.`,
+      texto: `Remover a conta de ${quem} (${c.usuario})? Ela perde o acesso na hora. Digite a sua senha para confirmar.`,
       rotulo: "Remover a conta", senha: true,
       enviar: async senha => {
         await pedirMembros({ acao: "remover", usuario: c.usuario, senha });
-        if (eu) { location.href = "/entrar"; return; }
         await lerMembros(); aviso("membros-aviso-lista", `Conta de ${quem} removida.`, "ok");
       } })));
     return li;
