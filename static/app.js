@@ -147,7 +147,12 @@ function montar(agentes) {
   return true;
 }
 
+// o servidor ainda sem a 1ª leitura do andar ("carregando": recém-iniciado ou na vez escalonada do andar) responde sem
+// agentes; relê a cada 1 s até ela chegar, em vez de deixar o mapa vazio até a leitura de 10 s. Quando ela chega, o elevador
+// (a conexão de cada andar vem do config, relido a cada minuto) deixa de mostrar "conectando…" na hora
+let releCedo = 0, eraCarregando = false, vezesCedo = 0;   // teto: 60 releituras de 1 s, depois só a de 10 s
 async function buscar() {
+  clearTimeout(releCedo);
   if (trocando) return;   // a troca de andar chama de novo quando o config novo chegar
   const pedido = performance.now(), andar = Andar.atual;
   try {
@@ -170,6 +175,11 @@ async function buscar() {
     if (!$("v-jornal").hidden) Jornal.abrir();   // os nomes vêm desta leitura; o jornal em si é relido a cada minuto
     if (!$("ficha").hidden) renderFicha();
     vigiarSocial(); vigiarGreve();
+    const carregando = estado.conexao === "carregando";
+    vezesCedo = carregando ? vezesCedo + 1 : 0;
+    if (carregando && vezesCedo <= 60) releCedo = setTimeout(buscar, 1000);
+    else if (eraCarregando && andares.length >= 2) recarregarAndares();
+    eraCarregando = carregando;
   } catch (e) {
     if (e instanceof AndarInvalido && andar === Andar.atual) { voltarAoPrincipal(); return; }
     if (andar !== Andar.atual) return;
@@ -2245,7 +2255,7 @@ function mostrarElevador() {
     }
     sel.value = atual.id;
     caixa.querySelector(".elevador-led").dataset.conexao = atual.conexao;
-    const estadoAndar = caixa.querySelector(".elevador-estado"); if (estadoAndar) { textoSe(estadoAndar, Andar.rotuloConexao(atual.conexao)); estadoAndar.dataset.conexao = atual.conexao; }
+    const estadoAndar = caixa.querySelector(".elevador-estado"); if (estadoAndar) { textoSe(estadoAndar, atual.conexao === "conectado" ? "" : `Este andar: ${Andar.rotuloConexao(atual.conexao)}`); estadoAndar.dataset.conexao = atual.conexao; }
     sel.title = `Andar ${atual.nome}: ${Andar.rotuloConexao(atual.conexao)}`;
   }
   chaveElevador = chave;
@@ -2307,6 +2317,7 @@ async function trocarAndar(id, aviso) {
 }
 
 // ---------- telas (rotas pelo #) ---------------------------------------------------
+let telaAtual = "";
 function rota() {
   if (gavetaAberta()) { fecharGaveta(); $("principal").focus({ preventScroll: true }); }   // item do menu na gaveta: o foco vai ao conteúdo
   const r = (location.hash || "#escritorio").slice(1);
@@ -2314,6 +2325,10 @@ function rota() {
   // na demonstração o Personalizar não existe: ele grava a marca no servidor de verdade
   const valida = TELAS.includes(r) && !(r === "personalizar" && Brincar.demo) && !(r === "conversas" && souMembro()) ? r : "escritorio";
   for (const v of TELAS) $(`v-${v}`).hidden = v !== valida;
+  // outra tela começa no topo (sem isso, voltar do Personalizar ao Escritório deixava o mapa fora de vista); o pulo para
+  // uma âncora da mesma tela (#principal, #aviso-greve) não troca de tela e fica como está
+  if (telaAtual && valida !== telaAtual) scrollTo({ top: 0, behavior: "instant" });
+  telaAtual = valida;
   if (valida === "personalizar" && window.Personalizar) { Personalizar.abrir(config); if (window.Ajustes) Ajustes.abrir(config); }
   if (valida === "conversas") paginaConversas();
   if (valida === "jornal") Jornal.abrir();

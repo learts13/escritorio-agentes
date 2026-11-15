@@ -4,6 +4,7 @@ import shutil
 import stat
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.parse
@@ -107,6 +108,27 @@ class OutroWorkspace(unittest.TestCase):
         l = e.Leitor(None)
         self.assertIsNone(l.org)
 
+    def test_alguem_vendo_o_andar_adianta_a_primeira_leitura(self):
+        """O escalonamento da partida (atraso) deixava o andar sem agentes até a vez dele; quem abre o andar não espera."""
+        class Leitor(e.Leitor):
+            def ciclo(self, agora=None):
+                self.voltas += 1
+                return 3600
+        l = Leitor(None, atraso=3600)
+        l.voltas = 0
+        l.start()
+        time.sleep(0.2)
+        self.assertEqual(l.voltas, 0)   # controle: sem ninguém olhando, espera a vez dele
+        l.ver()
+        fim = time.monotonic() + 5
+        while l.voltas < 1 and time.monotonic() < fim:
+            time.sleep(0.01)
+        self.assertEqual(l.voltas, 1)
+        l.ver()   # já leu: as próximas telas não puxam leituras a mais
+        time.sleep(0.2)
+        self.assertEqual(l.voltas, 1)
+        l.parar()
+
 
 class Http(unittest.TestCase):
     """Dois andares no mesmo servidor: o principal (os arquivos de sempre) e um extra, com leitores falsos."""
@@ -122,6 +144,9 @@ class Http(unittest.TestCase):
 
             def foto(self):
                 return {**e.resumir(self.agentes, []), "atualizado": None, "erro": None, "conexao": "conectado"}
+
+            def ver(self):
+                self.vistas = getattr(self, "vistas", 0) + 1
 
         class Conversas:   # só conhece os ids do próprio andar
             def __init__(self, ids):
@@ -207,6 +232,13 @@ class Http(unittest.TestCase):
         self.assertEqual([t["nome"] for t in cfg["times"]], ["Time B"])
         self.assertNotEqual(cfg["empresa"], "Ignorada")   # a marca é do prédio
         self.assertIn(f"/org/{ORG_B}", cfg["app_url"])
+
+    def test_estado_do_andar_avisa_o_leitor_dele_que_tem_gente_vendo(self):
+        antes_p, antes_x = getattr(self.srv.leitor, "vistas", 0), getattr(self.extra.leitor, "vistas", 0)
+        self.get("/api/config")   # o config lê a conexão de todos os andares: não conta como ver
+        self.assertEqual((getattr(self.srv.leitor, "vistas", 0), getattr(self.extra.leitor, "vistas", 0)), (antes_p, antes_x))
+        self.get(f"/api/estado?andar={self.extra.id}")
+        self.assertEqual((getattr(self.srv.leitor, "vistas", 0), self.extra.leitor.vistas), (antes_p, antes_x + 1))
 
     def test_andar_inexistente_da_404_igual(self):
         for q in ("?andar=ffffffff", "?andar=../x", "?andar=PRINCIPAL"):

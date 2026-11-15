@@ -1,14 +1,16 @@
-/* Chat da sala (chat_sala.js): a pílula no canto de baixo do mapa e o painel que abre dela. Tokens do estilo.css. */
+/* Chat da sala (chat_sala.js): a pílula no canto de baixo à direita do mapa e o painel que abre dela. Tokens do estilo.css.
+   Na direita, a ficha, a conversa e a greve (à esquerda) não brigam com o chat; o "Toque num agente" sobe para cima da pílula. */
 .chat-sala[hidden], .chat-sala [hidden] { display: none !important; }
-.chat-sala-abrir { position: absolute; left: 14px; bottom: 14px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+.chat-sala-abrir { position: absolute; right: 14px; bottom: 14px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
   border-radius: 999px; background: rgba(15, 15, 14, .86); border: 1px solid rgba(255, 255, 255, .14); color: var(--texto); font-size: 14px; font-weight: 600;
   backdrop-filter: blur(6px); box-shadow: var(--relevo); }
 .chat-sala-abrir:hover { background: rgba(40, 40, 39, .92); }
 .chat-sala-n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--destaque); color: var(--destaque-texto); font-size: 12px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; }
-.palco:has(.aviso-greve:not([hidden])) .chat-sala-abrir { bottom: 70px; }   /* a greve fica no mesmo canto */
+.palco:has(.chat-sala:not([hidden])) .dica-mapa { bottom: 66px; }   /* a dica fica em cima da pílula */
 
-.chat-sala-painel { position: absolute; left: 12px; bottom: 12px; z-index: 6; width: min(340px, calc(100% - 24px)); max-height: min(440px, calc(100% - 64px)); display: flex; flex-direction: column;
+.chat-sala-painel { position: absolute; right: 12px; bottom: 12px; z-index: 6; width: min(340px, calc(100% - 24px)); max-height: min(440px, calc(100% - 76px));   /* 76: livre dos controles no alto */
+  display: flex; flex-direction: column;
   overflow: hidden; border-radius: 16px; background: var(--cartao); border: 1px solid var(--borda-forte); box-shadow: 0 18px 50px rgba(0, 0, 0, .6); animation: subir var(--medio); }
 .chat-sala-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--linha); }
 .chat-sala-topo div { min-width: 0; }
@@ -39,8 +41,8 @@ body.tv .chat-sala, body.modo-foto .chat-sala { display: none !important; }
 
 @media (max-width: 760px) {
   /* tela cheia: no canto de baixo à esquerda, livre da pílula da câmera (à direita) */
-  .chat-sala-abrir { left: 8px; bottom: 8px; padding: 0 12px; }
-  .palco:has(.aviso-greve:not([hidden])) .chat-sala-abrir { bottom: 60px; }
+  .chat-sala-abrir { left: 8px; right: auto; bottom: 8px; padding: 0 12px; }
+  .palco:has(.aviso-greve:not([hidden])) .chat-sala-abrir { bottom: 60px; }   /* a greve fica no mesmo canto */
   .chat-sala-painel { left: 8px; right: 68px; bottom: 8px; width: auto; max-height: min(60vh, calc(100% - 56px)); }
   /* mapa em cartão: o "Abrir o mapa em tela cheia" ocupa o pé; a pílula sobe para o canto de cima e o painel cobre o cartão */
   .palco-cartao:not(.cheio) .chat-sala-abrir { top: 10px; right: 10px; left: auto; bottom: auto; min-height: 44px; }

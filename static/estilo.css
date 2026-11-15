@@ -1070,7 +1070,9 @@ body:has(.sim-aviso) main { padding-bottom: calc(96px + env(safe-area-inset-bott
   font-size: 13.5px; text-overflow: ellipsis; }
 .elevador select:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
 .elevador-topo { display: flex; align-items: center; gap: 6px; min-width: 0; padding-left: 2px; }
-.elevador-topo select { width: min(150px, 36vw); height: 40px; }
+.elevador-topo select { width: auto; field-sizing: content; max-width: min(150px, 36vw); height: 40px; text-overflow: ellipsis; }
+/* celular: o LED (a conexão) e o andar abreviado, para o nome da empresa caber; a lista aberta mostra o nome inteiro e o estado */
+@media (max-width: 520px) { .elevador-topo select { max-width: 92px; font-size: 14px; } }
 .elevador-lat { display: flex; flex-direction: column; gap: 4px; padding: 0 6px; }
 .elevador-rot { font: 650 11.5px "Source Sans 3", system-ui, sans-serif; letter-spacing: .5px; text-transform: uppercase; color: var(--suave); }
 .elevador-campo { display: flex; align-items: center; gap: 8px; }
@@ -1078,7 +1080,7 @@ body:has(.sim-aviso) main { padding-bottom: calc(96px + env(safe-area-inset-bott
 .elevador-estado { margin: 0; font-size: 12px; color: var(--suave); }
 .elevador-estado:empty { display: none; }
 .elevador-estado[data-conexao="outra_org"], .elevador-estado[data-conexao="recusada"] { color: var(--ambar-texto); }
-@media (max-width: 380px) { .elevador-topo select { width: min(124px, 34vw); } }
+@media (max-width: 380px) { .elevador-topo select { max-width: 78px; } }
 
 /* Configurações > Andares */
 .andares-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -1091,6 +1093,7 @@ body:has(.sim-aviso) main { padding-bottom: calc(96px + env(safe-area-inset-bott
 .andar-conexao { font-size: 12.5px; color: var(--texto2); }
 .andar-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
 .andar-acoes .botao, .andar-form .botao { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; }
+.andar-acoes .botao:disabled { cursor: not-allowed; }   /* o "Remover" da própria conta */
 .andar-painel { padding: 4px 0 2px; }
 .andar-form { display: flex; flex-direction: column; gap: 8px; }
 .andar-form .ajuda { margin: 0; }
