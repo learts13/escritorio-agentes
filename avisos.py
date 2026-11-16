@@ -9,6 +9,9 @@ quem lê e grava o arquivo é o escritorio.py (ler_push e o guardar que ele pass
 de uma lista fechada, e nunca vai ao log; o envio não segue redirecionamento, e 404 ou 410 apagam a assinatura.
 Dispara nas transições pediu_aprovacao e pediu_resposta do Diario, numa thread própria: um aviso por run_id e estado,
 no máximo 1 por minuto e 50 por dia em cada aparelho. Nada aqui chama o agentes.chat.
+Não perturbe: cada assinatura guarda a conta que assinou, e a conta pode escolher avisar sempre (o padrão), só no
+expediente ou fora de uma janela de silêncio (HH:MM a HH:MM, no fuso do escritório). O aviso calado não vira push depois
+nem gasta o teto: fica só no GET /api/avisos ("Esperando você"). Assinatura sem conta (de antes) avisa sempre.
 """
 import datetime
 import queue
@@ -27,6 +30,9 @@ WINDOWS = ".notify.windows.com"
 # aspas nem "#" (sem fragmento)
 ENDPOINT_OK = re.compile(r"https://([a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+)(/[!$-~]*)?")
 CHAVE_OK = re.compile(r"[A-Za-z0-9_-]{1,200}={0,2}")   # p256dh e auth, em base64url
+CONTA_OK = re.compile(r"[a-z0-9][a-z0-9._-]{2,31}")   # o mesmo formato do usuário do acesso.py
+HHMM_OK = re.compile(r"([01]?[0-9]|2[0-3]):([0-5][0-9])")   # [0-9]: o \d aceita dígitos de outras escritas
+EXPEDIENTE_PADRAO = {"abre": "07:00", "fecha": "20:00"}
 TIPOS = ("pediu_aprovacao", "pediu_resposta")
 TTL, URGENCIA, TIMEOUT = 300, "high", 10   # o aviso vale 5 min no serviço de push; depois disso, perdeu a graça
 ENTRE_ENVIOS, POR_DIA = 60, 50   # por aparelho
@@ -83,12 +89,63 @@ def validar_arquivo(d):
         raise ValueError("formato")
     lista, vistos = [], set()
     for a in d["assinaturas"]:
-        if not isinstance(a, dict) or set(a) != {"endpoint", "desde"} or not endpoint_ok(a["endpoint"]) \
-                or a["endpoint"] in vistos or type(a["desde"]) is not int or not 0 <= a["desde"] <= DESDE_TETO:
+        if not isinstance(a, dict) or set(a) - {"conta"} != {"endpoint", "desde"} or not endpoint_ok(a["endpoint"]) \
+                or a["endpoint"] in vistos or type(a["desde"]) is not int or not 0 <= a["desde"] <= DESDE_TETO \
+                or ("conta" in a and not (isinstance(a["conta"], str) and CONTA_OK.fullmatch(a["conta"]))):
             raise ValueError("assinatura")
         vistos.add(a["endpoint"])
-        lista.append({"endpoint": a["endpoint"], "desde": a["desde"]})
+        lista.append({k: a[k] for k in ("endpoint", "desde", "conta") if k in a})
     return lista
+
+
+def _hhmm(valor):
+    m = HHMM_OK.fullmatch(valor) if isinstance(valor, str) else None
+    if not m:
+        raise ValueError("horário no formato HH:MM, de 00:00 a 23:59")
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+
+def validar_preferencia(d):
+    """O "Não perturbe" da conta, tudo ou nada: {"modo": "sempre"}, {"modo": "expediente"} ou {"modo": "silencio",
+    "de": "HH:MM", "ate": "HH:MM"} (de > ate vira a meia-noite; de == ate é recusado). Devolve normalizado."""
+    if not isinstance(d, dict) or d.get("modo") not in ("sempre", "expediente", "silencio"):
+        raise ValueError("modo: sempre, expediente ou silencio")
+    if d["modo"] != "silencio":
+        if set(d) != {"modo"}:
+            raise ValueError("formato")
+        return {"modo": d["modo"]}
+    if set(d) != {"modo", "de", "ate"}:
+        raise ValueError("formato")
+    de, ate = _hhmm(d["de"]), _hhmm(d["ate"])
+    if de == ate:
+        raise ValueError("o silêncio precisa começar e acabar em horários diferentes")
+    return {"modo": "silencio", "de": de, "ate": ate}
+
+
+def _dentro(minuto, de, ate):
+    """O minuto do dia está em [de, ate)? de > ate é a janela que vira a meia-noite."""
+    a, b = (int(x[:2]) * 60 + int(x[3:]) for x in (de, ate))
+    return a <= minuto < b if a < b else minuto >= a or minuto < b
+
+
+def calado(pref, expediente, agora, fuso):
+    """O push fica calado agora para esta preferência? Sem preferência (ou uma que não valida), nunca: como hoje. "Só no
+    expediente" usa o expediente do escritório (sem um válido, 07:00 às 20:00); a hora é a do fuso do escritório."""
+    try:
+        pref = validar_preferencia(pref)
+    except ValueError:
+        return False
+    if pref["modo"] == "sempre":
+        return False
+    hora = datetime.datetime.fromtimestamp(agora, fuso)
+    minuto = hora.hour * 60 + hora.minute
+    if pref["modo"] == "silencio":
+        return _dentro(minuto, pref["de"], pref["ate"])
+    try:
+        abre, fecha = _hhmm(expediente["abre"]), _hhmm(expediente["fecha"])
+    except (ValueError, TypeError, KeyError):
+        abre, fecha = EXPEDIENTE_PADRAO["abre"], EXPEDIENTE_PADRAO["fecha"]
+    return abre != fecha and not _dentro(minuto, abre, fecha)
 
 
 class _SemRedirecionar(urllib.request.HTTPRedirectHandler):
@@ -116,17 +173,19 @@ class Avisos(threading.Thread):
     com os serviços de push é esta thread, fora da trava."""
 
     def __init__(self, chave, cabecalho, log, fuso, guardar=None, assinaturas=None, enviar=abrir, destino=None,
-                 desligado=None):
+                 desligado=None, preferencia=None, expediente=None):
         """chave: a chave pública VAPID (base64url) do GET /api/push/chave; cabecalho(endpoint, agora): o Authorization do
         envio ("vapid t=..., k=..."), assinado de novo só a cada CABECALHO_VALE por aud; guardar(bytes): o gravar() atômico do push.json; assinaturas: o que o ler_push()
         leu ao subir (validado, ou None); destino(endpoint): só a prévia (--push) passa, e manda tudo a um servidor falso
         local em vez do serviço de push. desligado: o motivo do DESLIGADO (sem chave nem cabecalho), quando o push não
-        pode funcionar: nada se assina nem se envia, e as rotas dizem o porquê (409)."""
+        pode funcionar: nada se assina nem se envia, e as rotas dizem o porquê (409). preferencia(conta): o "Não perturbe"
+        da conta (ou None); expediente(): o {"abre", "fecha"} do escritório. Sem eles, avisa sempre."""
         super().__init__(daemon=True)
         if (desligado is None) == (chave is None) or (desligado is not None and desligado not in DESLIGADO):
             raise ValueError("chave e cabecalho, ou o motivo de estar desligado")
         self.chave, self.cabecalho, self.log, self.fuso, self.desligado = chave, cabecalho, log, fuso, desligado
         self.guardar, self.enviar, self.destino = guardar, enviar, destino
+        self.preferencia, self.expediente = preferencia, expediente
         self.assinaturas = list(assinaturas or [])
         self.trava = threading.Lock()
         self.fila = queue.Queue(FILA_MAX)
@@ -149,20 +208,27 @@ class Avisos(threading.Thread):
         """GET /api/push/chave: (status HTTP, corpo)."""
         return self._recusa() if self.desligado else (200, {"chave": self.chave})
 
-    def assinar(self, endpoint, agora):
-        """POST /api/push/assinar, com o endpoint já validado: (status HTTP, corpo). O mesmo endpoint não duplica."""
+    def assinar(self, endpoint, agora, conta=None):
+        """POST /api/push/assinar, com o endpoint já validado: (status HTTP, corpo). O mesmo endpoint não duplica; assinado
+        de novo por outra conta (outra pessoa no mesmo aparelho), passa a seguir o "Não perturbe" dela."""
         if self.desligado:
             return self._recusa()
+        nova = {"endpoint": endpoint, "desde": int(agora), **({"conta": conta} if conta else {})}
         with self.trava:
-            if any(a["endpoint"] == endpoint for a in self.assinaturas):
+            antes = list(self.assinaturas)
+            i = next((i for i, a in enumerate(antes) if a["endpoint"] == endpoint), None)
+            if i is not None and antes[i].get("conta") == conta:
                 return 200, {"ok": True}
-            if len(self.assinaturas) >= ASSINATURAS_MAX:
+            if i is None and len(antes) >= ASSINATURAS_MAX:
                 return 409, {"erro": "cheio", "mensagem": f"Já há {ASSINATURAS_MAX} aparelhos avisados. Desligue um antes."}
-            self.assinaturas.append({"endpoint": endpoint, "desde": int(agora)})
+            if i is None:
+                self.assinaturas.append(nova)
+            else:
+                self.assinaturas[i] = {**nova, "desde": antes[i]["desde"]}
             try:
                 self._gravar()
             except OSError as x:   # o arquivo fica como estava, e a memória também
-                self.assinaturas.pop()
+                self.assinaturas = antes
                 self.log(evento="push", resultado="nao_gravou", detalhe=type(x).__name__)
                 return 500, {"erro": "disco", "mensagem": "Não consegui guardar. Tente de novo."}
             total = len(self.assinaturas)
@@ -186,17 +252,23 @@ class Avisos(threading.Thread):
         self.log(evento="push", resultado="saiu", aparelhos=total)
         return 200, {"ok": True}
 
-    def limpar(self):
-        """"Sair de todos os aparelhos": nenhum aparelho segue recebendo aviso (um celular perdido, por exemplo)."""
+    def limpar(self, conta=None):
+        """"Sair de todos os aparelhos" (um celular perdido, por exemplo): sem conta, nenhum aparelho segue recebendo
+        aviso (o admin); com conta, só os aparelhos que ela assinou (o membro, ou a conta removida)."""
         with self.trava:
-            if not self.assinaturas:
+            antes = self.assinaturas
+            self.assinaturas = [a for a in antes if conta is not None and a.get("conta") != conta]
+            if len(self.assinaturas) == len(antes):
                 return
-            antes, self.assinaturas = self.assinaturas, []
             try:
                 self._gravar()
-            except OSError as x:   # a memória já está vazia; o arquivo é regravado na próxima mudança
+            except OSError as x:   # a memória já está sem eles; o arquivo é regravado na próxima mudança
                 self.log(evento="push", resultado="nao_gravou", detalhe=type(x).__name__)
-        self.log(evento="push", resultado="limpou", aparelhos=len(antes))
+        self.log(evento="push", resultado="limpou", aparelhos=len(antes) - len(self.assinaturas))
+
+    def esquecer(self, conta):
+        """A conta foi removida do prédio: os aparelhos que ela assinou param de receber aviso."""
+        self.limpar(conta)
 
     def publico(self):
         """GET /api/avisos: o último aviso (agente, nome, tipo e quando), nunca o rótulo da tarefa."""
@@ -236,14 +308,36 @@ class Avisos(threading.Thread):
             self.erros.add(type(x).__name__)
             self.log(evento="push", resultado="erro", detalhe=type(x).__name__)
 
+    def _calados(self, contas, agora):
+        """As contas com o push calado agora (o "Não perturbe"). Preferência ou expediente com erro: avisa, como hoje."""
+        if not self.preferencia or not contas:
+            return set()
+        try:
+            expediente = self.expediente() if self.expediente else None
+        except Exception as x:
+            self._erro(x)
+            expediente = None
+        calados = set()
+        for conta in contas:
+            try:
+                if calado(self.preferencia(conta), expediente, agora, self.fuso):
+                    calados.add(conta)
+            except Exception as x:
+                self._erro(x)
+        return calados
+
     def _escolher(self, agora):
-        """Os endpoints que podem receber agora (1 por minuto e 50 por dia em cada aparelho), já contados."""
+        """Os endpoints que podem receber agora (1 por minuto e 50 por dia em cada aparelho), já contados. O de conta
+        calada fica de fora sem contar no teto."""
         dia = datetime.datetime.fromtimestamp(agora, self.fuso).date()
         escolhidos = []
         with self.trava:
+            donos = {a["endpoint"]: a.get("conta") for a in self.assinaturas}
+        calados = self._calados({c for c in donos.values() if c}, agora)   # fora da trava: lê as contas e o expediente
+        with self.trava:
             vivos = {a["endpoint"] for a in self.assinaturas}
             self.contas = {k: v for k, v in self.contas.items() if k in vivos}
-            for endpoint in sorted(vivos):
+            for endpoint in sorted(vivos - {k for k, c in donos.items() if c in calados}):
                 ultimo, dia_conta, n = self.contas.get(endpoint, (None, dia, 0))
                 n = n if dia_conta == dia else 0
                 if (ultimo is not None and agora - ultimo < ENTRE_ENVIOS) or n >= POR_DIA:

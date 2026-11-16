@@ -45,9 +45,9 @@ class Logs(list):
         self.append(campos)
 
 
-def novo(guardar=None, clima=None, semanas=None):
+def novo(guardar=None, clima=None, semanas=None, expediente=None):
     logs = Logs()
-    return jornal.Jornal(logs, e.FUSO, guardar, semanas, clima), logs
+    return jornal.Jornal(logs, e.FUSO, guardar, semanas, clima, expediente), logs
 
 
 def resumo(*trabalhando, esperando=()):
@@ -55,8 +55,37 @@ def resumo(*trabalhando, esperando=()):
                        [{"agente_id": a, "run_id": "w-" + a, "status": "waiting_approval"} for a in esperando]}
 
 
-def numeros(j, agora, presentes=("a1", "a2", "a3")):
-    return {x["id"]: [x[c] for c in jornal.CAMPOS] for x in j.publico(agora, set(presentes))["semana"]["agentes"]}
+def numeros(j, agora, presentes=("a1", "a2", "a3"), campos=("tarefas", "aprovacoes", "respostas", "minutos")):
+    return {x["id"]: [x[c] for c in campos] for x in j.publico(agora, set(presentes))["semana"]["agentes"]}
+
+
+class HoraExtra(unittest.TestCase):
+    """Os minutos trabalhando fora do expediente do andar contam também como hora extra (no fuso do jornal)."""
+    def ler(self, j, hhmm, *trabalhando, n=5):
+        for k in range(n):   # a primeira não credita; as outras, 30 s cada
+            j.ler([], resumo(*trabalhando), t(0, hhmm, 30 * k))
+
+    def test_fora_do_expediente_conta_como_hora_extra(self):
+        j, _ = novo(expediente=lambda: {"abre": "07:00", "fecha": "20:00"})
+        self.ler(j, "10:00", "a1", "a2")   # no expediente: só tempo trabalhando
+        self.assertEqual(numeros(j, t(0), campos=("minutos", "extra")), {"a1": [2, 0], "a2": [2, 0]})
+        j.ultima = None
+        self.ler(j, "21:00", "a1")   # depois das 20:00: hora extra
+        j.ultima = None
+        self.ler(j, "06:58", "a1", n=3)   # antes das 07:00 também
+        self.assertEqual(numeros(j, t(0), campos=("minutos", "extra")), {"a1": [5, 3], "a2": [2, 0]})
+
+    def test_turno_que_vira_a_meia_noite(self):
+        j, _ = novo(expediente=lambda: {"abre": "22:00", "fecha": "06:00"})
+        self.ler(j, "23:00", "a1")
+        j.ultima = None
+        self.ler(j, "12:00", "a2")
+        self.assertEqual(numeros(j, t(0), campos=("minutos", "extra")), {"a1": [2, 0], "a2": [2, 2]})
+
+    def test_sem_expediente_nao_ha_hora_extra(self):
+        j, _ = novo()
+        self.ler(j, "23:00", "a1")
+        self.assertEqual(numeros(j, t(0), campos=("minutos", "extra")), {"a1": [2, 0]})
 
 
 class Contagem(unittest.TestCase):
@@ -110,10 +139,10 @@ class Semanas(unittest.TestCase):
         j.ler([("pediu_resposta", "a1")], resumo(), t(7, "00:00"))   # segunda: semana nova
         pub = j.publico(t(7), {"a1"})
         self.assertEqual(pub["semana"], {"inicio": "2026-11-16", "dias": [],
-                                         "agentes": [{"id": "a1", "tarefas": 0, "aprovacoes": 0, "respostas": 1, "minutos": 0}]})
+                                         "agentes": [{"id": "a1", "tarefas": 0, "aprovacoes": 0, "respostas": 1, "minutos": 0, "extra": 0}]})
         self.assertEqual(pub["anterior"], {"inicio": "2026-11-09", "dias": [{"dia": "2026-11-15", "clima": None, "greves": 0,
                                                                               "brigas": 1}],
-                                           "agentes": [{"id": "a1", "tarefas": 1, "aprovacoes": 0, "respostas": 0, "minutos": 0}]})
+                                           "agentes": [{"id": "a1", "tarefas": 1, "aprovacoes": 0, "respostas": 0, "minutos": 0, "extra": 0}]})
         j.ler([], resumo(), t(21))   # duas semanas depois: as duas saem
         self.assertEqual(list(j.semanas), ["2026-11-30"])
         self.assertEqual(j.publico(t(21), {"a1"})["anterior"]["agentes"], [])
@@ -167,7 +196,7 @@ class Gravacao(unittest.TestCase):
             j.ler([("terminou", "a1")], resumo("a2"), t(0, s=30 * n))
         self.assertEqual(len(gravados), 3)
         semanas = jornal.validar(json.loads(gravados[-1]))
-        self.assertEqual(semanas, {SEG.isoformat(): {"agentes": {"a1": [5, 0, 0, 0], "a2": [0, 0, 0, 2]}, "dias": {}}})
+        self.assertEqual(semanas, {SEG.isoformat(): {"agentes": {"a1": [5, 0, 0, 0, 0], "a2": [0, 0, 0, 2, 0]}, "dias": {}}})
         relido, _ = novo(semanas=semanas)
         self.assertEqual(relido.publico(t(0), {"a1", "a2"}), j.publico(t(0), {"a1", "a2"}))
         j.ler([], resumo(), t(0, s=200))   # nada mudou: não grava
@@ -189,7 +218,7 @@ class Gravacao(unittest.TestCase):
         self.assertEqual((len(tentativas), logs), (2, [{"evento": "jornal", "resultado": "nao_gravou", "detalhe": "OSError"}]))
         falhar[0] = False
         j.ler([], resumo(), t(0, s=120))
-        self.assertEqual(json.loads(tentativas[-1])["semanas"][SEG.isoformat()]["agentes"]["a1"], [4, 0, 0, 0])
+        self.assertEqual(json.loads(tentativas[-1])["semanas"][SEG.isoformat()]["agentes"]["a1"], [4, 0, 0, 0, 0])
         self.assertEqual(len(logs), 1)
 
     def test_cabe_em_64_kb_tirando_os_menos_ativos_da_semana_mais_velha(self):
@@ -236,7 +265,10 @@ class Arquivo(unittest.TestCase):
     def test_tudo_ou_nada(self):
         self.assertIsNone(e.ler_jornal())   # ausente
         self.gravar(self.BOM)
-        self.assertEqual(e.ler_jornal(), self.BOM["semanas"])
+        # de antes da hora extra: os 4 números de sempre, com a hora extra em zero
+        self.assertEqual(e.ler_jornal(), self.com(("semanas", "2026-11-09", "agentes", "a1"), [1, 2, 3, 4, 0])["semanas"])
+        self.gravar(self.com(("semanas", "2026-11-09", "agentes", "a1"), [1, 2, 3, 4, 5]))
+        self.assertEqual(e.ler_jornal()["2026-11-09"]["agentes"]["a1"], [1, 2, 3, 4, 5])
         sem, dia = ("semanas", "2026-11-09"), ("semanas", "2026-11-09", "dias", "2026-11-15")
         ruins = [
             b'{"v": 1, "semanas": {"2026-11-09": {"agentes": {"a1": [1, 2, NaN, 4]}, "dias": {}}}}',
@@ -244,7 +276,8 @@ class Arquivo(unittest.TestCase):
             b'\xff\xfe', b'[]', b" " * (jornal.JORNAL_BYTES + 1),
             self.com(("v",), 2), self.com(("extra",), 1), self.com(sem + ("agentes", "a1"), [1, 2, True, 4]),
             self.com(sem + ("agentes", "a1"), [1, 2, 3.0, 4]), self.com(sem + ("agentes", "a1"), [1, 2, -1, 4]),
-            self.com(sem + ("agentes", "a1"), [1, 2, 3]), self.com(sem + ("agentes", "a1"), [1, 2, 3, jornal.JORNAL_TETO + 1]),
+            self.com(sem + ("agentes", "a1"), [1, 2, 3]), self.com(sem + ("agentes", "a1"), [1, 2, 3, 4, 5, 6]),
+            self.com(sem + ("agentes", "a1"), [1, 2, 3, jornal.JORNAL_TETO + 1]),
             self.com(sem + ("agentes", "a b"), [0, 0, 0, 0]), self.com(sem + ("rotulo",), "x"),
             self.com(dia + ("clima",), "sol"), self.com(dia + ("brigas",), None), self.com(dia + ("greves",), False),
             self.com(("semanas", "2026-11-09", "dias", "2026-11-16"), {"clima": None, "greves": 0, "brigas": 0}),   # outra semana
@@ -327,7 +360,7 @@ class TrocaDeConta(unittest.TestCase):
 
         def volta_do_oauth():   # o que o /oauth/retorno faz
             leitor.zerar_memoria()
-            leitor.jornal.zerar()
+            leitor.conferir_conta(leitor.jornal.zerar)
         leitor.ciclo(t(0))   # conta velha: a base
         leitor.mcp.no_meio = volta_do_oauth
         leitor.ciclo(t(0, s=30))   # conta velha, com a volta no meio: gasta o "pular" do jornal
@@ -340,12 +373,112 @@ class TrocaDeConta(unittest.TestCase):
         self.assertEqual(numeros(leitor.jornal, t(0), {"novo-1"}), {"novo-1": [1, 0, 0, 0]})
 
 
+class MesmaConta(unittest.TestCase):
+    """Reconectar a mesma conta (o token venceu, a pessoa conectou de novo) não zera o jornal nem a vida social: o
+    zerar() só roda se a primeira leitura depois da volta do OAuth vier de outro workspace (nenhum agente em comum)."""
+    def leitor(self, agentes):
+        class Mcp:
+            sessao, pedidos, tarefas = "s", 0, []
+
+            def iniciar(self, token):
+                pass
+
+            def ferramenta(self, nome, args, token):
+                self.pedidos += 1
+                return {"agents": [{"id": i, "name": i, "handle": i} for i in self.agentes]} if nome == "list_agents" \
+                    else {"tasks": self.tarefas}
+
+        class Cred:
+            tok = "t"
+
+            def token(self):
+                return self.tok
+        leitor = e.Leitor(Cred())
+        leitor.mcp, leitor.jornal, zerados = Mcp(), novo()[0], []
+        leitor.mcp.agentes = agentes
+        return leitor, zerados
+
+    def test_a_mesma_conta_nao_zera(self):
+        leitor, zerados = self.leitor(["a1", "a2"])
+        leitor.ciclo(t(0))
+        leitor.jornal.ler([("terminou", "a1")], resumo(), t(0))
+        leitor.conferir_conta(lambda: zerados.append(1))
+        leitor.mcp.agentes = ["a1", "a2", "a3"]   # um agente novo no mesmo workspace
+        leitor.ciclo(t(0, s=30))
+        leitor.ciclo(t(0, s=60))
+        self.assertEqual((zerados, numeros(leitor.jornal, t(0))), ([], {"a1": [1, 0, 0, 0]}))
+
+    def test_outro_workspace_zera_na_primeira_leitura_que_der_certo(self):
+        leitor, zerados = self.leitor(["a1"])
+        leitor.ciclo(t(0))
+        leitor.conferir_conta(lambda: zerados.append(1))
+        leitor.cred.tok = None   # a leitura falha: a conferência espera a próxima que der certo
+        leitor.ciclo(t(0, s=30))
+        self.assertEqual(zerados, [])
+        leitor.cred.tok, leitor.mcp.agentes = "t", ["b1"]
+        leitor.ciclo(t(0, s=60))   # a lista de agentes recarrega na hora, sem esperar os 10 min
+        leitor.ciclo(t(0, s=90))
+        self.assertEqual(zerados, [1])
+
+    def test_sem_leitura_de_antes_zera(self):   # o serviço subiu já sem conexão: não dá para saber se é a mesma conta
+        leitor, zerados = self.leitor(["a1"])
+        leitor.conferir_conta(lambda: zerados.append(1))
+        leitor.ciclo(t(0))
+        self.assertEqual(zerados, [1])
+
+    def test_volta_do_oauth_deixa_a_conferencia_com_o_leitor(self):
+        chamado = []
+
+        class Leitor:
+            def foto(self):
+                return {"agentes": [], "conexao": "conectado"}
+
+            def conferir_conta(self, zerar):
+                chamado.append(zerar)
+
+        class Cred:
+            def concluir(self, codigo, estado):
+                pass
+
+        class Contador:
+            def __init__(self):
+                self.n = 0
+
+            def zerar(self):
+                self.n += 1
+        dados = tempfile.mkdtemp(prefix="jornal-oauth-")
+        srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
+        srv.leitor, srv.cred, srv.acesso, srv.jornal, srv.social = Leitor(), Cred(), Acesso(dados), Contador(), Contador()
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with open(os.path.join(dados, "codigo-primeiro-acesso.txt")) as f:
+                codigo = f.read().strip()
+            srv.acesso.criar_primeiro(codigo, "dono", "senha-bem-grande")
+            cab = {"Cookie": "%s=%s" % (e.nome_cookie(), srv.acesso.entrar("dono", "senha-bem-grande"))}
+
+            class SemSeguir(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, *a):
+                    return None
+            pedido = urllib.request.Request("http://127.0.0.1:%d/oauth/retorno?code=c&state=s" % srv.server_address[1], headers=cab)
+            with self.assertRaises(urllib.error.HTTPError) as volta:
+                urllib.request.build_opener(SemSeguir).open(pedido)
+            self.assertEqual(volta.exception.code, 302)
+            volta.exception.close()
+            self.assertEqual((len(chamado), srv.jornal.n, srv.social.n), (1, 0, 0))   # nada zerado na volta
+            chamado[0]()   # o Leitor chama quando a conta for outra
+            self.assertEqual((srv.jornal.n, srv.social.n), (1, 1))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            shutil.rmtree(dados, ignore_errors=True)
+
+
 class Rota(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         class Leitor:
             def foto(self):
-                return {"agentes": [{"id": "a1"}], "trabalhos": [], "atualizado": None, "erro": None}
+                return {"agentes": [{"id": "a1"}], "trabalhos": [], "atualizado": None, "erro": None, "conexao": "sem_conexao"}
         cls.dados = tempfile.mkdtemp(prefix="jornal-rota-")
         cls.srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
         cls.srv.leitor, cls.srv.cred, cls.srv.acesso = Leitor(), None, Acesso(cls.dados)
@@ -375,8 +508,9 @@ class Rota(unittest.TestCase):
         self.srv.jornal.ler([("terminou", "a1"), ("pediu_aprovacao", "a2")], resumo(), hoje)
         self.assertEqual(self.req()[0], 401)
         st, corpo = self.req(self.sessao)
-        self.assertEqual((st, corpo["v"], set(corpo)), (200, 1, {"v", "semana", "anterior"}))
-        self.assertEqual(corpo["semana"]["agentes"], [{"id": "a1", "tarefas": 1, "aprovacoes": 0, "respostas": 0, "minutos": 0}])
+        self.assertEqual((st, set(corpo), corpo["conexao"]), (200, {"v", "semana", "anterior", "conexao"}, "sem_conexao"))
+        self.assertEqual(corpo["semana"]["agentes"],
+                         [{"id": "a1", "tarefas": 1, "aprovacoes": 0, "respostas": 0, "minutos": 0, "extra": 0}])
         self.srv.jornal = None
         self.assertEqual(self.req(self.sessao)[0], 404)
 

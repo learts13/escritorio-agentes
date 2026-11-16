@@ -157,7 +157,8 @@ def semear_jornal(jornal, arquivo):
     for inicio in (jornal_segunda(hoje) - datetime.timedelta(days=7), jornal_segunda(hoje)):
         dias = [inicio + datetime.timedelta(days=n) for n in range(7) if inicio + datetime.timedelta(days=n) <= hoje]
         semanas[inicio.isoformat()] = {
-            "agentes": {a: [rng.randint(0, 30), rng.randint(0, 8), rng.randint(0, 8), rng.randint(0, 900)] for a in agentes},
+            "agentes": {a: [rng.randint(0, 30), rng.randint(0, 8), rng.randint(0, 8), rng.randint(0, 900),
+                            rng.randint(10, 150) if rng.random() < 0.4 else 0] for a in agentes},
             "dias": {d.isoformat(): {"clima": rng.choice(sorted(jornal_climas)), "greves": int(rng.random() < 0.2),
                                      "brigas": rng.randint(0, 3)} for d in dias}}
     with jornal.trava:
@@ -214,7 +215,7 @@ srv.clima_mundo.estado = {c["id"]: {"tipo": e.TIPOS_CLIMA[i % len(e.TIPOS_CLIMA)
                           for i, c in enumerate(srv.clima_mundo.cidades)}
 # o jornal da semana, como no servidor: o jornal.json vai para a pasta temporária; o clima do meio-dia sai do clima vivo
 srv.jornal = srv.leitor.jornal = e.Jornal(e.log, e.FUSO, lambda dados: e.gravar(e.ARQ_JORNAL, dados), e.ler_jornal(),
-                                          lambda: (srv.clima.foto() or {}).get("tipo"))
+                                          lambda: (srv.clima.foto() or {}).get("tipo"), lambda: e.config_publica()["expediente"])
 if "--push" in ARGS:   # o aviso no celular, com o servidor de push falso no lugar do serviço de verdade
     falso = ThreadingHTTPServer(("127.0.0.1", 0), PushFalso)
     threading.Thread(target=falso.serve_forever, daemon=True).start()

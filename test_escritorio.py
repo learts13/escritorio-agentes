@@ -3535,7 +3535,8 @@ class Previa(unittest.TestCase):
         base = self.subir("--jornal", os.path.join("ferramentas", "previa.exemplo.json"))
         j = json.loads(urllib.request.urlopen(base + "/api/jornal", timeout=10).read())
         self.assertEqual((len(j["semana"]["agentes"]), len(j["anterior"]["agentes"]), len(j["anterior"]["dias"])), (7, 7, 7))
-        self.assertEqual(set(j["semana"]["agentes"][0]), {"id", "tarefas", "aprovacoes", "respostas", "minutos"})
+        self.assertEqual(set(j["semana"]["agentes"][0]), {"id", "tarefas", "aprovacoes", "respostas", "minutos", "extra"})
+        self.assertTrue(any(a["extra"] for a in j["anterior"]["agentes"]))   # a nota da hora extra aparece na prévia
 
     def test_previa_com_cada_estado_de_conexao(self):
         exemplo = os.path.join("ferramentas", "previa.exemplo.json")

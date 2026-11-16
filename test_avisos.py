@@ -244,6 +244,21 @@ class Disparo(unittest.TestCase):
         self.assertEqual((a.assinaturas, avisos.validar_arquivo(json.loads(gravados[-1]))), ([], []))
         self.assertEqual(logs[-1], {"evento": "push", "resultado": "limpou", "aparelhos": 2})
 
+    def test_limpar_e_esquecer_por_conta_tiram_so_os_aparelhos_dela(self):
+        a, logs, _, gravados = novo()
+        outro = "https://web.push.apple.com/QGuNnN8u0R8n2LzR3A"
+        a.assinar(FCM, T0, "ana")
+        a.assinar(APPLE, T0, "bia")
+        a.assinar(outro, T0)   # de antes do Não perturbe: sem conta, só o admin apaga
+        n = len(gravados)
+        a.esquecer("caio")   # sem aparelho dele: nem grava
+        self.assertEqual(len(gravados), n)
+        a.esquecer("ana")   # a conta removida
+        self.assertEqual([x["endpoint"] for x in a.assinaturas], [APPLE, outro])
+        self.assertEqual(logs[-1], {"evento": "push", "resultado": "limpou", "aparelhos": 1})
+        a.limpar("bia")   # o "sair de todos" do membro
+        self.assertEqual([x["endpoint"] for x in json.loads(gravados[-1])["assinaturas"]], [outro])
+
     def test_fora_da_previa_so_manda_para_host_da_lista(self):
         a, _, envios, _ = novo()
         a.assinaturas = [{"endpoint": "https://evil.example/push", "desde": 1}, {"endpoint": "http://127.0.0.1:9/push", "desde": 1}]
@@ -360,6 +375,105 @@ class LeituraDoLeitor(unittest.TestCase):
                                                                 "quando": int(T0 + 30)})
 
 
+def local(h, m=0, dia=9):
+    """O instante (timestamp) de HH:MM no fuso do escritório, em 9/11/2026."""
+    return datetime.datetime(2026, 11, dia, h, m, tzinfo=e.FUSO).timestamp()
+
+
+EXPEDIENTE = {"abre": "07:00", "fecha": "20:00"}
+
+
+class NaoPerturbe(unittest.TestCase):
+    def test_preferencia_tudo_ou_nada(self):
+        self.assertEqual(avisos.validar_preferencia({"modo": "sempre"}), {"modo": "sempre"})
+        self.assertEqual(avisos.validar_preferencia({"modo": "expediente"}), {"modo": "expediente"})
+        self.assertEqual(avisos.validar_preferencia({"modo": "silencio", "de": "22:00", "ate": "7:30"}),
+                         {"modo": "silencio", "de": "22:00", "ate": "07:30"})
+        for ruim in (None, [], {}, {"modo": "nunca"}, {"modo": "sempre", "de": "22:00"}, {"modo": "expediente", "x": 1},
+                     {"modo": "silencio", "de": "22:00"}, {"modo": "silencio", "de": "22:00", "ate": "22:00"},
+                     {"modo": "silencio", "de": "24:00", "ate": "07:00"}, {"modo": "silencio", "de": 22, "ate": "07:00"},
+                     {"modo": "silencio", "de": "22:00", "ate": "07:00", "x": 1}, {"modo": "silencio", "de": "٢٢:00", "ate": "07:00"}):
+            with self.assertRaises(ValueError, msg=ruim):
+                avisos.validar_preferencia(ruim)
+
+    def test_sem_preferencia_ou_avisar_sempre_nunca_cala(self):
+        for pref in (None, {"modo": "sempre"}, {"modo": "outro"}, "lixo"):   # o que não valida se comporta como hoje
+            for h in (0, 3, 12, 23):
+                self.assertFalse(avisos.calado(pref, EXPEDIENTE, local(h), e.FUSO), (pref, h))
+
+    def test_so_no_expediente(self):
+        pref = {"modo": "expediente"}
+        for h, m, cala in ((6, 59, True), (7, 0, False), (12, 0, False), (19, 59, False), (20, 0, True), (23, 0, True)):
+            self.assertEqual(avisos.calado(pref, EXPEDIENTE, local(h, m), e.FUSO), cala, (h, m))
+        noite = {"abre": "22:00", "fecha": "06:00"}   # o turno que vira a meia-noite
+        for h, cala in ((21, True), (22, False), (2, False), (6, True), (12, True)):
+            self.assertEqual(avisos.calado(pref, noite, local(h), e.FUSO), cala, h)
+        self.assertFalse(avisos.calado(pref, None, local(12), e.FUSO))   # sem expediente lido: o padrão, 07:00 às 20:00
+        self.assertTrue(avisos.calado(pref, None, local(21), e.FUSO))
+
+    def test_janela_de_silencio_inclusive_virando_a_meia_noite(self):
+        noite = {"modo": "silencio", "de": "22:00", "ate": "07:00"}
+        for h, m, cala in ((21, 59, False), (22, 0, True), (23, 59, True), (0, 0, True), (6, 59, True), (7, 0, False), (12, 0, False)):
+            self.assertEqual(avisos.calado(noite, EXPEDIENTE, local(h, m), e.FUSO), cala, (h, m))
+        almoco = {"modo": "silencio", "de": "12:00", "ate": "13:30"}
+        for h, m, cala in ((11, 59, False), (12, 0, True), (13, 29, True), (13, 30, False)):
+            self.assertEqual(avisos.calado(almoco, EXPEDIENTE, local(h, m), e.FUSO), cala, (h, m))
+
+    def test_a_hora_e_a_do_fuso_do_escritorio(self):
+        # 10:00 em Brasília são 13:00 em UTC: a janela de 12:00 às 14:00 não vale às 10:00 do escritório
+        pref = {"modo": "silencio", "de": "12:00", "ate": "14:00"}
+        self.assertFalse(avisos.calado(pref, EXPEDIENTE, local(10), e.FUSO))
+        self.assertTrue(avisos.calado(pref, EXPEDIENTE, local(10), datetime.timezone.utc))
+
+    def test_assinatura_guarda_a_conta_e_a_antiga_continua_valendo(self):
+        a, _, _, gravados = novo()
+        self.assertEqual(a.assinar(FCM, T0, "ana"), (200, {"ok": True}))
+        a.assinar(APPLE, T0)   # sem conta (a prévia, ou como era antes)
+        self.assertEqual(avisos.validar_arquivo(json.loads(gravados[-1])),
+                         [{"endpoint": FCM, "desde": int(T0), "conta": "ana"}, {"endpoint": APPLE, "desde": int(T0)}])
+        self.assertEqual(a.assinar(FCM, T0 + 5, "bia"), (200, {"ok": True}))   # outra pessoa no mesmo aparelho: o dono muda
+        self.assertEqual(avisos.validar_arquivo(json.loads(gravados[-1]))[0]["conta"], "bia")
+        n = len(gravados)
+        a.assinar(FCM, T0 + 9, "bia")   # nada mudou: não regrava
+        self.assertEqual(len(gravados), n)
+        a1 = {"endpoint": FCM, "desde": 1}
+        for ruim in ({**a1, "conta": ""}, {**a1, "conta": 3}, {**a1, "conta": "Ana"}, {**a1, "conta": "a" * 33}):
+            with self.assertRaises(ValueError, msg=ruim):
+                avisos.validar_arquivo({"v": 1, "assinaturas": [ruim]})
+
+    def test_o_silencio_pula_o_push_sem_gastar_o_teto(self):
+        prefs = {"ana": {"modo": "silencio", "de": "22:00", "ate": "07:00"}, "bia": {"modo": "expediente"}}
+        a, logs, envios, _ = novo(preferencia=prefs.get, expediente=lambda: EXPEDIENTE)
+        a.assinar(FCM, T0, "ana")
+        a.assinar(MOZ, T0, "bia")
+        a.assinar(APPLE, T0, "caio")   # conta sem preferência: como hoje
+        a.assinar(WNS, T0)             # assinatura antiga, sem conta: como hoje
+        a.disparar(local(23))
+        self.assertEqual(sorted(r.full_url for r in envios), sorted([APPLE, WNS]))
+        self.assertEqual(logs[-1]["enviados"], 2)
+        envios.clear()
+        a.disparar(local(7, 0, dia=10))   # o silêncio acabou: chega na hora, o calado não contou como envio
+        self.assertEqual(sorted(r.full_url for r in envios), sorted([FCM, MOZ, APPLE, WNS]))
+
+    def test_o_calado_continua_no_esperando_voce(self):
+        a, _, envios, _ = novo(preferencia={"ana": {"modo": "silencio", "de": "00:00", "ate": "23:59"}}.get)
+        a.assinar(FCM, T0, "ana")
+        a.transicoes([pedido("r1")], RESUMO, T0)
+        a.disparar(a.fila.get()[0])
+        self.assertEqual(envios, [])
+        self.assertEqual(a.publico()["aviso"]["agente"], "a1")   # a tela segue mostrando o pedido
+        a.disparar(local(23, 59, dia=9) + 60)   # e não vira push depois: nada ficou guardado para mandar
+        self.assertEqual(envios, [])
+
+    def test_preferencia_com_erro_avisa_como_hoje(self):
+        def quebrada(conta):
+            raise OSError("disco")
+        a, logs, envios, _ = novo(preferencia=quebrada, expediente=lambda: 1 / 0)
+        a.assinar(FCM, T0, "ana")
+        a.disparar(T0)
+        self.assertEqual(len(envios), 1)
+
+
 class Rotas(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -405,6 +519,7 @@ class Rotas(unittest.TestCase):
         self.assertEqual(self.req("/api/push/assinar", self.js, assinatura), (200, {"ok": True}))
         self.assertEqual(self.req("/api/push/assinar", self.js, assinatura), (200, {"ok": True}))
         self.assertEqual(len(self.srv.avisos.assinaturas), 1)
+        self.assertEqual(self.srv.avisos.assinaturas[0]["conta"], "dono")   # o aparelho fica com a conta que assinou
         st, corpo = self.req("/api/push/assinar", self.js, {**assinatura, "endpoint": "https://evil.example/push"})
         self.assertEqual((st, corpo["erro"]), (400, "endpoint_invalido"))
         self.assertNotIn("evil", json.dumps(corpo))

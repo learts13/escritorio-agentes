@@ -11,8 +11,8 @@
   <meta name="theme-color" content="#0f0f0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="estilo.css?v=106">
-  <link rel="stylesheet" href="chat_sala.css?v=106">
+  <link rel="stylesheet" href="estilo.css?v=107">
+  <link rel="stylesheet" href="chat_sala.css?v=107">
 </head>
 <body>
   <a class="pular" href="#principal">Ir para o conteúdo</a>
@@ -311,6 +311,22 @@
               <div id="pf-boneco" class="seletor-boneco"></div>
               <p id="pf-aviso" class="aviso-form" role="status"></p>
               <div class="acoes"><button id="pf-salvar" class="botao" type="submit">Salvar perfil</button></div>
+            </form>
+            <form id="form-avisos" class="form-perfil form-avisos" novalidate aria-labelledby="t-avisos">
+              <h3 id="t-avisos">Não perturbe</h3>
+              <p id="av-ajuda" class="ajuda">Quando o aviso no celular pode tocar nos aparelhos em que você o ligou. O que chegar no silêncio não vira aviso depois: fica em “Esperando você”.</p>
+              <fieldset class="av-modos" aria-describedby="av-ajuda">
+                <legend class="oculto">Avisar no celular</legend>
+                <label class="marcar"><input type="radio" name="av-modo" value="sempre" checked><span>Avisar sempre</span></label>
+                <label class="marcar"><input type="radio" name="av-modo" value="expediente"><span id="av-expediente">Só no expediente</span></label>
+                <label class="marcar"><input type="radio" name="av-modo" value="silencio"><span>Silêncio num horário</span></label>
+              </fieldset>
+              <div id="av-janela" class="expediente" hidden>
+                <div class="campo-hora"><label for="av-de">Silêncio a partir de</label><input id="av-de" type="time" value="22:00"></div>
+                <div class="campo-hora"><label for="av-ate">Até</label><input id="av-ate" type="time" value="07:00"></div>
+              </div>
+              <p id="av-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="av-salvar" class="botao" type="submit">Salvar avisos</button></div>
             </form>
           </section>
           <section id="a-clima" class="cartao ajuste so-admin" aria-labelledby="t-clima">
@@ -652,26 +668,27 @@
       </div>
     </div>
   </dialog>
-  <script src="avatar.js?v=106"></script>
-  <script src="mapa.js?v=106"></script>
-  <script src="expediente.js?v=106"></script>
-  <script src="vida.js?v=106"></script>
-  <script src="som.js?v=106"></script>
-  <script src="ceu.js?v=106"></script>
-  <script src="clima.js?v=106"></script>
-  <script src="festas.js?v=106"></script>
-  <script src="simular.js?v=106"></script>
-  <script src="efeitos.js?v=106"></script>
-  <script src="brincar.js?v=106"></script>
-  <script src="tv.js?v=106"></script>
-  <script src="jornal.js?v=106"></script>
-  <script src="novidades.js?v=106"></script>
-  <script src="timelapse.js?v=106"></script>
-  <script src="avisar.js?v=106"></script>
-  <script src="app.js?v=106"></script>
-  <script src="personalizar.js?v=106"></script>
-  <script src="ajustes.js?v=106"></script>
-  <script src="assistente.js?v=106"></script>
-  <script src="chat_sala.js?v=106"></script>
+  <script src="avatar.js?v=107"></script>
+  <script src="mapa.js?v=107"></script>
+  <script src="expediente.js?v=107"></script>
+  <script src="vida.js?v=107"></script>
+  <script src="som.js?v=107"></script>
+  <script src="ceu.js?v=107"></script>
+  <script src="clima.js?v=107"></script>
+  <script src="festas.js?v=107"></script>
+  <script src="simular.js?v=107"></script>
+  <script src="efeitos.js?v=107"></script>
+  <script src="brincar.js?v=107"></script>
+  <script src="tv.js?v=107"></script>
+  <script src="jornal.js?v=107"></script>
+  <script src="novidades.js?v=107"></script>
+  <script src="timelapse.js?v=107"></script>
+  <script src="avisar.js?v=107"></script>
+  <script src="resposta_rapida.js?v=107"></script>
+  <script src="app.js?v=107"></script>
+  <script src="personalizar.js?v=107"></script>
+  <script src="ajustes.js?v=107"></script>
+  <script src="assistente.js?v=107"></script>
+  <script src="chat_sala.js?v=107"></script>
 </body>
 </html>

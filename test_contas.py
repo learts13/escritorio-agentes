@@ -213,6 +213,18 @@ class ContasUnidade(unittest.TestCase):
         self.a.remover("dono")
         self.assertEqual([c["usuario"] for c in self.a.contas()], ["ana"])
 
+    def test_preferencia_de_avisos_da_conta(self):
+        self.criar_dono()
+        self.assertIsNone(self.a.avisos_de("dono"))
+        self.a.salvar_avisos("dono", {"modo": "expediente"})
+        self.assertEqual(Acesso(self.pasta).avisos_de("dono"), {"modo": "expediente"})   # gravado em disco
+        self.assertEqual(self.a.perfil("dono")["nome"], "dono")   # o perfil não muda
+        self.a.salvar_avisos("dono", None)
+        self.assertIsNone(Acesso(self.pasta).avisos_de("dono"))
+        self.assertIsNone(self.a.avisos_de("ninguem"))   # conta que não existe (removida): como hoje
+        with self.assertRaises(KeyError):
+            self.a.salvar_avisos("ninguem", {"modo": "expediente"})
+
     def test_t10_validacao_perfil_nome_e_avatar(self):
         self.criar_dono()
         avatar_ok = {"color": "teal", "eyes": "happy", "accessory": "crown"}

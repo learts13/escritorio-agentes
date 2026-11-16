@@ -4,6 +4,24 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 1.5.2 · 2026-11-15 · Newspaper per floor and overtime
+
+Release [`v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.2). Commits: [`v1.5.1...v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.1...v1.5.2).
+
+### Added
+- **Quick replies:** in an open conversation, with reply mode on, ready-made buttons ("Pode seguir", "Sim", "Não", "Pare", "Resuma o que fez") fill in the reply box. You still send it, with the usual Send button, after checking.
+- **Do not disturb:** in **Settings › My profile**, each account chooses when phone alerts ring on the devices where it turned them on: always, only during office hours, or with quiet hours. What arrives during quiet hours does not become an alert later: it stays in **Esperando você** (waiting for you).
+- **Overtime on the map:** outside office hours, agents who are working stay at their desk with the lamp on, and the card shows "Hora extra" (overtime). Waiting for your approval or answer does not count.
+- **Overtime in the newspaper:** the newspaper counts time working outside the floor's office hours and says who stayed the longest.
+
+### Changed
+- **Economy mode:** the map draws fewer frames when nothing moves. Measured at 1280 px over 60 s: idle, from 154% to 49% CPU; with rain, from 166% to 119%; with agents walking, from 128% to 100%.
+
+### Fixed
+- **Newspaper per floor:** the issue carries the company and floor name, and says when the floor is not connected, linked to another workspace, reading late or still without activity. Morpheus spotted the wrong name on the 2nd floor (board task #14) and sent the first fix in PR [#30](https://github.com/HelbertMoura/escritorio-agentes/pull/30), merged into this one.
+- **Reconnecting the same account:** connecting the same agentes.chat account again no longer clears the newspaper or the alerts; only a different account does. If the service restarts before the first read that checks the account, that clearing is lost.
+- **Alerts of a removed account:** removing an account turns off phone alerts on the devices it turned them on, and a member's **Sign out of all devices** turns off alerts only on their own devices.
+
 ## 1.5.1 · 2026-11-14 · Chat on the right and tweaks
 
 Release [`v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.1). Commits: [`v1.5.0...v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.0...v1.5.1).
