@@ -37,6 +37,91 @@
   background: var(--destaque); color: var(--destaque-texto); }
 .chat-sala-form button:disabled { opacity: .6; cursor: progress; }
 
+/* ---- 1.6: o painel de conversa da equipe (o mesmo <section> com .equipe, montado pelo chat_sala.js) ---- */
+.chat-sala-painel.equipe { width: min(400px, calc(100% - 24px)); max-height: min(600px, calc(100% - 76px)); }
+.chat-sala-painel.equipe > * { flex: none; }   /* só o corpo estica; topo, abas, avisos e o formulário ficam inteiros */
+.chat-sala-painel.equipe > .chat-sala-corpo { flex: 1 1 auto; }
+.equipe .chat-sala-topo { padding: 6px 6px 6px 8px; gap: 4px; }
+.equipe .chat-sala-topo > div { flex: 1; padding-left: 6px; }
+.chat-sala-icone { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--r-item); background: transparent; color: var(--suave); }
+.chat-sala-icone:hover, .chat-sala-icone[aria-expanded="true"] { background: var(--cartao2); color: var(--texto); }
+.chat-sala-abas { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--linha); overflow-x: auto; scrollbar-width: none; }
+.chat-sala-aba { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--suave); font-size: 13.5px; font-weight: 600; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-sala-aba:hover { color: var(--texto); background: var(--cartao2); }
+.chat-sala-aba[aria-current="true"] { color: var(--texto); background: var(--cartao3); border-color: var(--borda-forte); }
+.chat-sala-aba-n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--destaque); color: var(--destaque-texto); font-size: 11.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; }
+.chat-sala-busca { padding: 8px; border-bottom: 1px solid var(--linha); }
+.chat-sala-busca input { width: 100%; min-height: 44px; padding: 0 12px; border-radius: var(--r-botao); border: 1px solid var(--borda); background: var(--campo); color: var(--texto); font-size: 16px; }
+.chat-sala-fixo { margin: 0; padding: 8px 14px; font-size: 12.5px; line-height: 18px; color: var(--ambar-texto); background: var(--ambar-fundo); border-bottom: 1px solid var(--linha); }
+.chat-sala-registro { margin: 0; padding: 6px 14px; font-size: 12.5px; color: var(--suave); border-bottom: 1px solid var(--linha); }
+.chat-sala-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.chat-sala-corpo .chat-sala-lista { flex: none; overflow: visible; }
+.chat-sala-antes, .chat-sala-auditar { align-self: center; margin: 8px 12px 0; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--borda-forte);
+  background: transparent; color: var(--texto2); font-size: 13px; font-weight: 600; }
+.chat-sala-antes:hover, .chat-sala-auditar:hover { background: var(--cartao2); color: var(--texto); }
+.chat-sala-retencao { margin: 0; padding: 4px 14px; font-size: 11.5px; color: var(--rotulo); border-top: 1px solid var(--linha); }
+.chat-sala-itens { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.chat-sala-item { width: 100%; min-height: 48px; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; padding: 6px 10px; border: 0;
+  border-radius: var(--r-item); background: transparent; color: var(--texto); text-align: left; }
+.chat-sala-item:hover { background: var(--cartao2); }
+.chat-sala-item-nome { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-sala-item-det { grid-column: 1; font-size: 12.5px; color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-sala-item .chat-sala-n { grid-column: 2; grid-row: 1 / span 2; }
+.chat-sala-secao { margin: 12px 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--rotulo); }
+.chat-sala-registro-item { display: flex; flex-direction: column; padding: 6px 10px; border-top: 1px solid var(--linha); }
+.chat-sala-registro-item .chat-sala-item-nome { font-weight: 500; white-space: normal; }
+
+/* a mensagem */
+.chat-sala-msg.apagada .chat-sala-texto { color: var(--suave); font-style: italic; }
+.chat-sala-mencao { padding: 0 2px; border-radius: 4px; background: var(--azul-fundo); color: var(--azul-texto); font-weight: 600; }
+.chat-sala-mencao.a-mim { background: var(--ambar-fundo); color: var(--ambar-texto); }
+.chat-sala-anexo { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.chat-sala-previa { display: block; flex-basis: 100%; max-width: 100%; max-height: 220px; border-radius: 8px; object-fit: contain; background: var(--campo); }
+.chat-sala-arquivo { margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.chat-sala-arquivo-nome { color: var(--texto); font-weight: 600; overflow-wrap: anywhere; }
+.chat-sala-arquivo-tam { color: var(--suave); font-size: 12px; }
+.chat-sala-baixar { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: var(--r-botao); border: 1px solid var(--borda-forte);
+  color: var(--texto); font-size: 13px; font-weight: 600; text-decoration: none; }
+.chat-sala-baixar:hover { background: var(--cartao3); }
+.chat-sala-reacoes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chat-sala-reacoes:empty { display: none; }
+.chat-sala-reacao { min-height: 32px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--borda); background: var(--campo); color: var(--texto2); font-size: 13px; }
+.chat-sala-reacao[aria-pressed="true"] { border-color: var(--destaque); color: var(--texto); }
+.equipe .chat-sala-msg { position: relative; }
+.chat-sala-acoes { display: flex; gap: 2px; margin-top: 2px; }
+.chat-sala-reagir, .chat-sala-apagar { min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--suave); font-size: 12.5px; }
+.chat-sala-reagir:hover, .chat-sala-apagar:hover { background: var(--cartao3); color: var(--texto); }
+@media (hover: hover) {   /* no mouse, as ações flutuam no canto do balão ao passar ou focar; no toque ficam na linha de baixo */
+  .chat-sala-acoes { position: absolute; top: -14px; right: 6px; margin: 0; padding: 2px; border-radius: 10px; background: var(--cartao2);
+    border: 1px solid var(--borda-forte); box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+  .chat-sala-msg:not(:hover):not(:focus-within) .chat-sala-acoes { opacity: 0; pointer-events: none; }
+}
+.chat-sala-emojis { position: absolute; left: 12px; right: 12px; bottom: 64px; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; padding: 6px;
+  border-radius: 14px; background: var(--cartao2); border: 1px solid var(--borda-forte); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+.chat-sala-emoji { width: 44px; height: 44px; border: 0; border-radius: 10px; background: transparent; font-size: 20px; }
+.chat-sala-emoji:hover, .chat-sala-emoji:focus-visible { background: var(--cartao3); }
+
+/* escrever, menção e anexo */
+.chat-sala-form .chat-sala-anexar { background: transparent; color: var(--suave); }
+.chat-sala-form .chat-sala-anexar:hover { background: var(--cartao2); color: var(--texto); }
+.chat-sala-sugestoes { list-style: none; margin: 0; padding: 4px; border-top: 1px solid var(--linha); max-height: 180px; overflow-y: auto; }
+.chat-sala-sugestao { display: flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--texto); }
+.chat-sala-sugestao[aria-selected="true"], .chat-sala-sugestao:hover { background: var(--cartao3); }
+.chat-sala-sugestao-login { color: var(--suave); font-size: 12.5px; }
+.chat-sala-progresso { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--linha); font-size: 12.5px; color: var(--texto2); }
+.chat-sala-progresso label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-sala-progresso progress { grid-column: 1; width: 100%; height: 6px; accent-color: var(--destaque); }
+.chat-sala-cancelar { grid-column: 2; grid-row: 1 / span 2; min-height: 36px; padding: 0 10px; border: 1px solid var(--borda-forte); border-radius: var(--r-botao); background: transparent; color: var(--texto2); }
+
+/* o "Entendi" antes da 1ª DM: cobre o painel */
+.chat-sala-entendi { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 24px 20px; background: var(--cartao); }
+.chat-sala-entendi h3 { margin: 0; font-size: 16px; color: var(--texto); }
+.chat-sala-entendi p { margin: 0; font-size: 14px; line-height: 21px; color: var(--texto2); }
+.chat-sala-entendi .acoes { display: flex; justify-content: flex-end; gap: 8px; }
+.chat-sala-entendi .botao { min-height: 44px; }
+
 body.tv .chat-sala, body.modo-foto .chat-sala { display: none !important; }
 
 @media (max-width: 760px) {
@@ -44,9 +129,13 @@ body.tv .chat-sala, body.modo-foto .chat-sala { display: none !important; }
   .chat-sala-abrir { left: 8px; right: auto; bottom: 8px; padding: 0 12px; }
   .palco:has(.aviso-greve:not([hidden])) .chat-sala-abrir { bottom: 60px; }   /* a greve fica no mesmo canto */
   .chat-sala-painel { left: 8px; right: 68px; bottom: 8px; width: auto; max-height: min(60vh, calc(100% - 56px)); }
+  .chat-sala-painel.equipe { right: 8px; width: auto; max-height: calc(100% - 16px); }   /* conversa da equipe: o painel todo */
   /* mapa em cartão: o "Abrir o mapa em tela cheia" ocupa o pé; a pílula sobe para o canto de cima e o painel cobre o cartão */
   .palco-cartao:not(.cheio) .chat-sala-abrir { top: 10px; right: 10px; left: auto; bottom: auto; min-height: 44px; }
   .palco-cartao:not(.cheio) .chat-sala-rot { display: none; }
   .palco-cartao:not(.cheio) .chat-sala-painel { left: 0; right: 0; top: 0; bottom: 0; max-height: none; border-radius: inherit; }
+  /* a conversa da equipe não cabe no cartão do mapa (abas, aviso da DM e o formulário comem a lista): a tela toda */
+  .palco-cartao:not(.cheio) .chat-sala-painel.equipe { position: fixed; inset: 0; z-index: 45; height: 100dvh; border-radius: 0; border: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .chat-sala-painel { animation: none; } }
+@media (forced-colors: active) { .chat-sala-aba[aria-current="true"], .chat-sala-sugestao[aria-selected="true"] { outline: 2px solid CanvasText; } }

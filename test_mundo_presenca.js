@@ -241,5 +241,26 @@ const ANA = { usuario: "ana", nome: "Ana", aparencia: { color: "#e11d48", eyes: 
     t.Vida.aoVivo(null);
     assert.equal(t.Vida.olhando(), null);
   }
+  // M2, saguão: o "usuario" da lista é um id opaco e o "eu" da resposta diz qual é o meu. Eu (outra aba) não vira outra
+  // pessoa nem troca o meu login; quem vem sem nome aparece como "Alguém", nunca com o id
+  {
+    const t = carregar();
+    t.Vida.aoVivo({ invisivel: () => false });
+    await t.responder("api/perfil", 200, { usuario: "carla", nome: "Carla", avatar: null });
+    const m = t.Vida.criarMundo(predio());
+    t.Vida.passo(m, 0.05);
+    const eu = t.Vida.pessoas().find(p => p.eu);
+    const SEM_NOME = { ...ANA, usuario: "p_0123456789abcdef", nome: "" };
+    await t.responder("api/ao-vivo", 200, { ...AO_VIVO(3, [SEM_NOME, { ...ANA, usuario: "p_fedcba9876543210", nome: "Carla Outra Aba" }]), eu: "p_fedcba9876543210" });
+    const outros = t.Vida.pessoas().filter(p => !p.eu);
+    assert.equal(outros.length, 1, "o meu id opaco não vira outra pessoa");
+    assert.equal(outros[0].nome, "Alguém");
+    assert.ok(!outros.some(p => p.nome.includes("p_")), "o id nunca é texto na tela");
+    assert.equal(eu.nome, "Carla Outra Aba (você)");
+    // servidor sem o "eu" (fora do saguão, antigo): compara com o login, como antes
+    await t.andar(1500);
+    await t.responder("api/ao-vivo", 200, AO_VIVO(4, [{ ...ANA, usuario: "carla", nome: "Carla" }, ANA]));
+    assert.equal(t.Vida.pessoas().filter(p => !p.eu).map(p => p.nome).join(), "Ana");
+  }
   console.log("test_mundo_presenca: ok");
 })().catch(e => { console.error(e); process.exit(1); });

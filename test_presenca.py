@@ -128,6 +128,23 @@ class Unidade(unittest.TestCase):
                     self.p.enviar("principal", "ana", ruim)
         self.assertEqual(presenca.limpar_texto("linha 1\r\nlinha 2"), "linha 1\nlinha 2")
 
+    def test_consultas_da_onda2(self):
+        """O que o aceno, o status e o saguão perguntam: quem está no andar (login), a sala, se a pessoa está com o
+        escritório aberto em algum andar, o total do prédio sem nome e o seq tocado pelo aceno."""
+        self.entra("ana", sala="cozinha")
+        self.entra("bia", andar="b1")
+        self.entra("ana", andar="b1", sala="reuniao")
+        self.assertEqual(self.p.quem_esta("principal"), {"ana"})
+        self.assertEqual(self.p.sala_de("b1", "ana"), "reuniao")
+        self.assertIsNone(self.p.sala_de("principal", "bia"))
+        self.assertTrue(self.p.aberto("bia"))
+        self.assertFalse(self.p.aberto("cid"))
+        self.assertEqual(self.p.no_predio(), 2)   # a ana em dois andares conta uma vez
+        seq = self.p.ao_vivo("principal", "ana", 0)["seq"]
+        self.assertEqual(self.p.tocar("principal"), seq + 1)
+        self.r.t += presenca.PRESENCA_TTL + 1
+        self.assertEqual((self.p.quem_esta("b1"), self.p.aberto("bia"), self.p.no_predio()), (set(), False, 0))
+
     def test_sair_some_na_hora(self):
         self.entra("ana")
         self.entra("bia")

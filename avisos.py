@@ -12,12 +12,18 @@ no máximo 1 por minuto e 50 por dia em cada aparelho. Nada aqui chama o agentes
 Não perturbe: cada assinatura guarda a conta que assinou, e a conta pode escolher avisar sempre (o padrão), só no
 expediente ou fora de uma janela de silêncio (HH:MM a HH:MM, no fuso do escritório). O aviso calado não vira push depois
 nem gasta o teto: fica só no GET /api/avisos ("Esperando você"). Assinatura sem conta (de antes) avisa sempre.
+Por andar (1.6): o Avisos é um só no prédio (a fila, as assinaturas e a VAPID), e cada andar põe os pedidos dele
+(do_andar). Com pode(conta, andar), o aviso só vai para os aparelhos das contas com papel no andar, conferido na hora do
+envio (quem perde o papel para de receber na hora), e o GET /api/avisos mostra só o que é da conta da sessão.
 """
+import collections
 import datetime
 import queue
 import re
 import threading
+import time
 import json
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -38,7 +44,9 @@ TTL, URGENCIA, TIMEOUT = 300, "high", 10   # o aviso vale 5 min no serviço de p
 ENTRE_ENVIOS, POR_DIA = 60, 50   # por aparelho
 VISTOS_MAX, FILA_MAX, DESDE_TETO = 1000, 50, 10 ** 11
 DESLIGADO = {"precisa_https": "O aviso no celular precisa do escritório em https (ESCRITORIO_BASE)."}
+PRINCIPAL = "principal"   # o id do andar principal (acesso.ANDAR_PRINCIPAL)
 CABECALHO_VALE = 11 * 3600   # o mesmo Authorization por aud, até 1 h antes do exp do JWT (12 h, no vapid.py)
+PESSOAIS_MAX, CONTAS_MAX, COMECO_MAX = 20, 1000, 60   # E.4: a fila de avisos de cada conta, só na memória
 
 
 class EndpointInvalido(ValueError):
@@ -107,19 +115,41 @@ def _hhmm(valor):
 
 def validar_preferencia(d):
     """O "Não perturbe" da conta, tudo ou nada: {"modo": "sempre"}, {"modo": "expediente"} ou {"modo": "silencio",
-    "de": "HH:MM", "ate": "HH:MM"} (de > ate vira a meia-noite; de == ate é recusado). Devolve normalizado."""
+    "de": "HH:MM", "ate": "HH:MM"} (de > ate vira a meia-noite; de == ate é recusado), com o "comeco" opcional (mostrar
+    o começo da mensagem no aviso, E.4; ligado é o padrão e não fica gravado). Devolve normalizado."""
     if not isinstance(d, dict) or d.get("modo") not in ("sempre", "expediente", "silencio"):
         raise ValueError("modo: sempre, expediente ou silencio")
+    if "comeco" in d and type(d["comeco"]) is not bool:
+        raise ValueError("comeco: true ou false")
+    extra = {"comeco": False} if d.get("comeco") is False else {}
+    chaves = set(d) - {"comeco"}
     if d["modo"] != "silencio":
-        if set(d) != {"modo"}:
+        if chaves != {"modo"}:
             raise ValueError("formato")
-        return {"modo": d["modo"]}
-    if set(d) != {"modo", "de", "ate"}:
+        return {"modo": d["modo"], **extra}
+    if chaves != {"modo", "de", "ate"}:
         raise ValueError("formato")
     de, ate = _hhmm(d["de"]), _hhmm(d["ate"])
     if de == ate:
         raise ValueError("o silêncio precisa começar e acabar em horários diferentes")
-    return {"modo": "silencio", "de": de, "ate": ate}
+    return {"modo": "silencio", "de": de, "ate": ate, **extra}
+
+
+def mostra_comeco(pref):
+    """A conta quer o começo da mensagem no aviso? Sem preferência (ou uma que não valida), sim (D5 b)."""
+    return not (isinstance(pref, dict) and pref.get("comeco") is False)
+
+
+def comeco(texto, maximo=COMECO_MAX):
+    """O corpo do aviso: texto puro numa linha só (sem controle, invisível nem bidi), até 60 caracteres; o corte é no
+    último espaço depois do 40º, com "…"."""
+    limpo = " ".join("".join(c if unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn") else
+                             (" " if c in "\n\r\t" else "") for c in texto).split())
+    if len(limpo) <= maximo:
+        return limpo
+    corte = limpo[:maximo - 1]
+    espaco = corte.rfind(" ")
+    return (corte[:espaco] if espaco >= 40 else corte).rstrip() + "…"
 
 
 def _dentro(minuto, de, ate):
@@ -173,25 +203,30 @@ class Avisos(threading.Thread):
     com os serviços de push é esta thread, fora da trava."""
 
     def __init__(self, chave, cabecalho, log, fuso, guardar=None, assinaturas=None, enviar=abrir, destino=None,
-                 desligado=None, preferencia=None, expediente=None):
+                 desligado=None, preferencia=None, expediente=None, pode=None):
         """chave: a chave pública VAPID (base64url) do GET /api/push/chave; cabecalho(endpoint, agora): o Authorization do
         envio ("vapid t=..., k=..."), assinado de novo só a cada CABECALHO_VALE por aud; guardar(bytes): o gravar() atômico do push.json; assinaturas: o que o ler_push()
         leu ao subir (validado, ou None); destino(endpoint): só a prévia (--push) passa, e manda tudo a um servidor falso
         local em vez do serviço de push. desligado: o motivo do DESLIGADO (sem chave nem cabecalho), quando o push não
         pode funcionar: nada se assina nem se envia, e as rotas dizem o porquê (409). preferencia(conta): o "Não perturbe"
-        da conta (ou None); expediente(): o {"abre", "fecha"} do escritório. Sem eles, avisa sempre."""
+        da conta (ou None); expediente(): o {"abre", "fecha"} do escritório (expediente(andar) num andar extra). Sem
+        eles, avisa sempre. pode(conta, andar): a conta (None: a assinatura de antes, sem conta) recebe os avisos do
+        andar? Sem ele, todo aparelho recebe tudo (o escritório de um andar só)."""
         super().__init__(daemon=True)
         if (desligado is None) == (chave is None) or (desligado is not None and desligado not in DESLIGADO):
             raise ValueError("chave e cabecalho, ou o motivo de estar desligado")
         self.chave, self.cabecalho, self.log, self.fuso, self.desligado = chave, cabecalho, log, fuso, desligado
         self.guardar, self.enviar, self.destino = guardar, enviar, destino
-        self.preferencia, self.expediente = preferencia, expediente
+        self.preferencia, self.expediente, self.pode = preferencia, expediente, pode
         self.assinaturas = list(assinaturas or [])
         self.trava = threading.Lock()
         self.fila = queue.Queue(FILA_MAX)
-        self.vistos = {}   # (run_id, tipo) -> None, na ordem de chegada: um aviso por run_id e estado
+        self.vistos = {}   # (andar, run_id, tipo) -> None, na ordem de chegada: um aviso por andar, run_id e estado
         self.contas = {}   # endpoint -> [último envio, dia, envios no dia]
-        self.ultimo = None
+        self.ultimos = {}   # andar -> o último aviso dele, do mais antigo ao mais novo
+        # E.4: conta -> deque[(quando, item, andar)] dos avisos só dela (menção, DM, aceno), válidos por TTL. O item não
+        # leva texto: resolver(conta, item, andar, mais) monta título e corpo na hora do GET (None: não mostra)
+        self.pessoais, self.resolver = {}, None
         self.erros = set()
         self.cabecalhos = {}   # aud (https://host) -> (Authorization, até quando vale); só a thread do envio mexe
 
@@ -268,36 +303,91 @@ class Avisos(threading.Thread):
 
     def esquecer(self, conta):
         """A conta foi removida do prédio: os aparelhos que ela assinou param de receber aviso."""
+        with self.trava:
+            self.pessoais.pop(conta, None)
         self.limpar(conta)
 
-    def publico(self):
-        """GET /api/avisos: o último aviso (agente, nome, tipo e quando), nunca o rótulo da tarefa."""
-        with self.trava:
-            return {"aviso": dict(self.ultimo) if self.ultimo else None}
+    def _recebe(self, conta, andar):
+        """A conta recebe os avisos do andar? Sem pode(), sim; pode() com erro, não (falha fechada)."""
+        if self.pode is None:
+            return True
+        try:
+            return bool(self.pode(conta, andar))
+        except Exception as x:
+            self._erro(x)
+            return False
 
-    def zerar(self):
-        """Troca de conta no OAuth: o aviso e os run_id da conta anterior saem; as assinaturas são dos aparelhos e ficam."""
+    def publico(self, conta=None, agora=None):
+        """GET /api/avisos: o aviso mais novo para a conta. O de agente (agente, nome, tipo e quando, nunca o rótulo da
+        tarefa) dos andares em que ela recebe, ou o pessoal (menção, DM, aceno), montado pelo resolver na hora."""
+        agora = time.time() if agora is None else agora
         with self.trava:
-            self.ultimo, self.vistos = None, {}
+            ultimos = list(self.ultimos.items())
+            fila = self.pessoais.get(conta)
+            pessoais = [p for p in fila if agora - p[0] < TTL] if conta is not None and fila else []
+        vale = [aviso for andar, aviso in ultimos if self._recebe(conta, andar)]   # fora da trava: o pode() lê as contas
+        aviso = dict(vale[-1]) if vale else None
+        if pessoais and self.resolver and (aviso is None or pessoais[-1][0] >= aviso["quando"]):
+            quando, item, andar = pessoais[-1]
+            try:
+                montado = self.resolver(conta, dict(item), andar, len(pessoais) - 1) if self._recebe(conta, andar) else None
+            except Exception as x:
+                self._erro(x)
+                montado = None
+            if montado is not None:
+                aviso = {**montado, "quando": int(quando), "andar": andar}
+        return {"aviso": aviso}
+
+    def pessoal(self, conta, andar, item, agora, push=True):
+        """Um aviso só desta conta (E.4): entra na fila dela (até 20, por 5 min, só na memória) e, com push, vai só para
+        os aparelhos que ela assinou (o "Não perturbe", o papel no andar e os tetos valem como sempre)."""
+        with self.trava:
+            fila = self.pessoais.get(conta)
+            if fila is None:
+                if len(self.pessoais) >= CONTAS_MAX:
+                    self.pessoais = {k: v for k, v in self.pessoais.items() if v and agora - v[-1][0] < TTL}
+                fila = self.pessoais[conta] = collections.deque(maxlen=PESSOAIS_MAX)
+            fila.append((agora, dict(item), andar))
+            if push and not self.desligado and any(a.get("conta") == conta for a in self.assinaturas):
+                try:
+                    self.fila.put_nowait((agora, None, andar, conta))
+                except queue.Full:
+                    pass
+
+    def zerar(self, andar=None):
+        """Troca de conta no OAuth do andar (None: de todos): o aviso e os run_id da conta anterior saem; as assinaturas
+        são dos aparelhos e ficam."""
+        with self.trava:
+            if andar is None:
+                self.ultimos, self.vistos = {}, {}
+            else:
+                self.ultimos.pop(andar, None)
+                self.vistos = {k: v for k, v in self.vistos.items() if k[0] != andar}
+
+    def do_andar(self, andar):
+        """O gancho que o Leitor do andar usa (leitor.avisos): os pedidos dele entram na fila com o andar."""
+        return _DoAndar(self, andar)
 
     # ------------------------------------------------------------ disparo
 
-    def transicoes(self, novos, resumo, agora):
-        """Gancho do Leitor, a cada leitura que deu certo: os pedidos novos ((tipo, id do agente, run_id) do Diario) viram
-        avisos na fila. Rápido e sem rede; nunca levanta (1 linha de log por tipo de erro)."""
+    def transicoes(self, novos, resumo, agora, andar=PRINCIPAL):
+        """Gancho do Leitor do andar, a cada leitura que deu certo: os pedidos novos ((tipo, id do agente, run_id) do
+        Diario) viram avisos na fila, com o andar. Rápido e sem rede; nunca levanta (1 linha de log por tipo de erro)."""
         try:
             nomes = {a["id"]: a.get("nome", "") for a in resumo.get("agentes", [])}
             with self.trava:
                 for tipo, agente, rid in novos:
-                    if tipo not in TIPOS or (rid, tipo) in self.vistos:
+                    if tipo not in TIPOS or (andar, rid, tipo) in self.vistos:
                         continue
-                    self.vistos[(rid, tipo)] = None
+                    self.vistos[(andar, rid, tipo)] = None
                     if len(self.vistos) > VISTOS_MAX:
                         del self.vistos[next(iter(self.vistos))]
-                    self.ultimo = {"agente": agente, "nome": nomes.get(agente, ""), "tipo": tipo, "quando": int(agora)}
+                    aviso = {"agente": agente, "nome": nomes.get(agente, ""), "tipo": tipo, "quando": int(agora)}
+                    self.ultimos.pop(andar, None)   # reentra no fim: o mais novo de todos fica por último
+                    self.ultimos[andar] = aviso
                     if self.assinaturas and not self.desligado:
                         try:
-                            self.fila.put_nowait((agora, dict(self.ultimo)))
+                            self.fila.put_nowait((agora, dict(aviso), andar))
                         except queue.Full:   # a thread está atrasada: este aviso fica só no GET /api/avisos
                             pass
         except Exception as x:
@@ -308,12 +398,13 @@ class Avisos(threading.Thread):
             self.erros.add(type(x).__name__)
             self.log(evento="push", resultado="erro", detalhe=type(x).__name__)
 
-    def _calados(self, contas, agora):
-        """As contas com o push calado agora (o "Não perturbe"). Preferência ou expediente com erro: avisa, como hoje."""
+    def _calados(self, contas, agora, andar=PRINCIPAL):
+        """As contas com o push calado agora (o "Não perturbe"), pelo expediente do andar. Preferência ou expediente com
+        erro: avisa, como hoje."""
         if not self.preferencia or not contas:
             return set()
         try:
-            expediente = self.expediente() if self.expediente else None
+            expediente = (self.expediente(*(() if andar == PRINCIPAL else (andar,)))) if self.expediente else None
         except Exception as x:
             self._erro(x)
             expediente = None
@@ -326,17 +417,20 @@ class Avisos(threading.Thread):
                 self._erro(x)
         return calados
 
-    def _escolher(self, agora):
-        """Os endpoints que podem receber agora (1 por minuto e 50 por dia em cada aparelho), já contados. O de conta
-        calada fica de fora sem contar no teto."""
+    def _escolher(self, agora, andar=PRINCIPAL, conta=None):
+        """Os endpoints que podem receber agora o aviso do andar (só de contas com papel nele; com conta, só os dela; 1 por
+        minuto e 50 por dia em cada aparelho), já contados. O de conta calada fica de fora sem contar no teto."""
         dia = datetime.datetime.fromtimestamp(agora, self.fuso).date()
         escolhidos = []
         with self.trava:
-            donos = {a["endpoint"]: a.get("conta") for a in self.assinaturas}
-        calados = self._calados({c for c in donos.values() if c}, agora)   # fora da trava: lê as contas e o expediente
+            donos = {a["endpoint"]: a.get("conta") for a in self.assinaturas if conta is None or a.get("conta") == conta}
+        # fora da trava: o pode() e o "Não perturbe" leem as contas e o expediente
+        donos = {k: c for k, c in donos.items() if self._recebe(c, andar)}
+        calados = self._calados({c for c in donos.values() if c}, agora, andar)
         with self.trava:
             vivos = {a["endpoint"] for a in self.assinaturas}
             self.contas = {k: v for k, v in self.contas.items() if k in vivos}
+            vivos &= set(donos)
             for endpoint in sorted(vivos - {k for k, c in donos.items() if c in calados}):
                 ultimo, dia_conta, n = self.contas.get(endpoint, (None, dia, 0))
                 n = n if dia_conta == dia else 0
@@ -365,11 +459,12 @@ class Avisos(threading.Thread):
                                               "Urgency": URGENCIA})
         return self.enviar(req)
 
-    def disparar(self, agora):
-        """Envia o aviso a cada aparelho que pode receber; 404 e 410 apagam a assinatura. O log leva só contagens."""
+    def disparar(self, agora, andar=PRINCIPAL, conta=None):
+        """Envia o aviso do andar a cada aparelho que pode receber (com conta, só aos dela); 404 e 410 apagam a
+        assinatura. O log leva só contagens."""
         enviados = falhas = 0
         apagar, codigos = set(), set()
-        for endpoint in self._escolher(agora):
+        for endpoint in self._escolher(agora, andar, conta):
             try:
                 st = self._mandar(endpoint, agora)
             except Exception as x:   # o cabecalho ou o envio com erro: conta como falha, sem derrubar a thread
@@ -396,8 +491,18 @@ class Avisos(threading.Thread):
 
     def run(self):
         while True:
-            agora, _ = self.fila.get()
+            agora, _, andar, *conta = self.fila.get()   # o pessoal leva a conta no 4º campo
             try:
-                self.disparar(agora)
+                self.disparar(agora, andar, *conta)
             except Exception as x:
                 self._erro(x)
+
+
+class _DoAndar:
+    """leitor.avisos de um andar: o transicoes() do Avisos do prédio com o id do andar."""
+
+    def __init__(self, avisos, andar):
+        self.avisos, self.andar = avisos, andar
+
+    def transicoes(self, novos, resumo, agora):
+        self.avisos.transicoes(novos, resumo, agora, self.andar)

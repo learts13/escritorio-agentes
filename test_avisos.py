@@ -474,6 +474,140 @@ class NaoPerturbe(unittest.TestCase):
         self.assertEqual(len(envios), 1)
 
 
+class Pessoais(unittest.TestCase):
+    """1.6 Onda 2 (E.4): menção, DM e aceno são avisos de UMA conta, numa fila na memória (até 20 por conta, 5 min). O
+    texto não fica no aviso: o resolver do escritorio.py lê o store na hora do GET."""
+    ANA, BIA = "https://fcm.googleapis.com/fcm/send/ana", "https://fcm.googleapis.com/fcm/send/bia"
+
+    def montar(self):
+        a, logs, envios, _ = novo(pode=lambda conta, andar: True)
+        a.assinar(self.ANA, T0, "ana")
+        a.assinar(self.BIA, T0, "bia")
+        a.resolver = lambda conta, item, andar, mais: {"tipo": item["tipo"], "titulo": item["de"],
+                                                       "corpo": f"+{mais}" if mais else item["msg"]}
+        return a, envios, logs
+
+    def test_vai_so_para_a_conta_e_o_get_so_mostra_a_dela(self):
+        a, envios, _ = self.montar()
+        a.pessoal("ana", "b1", {"tipo": "dm", "de": "Bia", "msg": 7}, T0)
+        agora, _, andar, conta = a.fila.get_nowait()
+        a.disparar(agora, andar, conta)
+        self.assertEqual([r.full_url for r in envios], [self.ANA])
+        self.assertEqual(a.publico("ana", T0)["aviso"], {"tipo": "dm", "titulo": "Bia", "corpo": 7, "quando": int(T0),
+                                                         "andar": "b1"})
+        self.assertEqual(a.publico("bia", T0), {"aviso": None})   # outra conta no mesmo aparelho não vê
+        self.assertEqual(a.publico(None, T0), {"aviso": None})
+
+    def test_rajada_teto_e_validade(self):
+        a, _, _ = self.montar()
+        for i in range(25):
+            a.pessoal("ana", "b1", {"tipo": "mencao", "de": "Bia", "msg": i}, T0 + i, push=False)
+        self.assertTrue(a.fila.empty())   # push=False: só a tela
+        self.assertEqual(a.publico("ana", T0 + 30)["aviso"]["corpo"], f"+{avisos.PESSOAIS_MAX - 1}")
+        self.assertEqual(a.publico("ana", T0 + 24 + avisos.TTL), {"aviso": None})   # 5 min depois, sumiu
+
+    def test_o_mais_novo_entre_agente_e_pessoal(self):
+        a, _, _ = self.montar()
+        a.transicoes([pedido("r1")], RESUMO, T0 + 10)
+        a.pessoal("ana", "principal", {"tipo": "dm", "de": "Bia", "msg": 1}, T0)
+        self.assertEqual(a.publico("ana", T0 + 20)["aviso"]["agente"], "a1")
+        a.pessoal("ana", "principal", {"tipo": "dm", "de": "Bia", "msg": 2}, T0 + 15)
+        self.assertEqual(a.publico("ana", T0 + 20)["aviso"]["tipo"], "dm")
+
+    def test_resolver_none_ou_sem_papel_nao_mostra(self):
+        a, _, _ = self.montar()
+        a.pessoal("ana", "b1", {"tipo": "dm", "de": "Bia", "msg": 1}, T0)
+        a.pode = lambda conta, andar: False
+        self.assertEqual(a.publico("ana", T0), {"aviso": None})
+        a.pode = lambda conta, andar: True
+        a.resolver = lambda *x: None
+        self.assertEqual(a.publico("ana", T0), {"aviso": None})
+
+    def test_esquecer_a_conta_apaga_os_pessoais(self):
+        a, _, _ = self.montar()
+        a.pessoal("ana", "b1", {"tipo": "dm", "de": "Bia", "msg": 1}, T0, push=False)
+        a.esquecer("ana")
+        self.assertEqual(a.publico("ana", T0), {"aviso": None})
+
+    def test_preferencia_comeco(self):
+        self.assertEqual(avisos.validar_preferencia({"modo": "sempre", "comeco": False}),
+                         {"modo": "sempre", "comeco": False})
+        self.assertEqual(avisos.validar_preferencia({"modo": "silencio", "de": "22:00", "ate": "7:00", "comeco": True}),
+                         {"modo": "silencio", "de": "22:00", "ate": "07:00"})   # ligado é o padrão: não fica gravado
+        with self.assertRaises(ValueError):
+            avisos.validar_preferencia({"modo": "sempre", "comeco": "nao"})
+        self.assertTrue(avisos.mostra_comeco(None) and avisos.mostra_comeco({"modo": "sempre"}))
+        self.assertFalse(avisos.mostra_comeco({"modo": "expediente", "comeco": False}))
+
+    def test_corpo_ate_60_limpo_e_cortado_no_espaco(self):
+        self.assertEqual(avisos.comeco("oi\n\ntudo‮ bem?\x07⁦"), "oi tudo bem?")
+        longo = "palavra " * 20
+        corpo = avisos.comeco(longo)
+        self.assertLessEqual(len(corpo), 60)
+        self.assertTrue(corpo.endswith("…"))
+        self.assertGreater(len(corpo), 40)
+        self.assertEqual(avisos.comeco("x" * 100), "x" * 59 + "…")   # sem espaço depois do 40º: corta seco
+
+
+class PorAndar(unittest.TestCase):
+    """1.6: o Avisos do prédio é um só (a fila e a VAPID); cada andar põe os seus pedidos, e o aviso só vai para as
+    contas com papel no andar, conferido na hora do envio."""
+    B = "b1b2c3d4"
+    APARELHOS = {"ana": "https://fcm.googleapis.com/fcm/send/ana", "dono": "https://fcm.googleapis.com/fcm/send/dono"}
+
+    def montar(self, papeis, **k):
+        a, logs, envios, gravados = novo(pode=lambda conta, andar: (conta, andar) in papeis, **k)
+        for conta, endpoint in self.APARELHOS.items():
+            a.assinar(endpoint, T0, conta)
+        a.assinar(FCM, T0)   # assinatura de antes, sem conta
+        return a, envios
+
+    def test_so_quem_tem_papel_no_andar_recebe(self):
+        a, envios = self.montar({("ana", self.B), ("dono", "principal")})
+        a.do_andar(self.B).transicoes([pedido("r1")], RESUMO, T0)
+        agora, aviso, andar = a.fila.get_nowait()
+        self.assertEqual((aviso["agente"], andar), ("a1", self.B))
+        a.disparar(agora, andar)
+        self.assertEqual([r.full_url for r in envios], [self.APARELHOS["ana"]])   # nem o dono nem a sem conta
+
+    def test_quem_perde_o_papel_para_de_receber_na_hora(self):
+        papeis = {("ana", self.B)}
+        a, envios = self.montar(papeis)
+        a.transicoes([pedido("r1")], RESUMO, T0, andar=self.B)
+        papeis.clear()   # tirada do andar entre o pedido e o envio
+        a.disparar(T0, self.B)
+        self.assertEqual(envios, [])
+        self.assertEqual(a.publico("ana"), {"aviso": None})
+
+    def test_o_esperando_voce_e_de_cada_conta(self):
+        a, _ = self.montar({("ana", self.B), ("dono", "principal")})
+        a.transicoes([pedido("r1", "a1")], RESUMO, T0, andar=self.B)
+        a.transicoes([pedido("r2", "a2")], RESUMO, T0 + 5)
+        self.assertEqual(a.publico("ana")["aviso"]["agente"], "a1")
+        self.assertEqual(a.publico("dono")["aviso"]["agente"], "a2")
+        self.assertEqual(a.publico("caio"), {"aviso": None})
+        a.zerar(self.B)   # troca de conta no OAuth de B: só os avisos de B saem
+        self.assertEqual((a.publico("ana"), a.publico("dono")["aviso"]["agente"]), ({"aviso": None}, "a2"))
+        a.transicoes([pedido("r1", "a1")], RESUMO, T0 + 9, andar=self.B)   # depois do zerar, avisa de novo
+        self.assertEqual(a.publico("ana")["aviso"]["quando"], int(T0 + 9))
+
+    def test_o_mesmo_run_em_dois_andares_sao_dois_avisos(self):
+        a, _ = self.montar({("ana", self.B), ("dono", "principal")})
+        a.transicoes([pedido("r1")], RESUMO, T0)
+        a.transicoes([pedido("r1")], RESUMO, T0, andar=self.B)
+        self.assertEqual(a.fila.qsize(), 2)
+
+    def test_so_no_expediente_usa_o_do_andar(self):
+        pedidos = []
+
+        def expediente(*andar):
+            pedidos.append(andar)
+            return {"abre": "07:00", "fecha": "08:00"}
+        a, envios = self.montar({("ana", self.B)}, preferencia={"ana": {"modo": "expediente"}}.get, expediente=expediente)
+        a.disparar(local(12), self.B)
+        self.assertEqual((envios, pedidos), ([], [(self.B,)]))   # fora do expediente de B: calado
+
+
 class Rotas(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

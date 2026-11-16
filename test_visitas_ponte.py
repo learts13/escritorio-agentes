@@ -361,5 +361,42 @@ class PonteTest(unittest.TestCase):
         self.assertEqual(self.mcp.chamadas, [])
 
 
+class PontePeloAndarDaRecepcao(unittest.TestCase):
+    """1.6 (E.1, D11 a): a ponte resolve a cada passo o andar que atende a recepção e usa o Leitor (o token) dele."""
+
+    def setUp(self):
+        self.tempo = 1000.0
+        self.salas = Salas(lambda: self.tempo)
+        self.mcp = MCPFalso()
+        self.leitor = SimpleNamespace(mcp=self.mcp, cred=SimpleNamespace(token=lambda: 'tok'), pausado=lambda agora=None: False,
+                                      pausa_ate=0, foto=lambda: {'agentes': [{'id': 'ag-1', 'handle': 'senku'}]})
+        self.atual = self.leitor
+        self.ponte = e.PonteVisitas(self.salas, None, lambda: ({'senku'}, CANAL, 'tela'), relogio=lambda: self.tempo,
+                                    atendente=lambda: self.atual)
+        self.visita = self.salas.entrar(self.salas.criar({'id': 'ag-1', 'nome': 'Senku'}))
+
+    def passo(self):
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            self.ponte.passo()
+        return saida.getvalue()
+
+    def test_usa_o_leitor_do_andar_e_sem_andar_fica_desligada(self):
+        self.salas.enviar(self.visita, 'oi')
+        self.passo()
+        self.assertEqual([n for n, _ in self.mcp.chamadas], ['send_to_agent'])
+        antes = len(self.mcp.chamadas)
+        self.atual = None   # o andar da recepção foi removido (ou não tem conexão)
+        self.tempo += 10
+        self.salas.enviar(self.visita, 'depois')
+        self.assertEqual(self.passo(), '')   # sem erro no log
+        self.assertEqual(len(self.mcp.chamadas), antes, 'nem envia nem lê')
+        self.assertIn('não está disponível', ' '.join(self.salas.receber(self.visita)))
+        self.atual = self.leitor   # o andar voltou: a mensagem que esperou na fila vai
+        self.tempo += 10
+        self.passo()
+        self.assertIn('> depois', [a for n, a in self.mcp.chamadas if n == 'send_to_agent'][-1]['message'])
+
+
 if __name__ == '__main__':
     unittest.main()

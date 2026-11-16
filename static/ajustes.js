@@ -571,13 +571,16 @@ const Ajustes = (() => {
   // ---------- membros (GET e POST /api/membros; só admin) -------------------------------------
   // Contas da equipe e convites pendentes. Convidar, mudar papel ou andares e remover levam a senha da conta no corpo (como criar e remover andar).
   // O link do convite só aparece uma vez, no #cv-link, e não é guardado em lugar nenhum. Mensagens do servidor, só por textContent.
+  // Duas visões: no principal, a do prédio (todas as contas, com os andares de cada uma); num andar extra (?andar=X), a do
+  // andar: só as contas com papel em X, o convite só para X e "remover" tira só X da conta (quem apaga a conta é o admin do prédio).
   let contas = [], convites = [], euUsuario = "", lerCaixasConvite = () => [Andar.PRINCIPAL];
-  const pedirMembros = corpo => pedir("api/membros", corpo, true);
-  const erroMembro = e => ([400, 403, 409, 429].includes(e.status) ? e.message : `Não deu certo: ${e.message}`);
-  const andaresDoPredio = () => {   // principal primeiro, depois os extras do /api/config
+  const doAndar = () => Andar.atual !== Andar.PRINCIPAL;
+  const pedirMembros = corpo => pedir("api/membros", corpo);
+  const erroMembro = e => ([400, 403, 404, 409, 429].includes(e.status) ? e.message : `Não deu certo: ${e.message}`);
+  const andaresDoPredio = () => {   // principal primeiro, depois os extras do /api/config; no saguão o principal é de todos e não é caixa
     const todos = cfg && Array.isArray(cfg.andares) ? cfg.andares.filter(a => a && Andar.valido(a.id) && typeof a.nome === "string") : [];
-    const p = todos.find(a => a.id === Andar.PRINCIPAL);
-    return [{ id: Andar.PRINCIPAL, nome: p ? p.nome : "Andar principal" }, ...todos.filter(a => a.id !== Andar.PRINCIPAL).map(a => ({ id: a.id, nome: a.nome }))];
+    const p = todos.find(a => a.id === Andar.PRINCIPAL), extras = todos.filter(a => a.id !== Andar.PRINCIPAL).map(a => ({ id: a.id, nome: a.nome }));
+    return Andar.perfil(cfg).saguao ? extras : [{ id: Andar.PRINCIPAL, nome: p ? p.nome : "Andar principal" }, ...extras];
   };
   const nomeDoAndar = id => (andaresDoPredio().find(a => a.id === id) || { nome: id }).nome;
   const dataConvite = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
@@ -618,14 +621,16 @@ const Ajustes = (() => {
     const eu = c.usuario === euUsuario, li = el("li", "andar-linha"), topo = el("div", "andar-topo"), info = el("div", "andar-info");
     const quem = c.nome || c.usuario;
     info.append(el("strong", null, quem), el("span", "membro-usuario", eu ? `${c.usuario} · você` : c.usuario),
-      el("span", "andar-conexao", c.papel === "admin" ? "Vê todos os andares" : `Andares: ${c.andares.map(nomeDoAndar).join(", ")}`));
+      el("span", "andar-conexao", doAndar() ? (c.papel === "admin" ? "Admin deste andar" : "Membro deste andar")
+        : c.papel === "admin" ? "Vê todos os andares" : `Andares: ${c.andares.map(nomeDoAndar).join(", ")}`));
     const papel = el("div", "membro-papel"), rot = el("label", null, "Papel"), sel = el("select");
     sel.id = `mb-papel-${i}`; rot.htmlFor = sel.id;
     for (const [k, nome] of [["admin", "Admin"], ["membro", "Membro"]]) sel.append(Object.assign(el("option", null, nome), { value: k }));
     sel.value = c.papel; papel.append(rot, sel);
     const ed = el("button", "botao fantasma", "Andares"), rm = el("button", "botao fantasma", "Remover");
-    ed.type = rm.type = "button"; ed.hidden = c.papel !== "membro";
-    ed.setAttribute("aria-label", `Editar os andares de ${quem}`); rm.setAttribute("aria-label", `Remover a conta de ${quem}`);
+    const tirar = doAndar();   // num andar extra, "remover" tira só este andar da conta
+    ed.type = rm.type = "button"; ed.hidden = c.papel !== "membro" || tirar;
+    ed.setAttribute("aria-label", `Editar os andares de ${quem}`); rm.setAttribute("aria-label", tirar ? `Tirar ${quem} deste andar` : `Remover a conta de ${quem}`);
     if (eu) { rm.disabled = true; rm.title = "Para sair, peça a outro admin para remover a sua conta"; rm.setAttribute("aria-label", "Remover a sua conta: para sair, peça a outro admin"); }
     const acoes = el("div", "andar-acoes"); acoes.append(papel, ed, rm);
     topo.append(info, acoes);
@@ -670,11 +675,12 @@ const Ajustes = (() => {
       painel.append(f); const primeira = f.querySelector("input:not(:disabled)"); (primeira || ok).focus();
     }));
     rm.addEventListener("click", () => abrirPainel(painel, rm, () => painelConfirmar(painel, () => rm.focus(), {
-      texto: `Remover a conta de ${quem} (${c.usuario})? Ela perde o acesso na hora. Digite a sua senha para confirmar.`,
-      rotulo: "Remover a conta", senha: true,
+      texto: tirar ? `Tirar ${quem} (${c.usuario}) deste andar? A pessoa perde o acesso a este andar na hora. Digite a sua senha para confirmar.`
+        : `Remover a conta de ${quem} (${c.usuario})? Ela perde o acesso na hora. Digite a sua senha para confirmar.`,
+      rotulo: tirar ? "Tirar do andar" : "Remover a conta", senha: true,
       enviar: async senha => {
         await pedirMembros({ acao: "remover", usuario: c.usuario, senha });
-        await lerMembros(); aviso("membros-aviso-lista", `Conta de ${quem} removida.`, "ok");
+        await lerMembros(); aviso("membros-aviso-lista", tirar ? `${quem} saiu deste andar.` : `Conta de ${quem} removida.`, "ok");
       } })));
     return li;
   }
@@ -696,7 +702,8 @@ const Ajustes = (() => {
     $("membros-lista").replaceChildren(...contas.map(linhaMembro));
     $("convites-vazio").hidden = convites.length > 0;
     $("convites-lista").replaceChildren(...convites.map(linhaConvite));
-    lerCaixasConvite = caixasAndares($("cv-andares"), lerCaixasConvite(), "cv");   // refaz a lista sem perder o que já estava marcado
+    $("cv-andares-campo").hidden = doAndar();   // o convite do andar é só para ele: sem caixas
+    if (!doAndar()) lerCaixasConvite = caixasAndares($("cv-andares"), lerCaixasConvite(), "cv");   // refaz a lista sem perder o que já estava marcado
   }
   const listaAndares = l => (Array.isArray(l) ? l.filter(Andar.valido) : []);
   async function lerMembros() {   // não admin (403/404) ou prévia: a seção continua escondida
@@ -720,7 +727,7 @@ const Ajustes = (() => {
     if (erro) { aviso("cv-aviso", erro[0], "ruim"); $(erro[1]).focus(); return; }
     bt.disabled = true; aviso("cv-aviso", "Gerando o convite…");
     try {
-      const d = await pedirMembros({ acao: "convidar", nome, andares: lerCaixasConvite(), senha });
+      const d = await pedirMembros(doAndar() ? { acao: "convidar", nome, senha } : { acao: "convidar", nome, andares: lerCaixasConvite(), senha });
       if (typeof d.link !== "string" || !d.link) throw new Error("O servidor não devolveu o link.");
       $("cv-nome").value = ""; aviso("cv-aviso", "");
       $("cv-link-campo").value = d.link; aviso("cv-link-aviso", ""); $("cv-link").hidden = false;
@@ -737,6 +744,34 @@ const Ajustes = (() => {
     catch (e) { campo.focus(); campo.select(); aviso("cv-link-aviso", "Não deu para copiar sozinho: o link está selecionado, copie com Ctrl+C.", "ruim"); }
   });
   $("cv-link-fechar").addEventListener("click", () => { $("cv-link-campo").value = ""; $("cv-link").hidden = true; $("cv-nome").focus(); });
+
+  // ---------- conexão do andar (admin de um andar extra): Conectar e Desconectar -------------
+  // Conectar é a navegação de sempre (/oauth/conectar?andar=X). Desconectar revoga o token do andar: POST /oauth/desconectar?andar=X
+  // com a senha da conta (o mesmo balde do login); o campo é limpo logo depois de ler. O org do andar nunca aparece aqui.
+  function mostrarConexaoAndar() {
+    const fora = !Andar.perfil(cfg).admin || !doAndar();
+    $("a-conexao").hidden = fora;
+    if (fora) return;
+    const a = (Array.isArray(cfg.andares) ? cfg.andares : []).find(x => x && x.id === Andar.atual) || {};
+    $("cx-estado").textContent = Andar.rotuloConexao(a.conexao);
+    $("cx-conectar").textContent = a.conexao === "conectado" || a.conexao === "conferindo" ? "Reconectar" : "Conectar";
+    $("cx-conectar").href = Andar.com("/oauth/conectar");
+    $("form-desconectar").hidden = a.conexao === "sem_conexao";
+  }
+  $("form-desconectar").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const campo = $("cx-senha"), bt = $("cx-desconectar"), senha = campo.value;
+    campo.value = "";
+    if (!senha) { aviso("cx-aviso", "Digite a sua senha.", "ruim"); campo.focus(); return; }
+    bt.disabled = true; aviso("cx-aviso", "Desconectando…");
+    try {
+      await pedir("/oauth/desconectar", { senha });
+      aviso("cx-aviso", "Pronto: este andar foi desconectado do agentes.chat. Os agentes saem do mapa até conectar de novo.", "ok");
+      if (typeof recarregarAndares === "function") await recarregarAndares();   // a conexão nova chega no config.andares
+      mostrarConexaoAndar();
+    } catch (e) { aviso("cx-aviso", [400, 403, 429].includes(e.status) ? e.message : `Não desconectou: ${e.message}`, "ruim"); campo.focus(); }
+    finally { bt.disabled = false; }
+  });
 
   // ---------- sair de todos os aparelhos (POST /api/sair-todos) -------------------------------
   // confere a senha no mesmo balde do login (8 erros em 15 min dão 429), zera as sessões e apaga os cookies; a senha não fica no campo
@@ -766,7 +801,12 @@ const Ajustes = (() => {
     origemClima = ["tela", "arquivo", "nenhum"].includes(aj.clima) ? aj.clima : clima ? "arquivo" : "nenhum";
     climaArquivo = aj.clima_arquivo !== false;
     mostrarClima();
-    if (c.papel !== "membro") { lerAndares(); lerMembros(); }   // membro não tem estas abas (o servidor também barra)
+    // o que cada perfil vê: clima, datas e andares são do prédio (só o admin do prédio); no saguão não há times nem conexão
+    const p = Andar.perfil(c);
+    $("a-clima").hidden = $("a-datas").hidden = !p.predio;
+    $("a-equipe").hidden = p.noSaguao;
+    if (p.admin) { if (p.predio) lerAndares(); else $("a-andares").hidden = true; lerMembros(); }   // membro e pessoa não têm estas abas (o servidor também barra)
+    mostrarConexaoAndar();
     if (primeira) {   // as datas em edição ficam enquanto a página estiver aberta, mesmo saindo e voltando
       const f = c.festas && typeof c.festas === "object" ? c.festas : {};
       const rev = aj.rev && Number.isInteger(aj.rev.festas) ? aj.rev.festas : 0;

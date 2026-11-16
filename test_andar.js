@@ -77,4 +77,65 @@ function carregar({ hash = "", guardado = null, quebrado = false } = {}) {
   for (const x of ["<img onerror=1>", "constructor", "__proto__", undefined, 7]) assert.equal(Andar.rotuloConexao(x), "sem leitura");
 }
 
+// a linha "Este andar" do elevador: o saguão (conexao null, que o app.js lê como "") não ganha "sem leitura"
+{
+  const { Andar } = carregar();
+  for (const c of ["", null, undefined, "conectado"]) assert.equal(Andar.estadoDoAndar(c), "", String(c));
+  assert.equal(Andar.estadoDoAndar("sem_conexao"), "Este andar: sem conexão");
+  assert.equal(Andar.estadoDoAndar("<b>"), "Este andar: sem leitura");
+}
+
+// as telas pelo #: Conversas só para o admin do andar; o saguão não tem conversas nem jornal
+{
+  const { Andar } = carregar();
+  const classico = { terreo: "classico", andar: "principal", papel: "admin", admin_predio: true };
+  const saguao = { terreo: "saguao", andar: "principal", papel: "pessoa", admin_predio: false };
+  for (const t of ["escritorio", "conversas", "jornal", "personalizar"]) assert.equal(Andar.telaLiberada(t, classico), true, t);
+  assert.equal(Andar.telaLiberada("conversas", { ...classico, papel: "membro", admin_predio: false }), false);
+  assert.equal(Andar.telaLiberada("jornal", { ...classico, papel: "membro", admin_predio: false }), true);
+  for (const c of [saguao, { ...saguao, papel: "admin", admin_predio: true }]) {
+    assert.equal(Andar.telaLiberada("jornal", c), false);
+    assert.equal(Andar.telaLiberada("conversas", c), false);
+    assert.equal(Andar.telaLiberada("personalizar", c), true);
+  }
+  for (const c of [saguao, { ...saguao, papel: "admin", admin_predio: true }]) assert.equal(Andar.telaLiberada("aprovacoes", c), false);
+  assert.equal(Andar.telaLiberada("aprovacoes", { ...classico, papel: "membro", admin_predio: false }), true);
+  assert.equal(Andar.telaLiberada("aprovacoes", { ...saguao, andar: ID, papel: "membro" }), true);
+  // no andar extra do modo saguão o jornal volta
+  assert.equal(Andar.telaLiberada("jornal", { ...saguao, andar: ID, papel: "membro" }), true);
+  assert.equal(Andar.telaLiberada("jornal", null), true);   // servidor antigo: a tela de sempre
+}
+
+// Visitas é do prédio: o link leva "so-predio", que só aparece com data-predio (admin do prédio)
+{
+  const html = fs.readFileSync("static/index.html", "utf8"), css = fs.readFileSync("static/estilo.css", "utf8");
+  assert.match(html, /<a class="[^"]*\bso-predio\b[^"]*" href="\/visitas-admin\.html">/);
+  assert.match(css, /body:not\(\[data-predio\]\) \.so-predio\b[^{]*\{ display: none !important; \}/);
+  assert.match(css, /body\[data-saguao\] a\[data-rota="jornal"\]/);
+  // o saguão não tem agentes: some tudo o que é deles (estados, painéis, lista da lateral, aprovações)
+  for (const s of ['a[data-rota="aprovacoes"]', "#estados", ".widgets", "#lat-agentes", ".lat-externos", "section.agora", ".dica-mapa"])
+    assert.ok(css.includes(`body[data-saguao] ${s}`), s);
+  assert.match(html, /<section id="lat-agentes" class="lat-secao">/);
+  assert.match(fs.readFileSync("static/app.js", "utf8"), /noSaguao \? "Saguão do prédio"/);
+  const { Andar } = carregar();
+  assert.equal(Andar.perfil({ papel: "admin", admin_predio: false, andar: ID }).predio, false);   // admin da empresa
+  assert.equal(Andar.perfil({ papel: "admin", admin_predio: true }).predio, true);
+}
+
+// o toque no aviso pessoal com o escritório aberto (sw.js → postMessage {tipo: "aviso", andar, canal}): o andar e o canal
+// para o app.js trocar de andar e abrir o canal; o que não for andar válido ou canal do contrato não passa
+{
+  const { Andar } = carregar();
+  const de = d => { const r = Andar.doAviso(d); return r && { ...r }; };   // cópia: vem de outro realm (vm)
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "geral" }), { andar: ID, canal: "geral" });
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "dm:42" }), { andar: ID, canal: "dm:42" });
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "sala:time:Design & Arte" }), { andar: ID, canal: "sala:time:Design & Arte" });
+  assert.deepEqual(de({ tipo: "aviso", andar: ID }), { andar: ID, canal: null }, "aceno e porta: só o andar");
+  assert.deepEqual(de({ tipo: "aviso", andar: "principal", canal: "dm:4" }), { andar: "principal", canal: "dm:4" }, "empresa só no principal");
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "dm:x" }), { andar: ID, canal: null });
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "sala:a\nb" }), { andar: ID, canal: null }, "controle não passa");
+  assert.deepEqual(de({ tipo: "aviso", andar: ID, canal: "sala:" + "x".repeat(200) }), { andar: ID, canal: null });
+  for (const ruim of [null, "x", { tipo: "agente", andar: ID }, { tipo: "aviso", andar: "../x" }, { tipo: "aviso" }]) assert.equal(Andar.doAviso(ruim), null);
+}
+
 console.log("test_andar.js: ok");

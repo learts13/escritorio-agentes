@@ -27,6 +27,13 @@ const Andar = (() => {
   const PRINCIPAL = "principal", CHAVE = "escritorio:andar";
   const valido = id => typeof id === "string" && (id === PRINCIPAL || /^[0-9a-f]{8}$/.test(id));
   const doHash = h => { const m = /^#andar=([^&]*)$/.exec(typeof h === "string" ? h : ""); return m && valido(m[1]) ? m[1] : null; };
+  // o aviso pessoal tocado com o escritório aberto (sw.js: postMessage {tipo: "aviso", andar, canal}): o andar e o canal
+  // do contrato ("geral", "sala:<chave>", "dm:<n>"; sem controle, até 120); o resto vira null
+  const doAviso = d => {
+    if (!d || typeof d !== "object" || d.tipo !== "aviso" || !valido(d.andar)) return null;
+    const c = d.canal, ok = typeof c === "string" && c.length <= 120 && !/[\u0000-\u001f\u007f]/.test(c) && /^(geral|sala:.+|dm:\d{1,9})$/.test(c);
+    return { andar: d.andar, canal: ok ? c : null };
+  };
   let atual = PRINCIPAL;
   const guardar = id => { try { if (id === PRINCIPAL) localStorage.removeItem(CHAVE); else localStorage.setItem(CHAVE, id); } catch (e) { /* aba anônima ou armazenamento bloqueado */ } };
   function ler() {   // endereço primeiro, depois o que ficou guardado; nada válido, principal
@@ -50,9 +57,28 @@ const Andar = (() => {
   }
   // como a conexão de cada andar aparece na tela; valor que o servidor ainda não conhece vira "sem leitura"
   const CONEXAO = { conectado: "conectado", sem_conexao: "sem conexão", outra_org: "conectado no workspace errado, reconecte", recusada: "conexão recusada",
-    pausa: "em pausa", falha: "sem resposta", carregando: "conectando…" };
+    pausa: "em pausa", falha: "sem resposta", carregando: "conectando…", conferindo: "conectado, conferindo o workspace" };
   const rotuloConexao = c => (typeof c === "string" && Object.hasOwn(CONEXAO, c) ? CONEXAO[c] : "sem leitura");
+  // o perfil da conta no andar do /api/config: papel neste andar, admin do prédio (admin_predio) e o modo do térreo.
+  // Sem o campo papel (servidor antigo) vale admin do prédio, a tela de sempre; papel desconhecido vira o mais fechado.
+  function perfil(c) {
+    const cfg = c && typeof c === "object" ? c : {};
+    const papel = cfg.papel === undefined ? "admin" : ["admin", "membro", "pessoa"].includes(cfg.papel) ? cfg.papel : "pessoa";
+    const admin = papel === "admin", saguao = cfg.terreo === "saguao";
+    return { papel, admin, predio: admin && cfg.admin_predio !== false, saguao, noSaguao: saguao && (cfg.andar === undefined || cfg.andar === PRINCIPAL) };
+  }
+  // a linha "Este andar: …" do elevador: conectado e sem conexão nenhuma (o saguão, conexao null) não dizem nada
+  const estadoDoAndar = c => (!c || c === "conectado" ? "" : `Este andar: ${rotuloConexao(c)}`);
+  // as telas pelo # que o perfil abre: Conversas só o admin do andar, e o saguão (sem agentes) não tem conversas,
+  // aprovações nem jornal
+  const SEM_SAGUAO = ["conversas", "aprovacoes", "jornal"];
+  function telaLiberada(rota, c) {
+    const p = perfil(c);
+    return !(rota === "conversas" && !p.admin) && !(p.noSaguao && SEM_SAGUAO.includes(rota));
+  }
+  // o andar que o /api/config respondeu (conta sem acesso ao principal recebe o primeiro andar dela): passa a valer daqui em diante
+  const seguir = c => !!c && valido(c.andar) && definir(c.andar);
   ler();
-  return { PRINCIPAL, valido, rotuloConexao, doHash, ler, definir, com, limpar: () => definir(PRINCIPAL), get atual() { return atual; } };
+  return { PRINCIPAL, valido, rotuloConexao, estadoDoAndar, perfil, telaLiberada, seguir, doHash, doAviso, ler, definir, com, limpar: () => definir(PRINCIPAL), get atual() { return atual; } };
 })();
 window.Andar = Andar;

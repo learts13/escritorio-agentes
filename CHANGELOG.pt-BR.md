@@ -4,6 +4,35 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 1.6.0 · 2026-11-16 · Escritório da equipe
+
+Release [`v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.6.0). Commits: [`v1.5.2...v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.2...v1.6.0).
+
+### Adicionado
+- **Cada andar é uma empresa:** cada andar tem a sua marca, logo, expediente, times, planta, membros e convites, e quem administra a empresa cuida só do andar dela. São quatro perfis: admin do prédio, admin da empresa, membro e pessoa do prédio (que só entra no saguão).
+- **Saguão:** o térreo pode virar um saguão sem agentes, aberto a todas as pessoas do prédio, e a empresa da `AGENTES_ORG` sobe para um andar próprio, como as outras. A troca é um comando, nunca automática (veja **Mudado** e [Saguão](./README.pt-BR.md#saguão-o-térreo-de-todas-as-empresas)).
+- **Conversas da equipe:** chat geral e por sala, mensagens diretas (DM), menções com `@login`, reações, anexos de até 25 MB (ZIP incluído; 5 GB por empresa) e busca no geral, nas salas e nas suas DMs, com histórico de 1 ano. Veja [Equipe](./README.pt-BR.md#equipe).
+- **Mural, status e lista do andar:** cada sala tem um mural na parede (até 10 avisos). Cada pessoa escolhe um status (disponível, ocupado, em reunião, ausente) com um recado curto, que aparece no boneco. A lista do andar mostra quem está e onde, com **Ir até**, **Acenar**, **Bater na porta** e **Mensagem direta**. Quem está ocupado não recebe aceno.
+- **Aviso no celular para a pessoa:** menção, DM e reunião avisam só a conta certa, com o começo da mensagem. Tocar no aviso com o escritório aberto troca de andar e abre a conversa.
+- **Enquanto você esteve fora:** quem volta a um andar depois de mais de 1 hora vê no topo o que os agentes fizeram (tarefas concluídas e esperas de aprovação ou resposta, com quanto duraram), e cada item leva ao agente. O cartão do agente mostra a linha do tempo de hoje.
+- **Reuniões:** cada sala pode ter um link fixo de Meet, Zoom, Jitsi, Teams ou Whereby, colado por quem administra a empresa (só https e sem senha no endereço). A agenda do andar marca reuniões com título, sala, horário e convidados, avisa 5 minutos antes e baixa o `.ics` para a sua agenda. A voz e o vídeo ficam no serviço do link.
+- **Reunião geral e "em reunião":** quem administra a empresa chama a equipe para uma sala; cada pessoa do andar recebe o aviso, e o mapa leva o boneco até lá. Quem está na sala de uma reunião em andamento e não pôs status aparece "em reunião", e a porta ganha a placa.
+- **Modo apresentação:** para mostrar a tela a um cliente ou postar um print. O botão da barra da câmera ou `Alt+Shift+P` troca os nomes por "Agente 1" e "Pessoa 2" e esconde balões, tarefas, conversas, mural, recados, reuniões e links das salas. É só tela, não controle de acesso. Veja [Modo apresentação](./README.pt-BR.md#modo-apresentação).
+- **Variáveis novas:** `ESCRITORIO_JITSI=<host>` aceita o Jitsi da sua instalação no link das salas (um host exato, além da lista fechada), e `ESCRITORIO_PISO_DISCO_MB=<MB>` define quanto disco livre os anexos nunca usam (sem ela, o maior entre 2 GB e 10% do volume). Veja [Instalar](./README.pt-BR.md#instalar).
+
+### Mudado
+- **Privacidade: as conversas da equipe agora ficam no disco.** Com pelo menos 1 conta, o chat geral e das salas, as DMs, o mural, o status, os anexos e a agenda ficam guardados por **1 ano** (a empresa pode baixar para 90 ou 30 dias), num arquivo por empresa. Antes da 1.6, nada disso ia ao disco. Sem nenhuma conta, o chat segue só na memória, como antes.
+- **O chat da sala fica guardado e é lido pelo andar:** não some mais em 10 minutos, e toda pessoa do andar lê o que foi dito, inclusive antes de ela chegar.
+- **A DM pode ser lida pela administração da empresa**, por uma tela de auditoria. Cada leitura fica registrada (sem o texto), e as duas pessoas da conversa veem a data. Toda DM avisa isso no topo, e a pessoa confirma com **Entendi** antes da primeira.
+- **O aviso no celular mostra o começo da mensagem** (até 60 caracteres) na menção e na DM, e ele pode aparecer na tela bloqueada. O serviço de push continua recebendo a mensagem vazia: o começo vem do escritório quando o app acorda. Dá para desligar em **Meu perfil** ("Mostrar o começo") ou no ajuste de notificações do celular.
+- **Migração para o saguão, explícita:** só pelo comando `escritorio.py saguao`, com o serviço parado e rodando como o usuário do serviço (o dono da pasta de dados; como outro usuário, ela recusa). Faça backup antes. É tudo ou nada, com diário: se cair no meio, o serviço não sobe até o mesmo comando terminar. O `saguao --desfazer` volta ao térreo de antes enquanto ninguém usou o modo novo; depois disso, a volta é pelo backup. Sem rodar a migração, o escritório segue no modo de sempre.
+- **Linha do tempo no disco:** o id do agente, o estado e a hora de cada mudança ficam 14 dias em `dados/linha/` (até 5.000 linhas por dia), sem rótulo de tarefa nem conversa. O resto do diário de transições segue só na memória.
+
+### Segurança
+- **Anexos conferidos no servidor:** o tipo sai do conteúdo, a foto perde o EXIF (inclusive a localização) e o ZIP é conferido só pelos metadados, sem ser aberto. O envio tem prazo e limite por conta e no servidor, e um piso de disco livre. Não há antivírus.
+- **Cada perfil só no seu andar:** andar que não existe e andar sem acesso dão a mesma resposta. O admin do prédio lê o geral, as salas, o mural e os anexos de toda empresa, sem escrever neles, e não lê DM. Moderar e mudar a retenção é de quem administra cada empresa. Menção e convite de reunião só acham contas do próprio andar.
+- **O banco não é cifrado:** quem opera o servidor lê tudo. Onde fica cada dado, quem lê e por quanto tempo está em [para onde vai cada dado](./docs/visitas-privadas-plano.md#conversas-da-equipe-no-disco-16).
+
 ## 1.5.2 · 2026-11-15 · Jornal por andar e hora extra
 
 Release [`v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.2). Commits: [`v1.5.1...v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.1...v1.5.2).

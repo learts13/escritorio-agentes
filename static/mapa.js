@@ -154,6 +154,15 @@ function pintarRingue(c, x, y, w, h, abertura, corP) {
 
 // quadro do placar do ringue: moldura e fundo; o título, o top 3 e o campeão anterior são do efeitos.js (mudam a cada leitura)
 const QUADRO_PLACAR = { w: 64, h: 40 };
+// mural da sala (1.6): quadro de cortiça com moldura de madeira; os avisos (app.js) entram por cima, presos com tachinha
+const MURAL = { w: 24, h: 16 };
+function pintarMural(c, x, y) {
+  pintaPx(c, x, y, MURAL.w, MURAL.h, "#4a3220"); pintaPx(c, x + 1, y + 1, MURAL.w - 2, MURAL.h - 2, "#6e4a2c");
+  pintaPx(c, x + 2, y + 2, MURAL.w - 4, MURAL.h - 4, "#c08a52");
+  pontosPx(c, x + 2, y + 2, [[2, 1], [7, 3], [12, 1], [17, 4], [4, 7], [10, 9], [15, 8], [1, 10], [18, 10], [8, 6]], "#a8703c");
+  pintaPx(c, x + 2, y + 2, MURAL.w - 4, 1, "#d6a36c");
+  pintaPx(c, x + 1, y + MURAL.h, MURAL.w - 2, 1, "rgba(0,0,0,.25)");   // sombra na parede
+}
 function pintarQuadroPlacar(c, x, y, w, h) {
   pintaPx(c, x + 1, y + h, w, 1, "rgba(0,0,0,.25)");                                    // sombra na parede
   pintaPx(c, x, y, w, h, "#4a3020"); pintaPx(c, x + 1, y + 1, w - 2, h - 2, "#7a5232"); pintaPx(c, x + 2, y + 2, w - 4, h - 4, "#171a24");
@@ -1124,6 +1133,23 @@ function montar(atlas, config, grupos, planta) {
       portas.push({ tipo: s.tipo === "cozinha" ? "vaivem" : "vidro", x: px - T, y: s.py - 3, w: 2 * T, h: PAREDE * T + 3, abre: 0 });
     }
   }
+  // F) mural de cada sala (1.6, só com o store: config.equipe.mural), no trecho de parede que sobrou livre, da direita
+  // para a esquerda, sem mexer em mais nada. A recepção mostra o canal "geral" (no saguão, o mural do prédio)
+  if (config.equipe && config.equipe.mural) for (const s of [...salas, ...baixo]) {
+    const { w, h } = MURAL;
+    const ocupados = [...janelas, ...quadros, ...reservas, ...paredeOcupada.map(o => ({ ...o, h: 20 })), ...objetos.filter(o => o.w && o.h),
+      ...animados.filter(a => a.w && a.h), s.placaLogo, s.logo, s.placa && { x: s.placa.x, y: s.placa.y, w: s.placa.total, h: PLACA_H }];
+    const cabe = (x, y) => (s.portas || []).every(p => x > p + 18 || x + w < p - 18) && !ocupados.some(r => r && sobre({ x: x - 3, y: y - 2, w: w + 6, h: h + 4 }, r));
+    let lugar = null;
+    for (const y of [s.chao - 33, s.chao - 21]) {   // na altura dos quadros; senão, mais embaixo
+      for (let x = s.px + s.pw - 6 - w; x >= s.px + 6 && !lugar; x -= 2) if (cabe(x, y)) lugar = { x, y };
+      if (lugar) break;
+    }
+    if (!lugar) continue;   // parede cheia: a sala fica sem o quadro (o mural continua na lista do andar)
+    pintarMural(c, lugar.x, lugar.y);
+    s.mural = { ...lugar, w, h, canal: s.tipo === "recepcao" ? "geral" : "sala:" + s.chave };
+    paredeOcupada.push({ x: lugar.x - 4, w: w + 8, y: lugar.y });
+  }
   // caminho da entrada lateral até a calçada fica livre (nenhuma árvore ou banco no meio)
   pegadas.push({ x: predioRet.x - 46, y: corredor.ty * T - 10, w: 62, h: predioRet.y + predioRet.h + 24 - corredor.ty * T, livre: true });
   const externos = montarExterior(atlas, (n, x, y) => obj(n, x, y, true, true), W, H, predioRet, marca, corredor.ty * T);
@@ -1271,6 +1297,45 @@ function telaDe(atlas, nome, cx, base) {
   return { x: x0 + r[0], y: y0 + r[1], w: r[2], h: r[3], chave: base + 0.2 };
 }
 
-return { nomePlaca, montarPredio, desenharMesa, lampadaX, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
+// Status da pessoa (1.6): ícone 9x9 ao lado do nome. "o" = contorno escuro, "#" = a cor, "+" = o desenho em branco, que
+// muda de um status para o outro (não depende só da cor); as cores dão pelo menos 3:1 com o branco
+const ICONES_STATUS = {
+  disponivel: { cor: "#15803d", rotulo: "Disponível", linhas: ["..ooooo..", ".o#####o.", "o######+o", "o#####++o", "o+#+#++#o", "o#+++###o", "o##+####o", ".o#####o.", "..ooooo.."] },
+  ocupado:    { cor: "#dc2626", rotulo: "Ocupado",    linhas: ["..ooooo..", ".o#####o.", "o#######o", "o#######o", "o+++++++o", "o#######o", "o#######o", ".o#####o.", "..ooooo.."] },
+  reuniao:    { cor: "#2563eb", rotulo: "Em reunião", linhas: ["..ooooo..", ".o#####o.", "o#+###+#o", "o#+###+#o", "o#######o", "o+++#+++o", "o+++#+++o", ".o#####o.", "..ooooo.."] },
+  ausente:    { cor: "#b45309", rotulo: "Ausente",    linhas: ["..ooooo..", ".o##+##o.", "o###+###o", "o###+###o", "o###+++#o", "o#######o", "o#######o", ".o#####o.", "..ooooo.."] },
+};
+const iconeStatus = st => (Object.hasOwn(ICONES_STATUS, st) ? ICONES_STATUS[st] : null);
+// o ícone com o canto em (x, y), cada pixel com px de lado
+function desenharStatus(c, st, x, y, px) {
+  const ic = iconeStatus(st); if (!ic) return;
+  const cores = { o: "#141320", "#": ic.cor, "+": "#ffffff" };
+  ic.linhas.forEach((l, j) => { for (let i = 0; i < 9; i++) if (cores[l[i]]) { c.fillStyle = cores[l[i]]; c.fillRect(x + i * px, y + j * px, px, px); } });
+}
+
+// Placa "Em reunião" (1.6 Onda 3) na porta da sala com reunião acontecendo (Vida.emReuniao): vermelha, ao lado da porta,
+// do lado de fora. Sala de cima (porta embaixo): pendurada no corredor; sala de baixo (porta em cima): na parede. Em
+// coordenadas do mundo, desenhada depois das portas
+const PLACA_REUNIAO = { w: 66, h: 12, folga: 16 };   // o texto na fonte das placas (8 px: a Silkscreen só fica nítida assim)
+function placaReuniao(s) {
+  const { w, h, folga } = PLACA_REUNIAO, px = s.portas ? s.portas[0] : s.porta.x;
+  const y = s.portas ? s.py + 4 : s.py + s.ph + 2;
+  const x = px + folga + w <= s.px + s.pw - 2 ? px + folga : px - folga - w >= s.px + 2 ? px - folga - w : Math.round(px - w / 2);
+  return { x, y, w, h };
+}
+function desenharPlacaReuniao(c, s) {
+  const { x, y, w, h } = placaReuniao(s);
+  c.save();
+  c.fillStyle = "rgba(0,0,0,.25)"; c.fillRect(x, y + h + 1, w + 1, 1);                 // sombra
+  c.fillStyle = "#141320"; c.fillRect(x - 1, y - 1, w + 2, h + 2);                       // moldura
+  c.fillStyle = "#b91c1c"; c.fillRect(x, y, w, h);                                       // branco sobre ele: 6,5:1
+  c.fillStyle = "#ef4444"; c.fillRect(x, y, w, 1);
+  c.fillStyle = "#fecaca"; c.fillRect(x + 3, y + 5, 2, 2);                               // a luzinha de "no ar"
+  c.font = PLACA_FONTE; c.textAlign = "left"; c.textBaseline = "middle"; c.fillStyle = "#ffffff";
+  c.fillText("EM REUNIÃO", x + 8, y + h / 2 + 1, w - 10);
+  c.restore();
+}
+
+return { iconeStatus, desenharStatus, placaReuniao, desenharPlacaReuniao, nomePlaca, montarPredio, desenharMesa, lampadaX, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
 })();
 window.Mapa = Mapa;

@@ -20,7 +20,7 @@
   <img src="./docs/demo.gif" alt="Animated demo of the office in demo mode, with fictional agents: the pixel-art map by day with agents walking and working, the camera zooming in on an agent with a '?' question bubble, then the pointer moves to a request in the Waiting for you list (one click takes you to that agent). Short captions in Portuguese explain each step." width="900">
 </picture>
 
-[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Floors](#floors-several-workspaces-in-one-building) · [Team](#team) · [Customize](#customize-white-label) · [Social life](#social-life) · [Construction mode](#construction-mode) · [TV mode](#tv-mode) · [Installable app](#installable-app-pwa) · [Visitors](#visitors) · [Visits by invitation](#visits-by-invitation) · [Newspaper](#newspaper) · [Time-lapse](#time-lapse) · [Phone alerts](#phone-alerts) · [Security](#security) · [Architecture](#architecture) · [Development](#development) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md)
+[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Floors](#floors-several-workspaces-in-one-building) · [Team](#team) · [Customize](#customize-white-label) · [Social life](#social-life) · [Construction mode](#construction-mode) · [TV mode](#tv-mode) · [Presentation mode](#presentation-mode) · [Installable app](#installable-app-pwa) · [Visitors](#visitors) · [Visits by invitation](#visits-by-invitation) · [Newspaper](#newspaper) · [Time-lapse](#time-lapse) · [Phone alerts](#phone-alerts) · [Security](#security) · [Architecture](#architecture) · [Development](#development) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [Code of Conduct](./CODE_OF_CONDUCT.md)
 
 🎬 **[Launch video](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2026.11.06)** (narrated in Brazilian Portuguese, with subtitles), attached to the release. 🌎 **[Video of the world and the visits](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0)** (1.3.0), also narrated in Portuguese, with subtitles.
 
@@ -62,7 +62,8 @@ It **does not call any AI model** and does not spend tokens. Approving always ha
 - 📺 **TV mode:** full screen, the screen kept on and a camera director that rushes to requests, fights and strikes, with a news ticker (see [TV mode](#tv-mode)).
 - 📲 **App and phone alerts:** install the office on your home screen and get an alert when an agent asks for your approval or asks a question (see [Installable app](#installable-app-pwa) and [Phone alerts](#phone-alerts)).
 - 🏬 **Floors:** each agentes.chat workspace becomes a floor of the building, and the elevator in the top bar switches floors (see [Floors](#floors-several-workspaces-in-one-building)).
-- 👥 **Team:** member accounts by invitation, with a name and a character on the map and a text chat per room (see [Team](#team)).
+- 👥 **Team:** member accounts by invitation, with a name and a character on the map; team conversations (general, rooms and DMs, with mentions, reactions, attachments and search), a board, status, meetings with a calendar and a summary of what happened while you were away (see [Team](#team)).
+- 🙈 **Presentation mode:** replaces names with "Agente 1" and "Pessoa 2" and hides what is sensitive, for showing the screen to a client (see [Presentation mode](#presentation-mode)).
 - 👀 **Visitors:** whoever else on the team has the office open shows up on the map with their own name and character (see [Visitors](#visitors)).
 - 🚪 **Visits by invitation:** a 1-hour link brings someone from outside into the meeting room, with no password (see [Visits by invitation](#visits-by-invitation)).
 - 🌎 **World:** a public page that goes from the globe down to Brazil, the city and the reception door, with the real weather of 28 cities (see [World](#world)).
@@ -165,6 +166,8 @@ The service listens on `127.0.0.1:737`, a privileged port, so no regular user on
 
 The source-code address the page offers its users (AGPL section 13) is this repository by default; if you run a modified version, pass `ESCRITORIO_FONTE=<https address of your code>` (a plain `https://` address, up to 200 characters, without quotes or spaces; the installer refuses anything else).
 
+Two optional variables for team conversations (1.6): `ESCRITORIO_JITSI=<host>` accepts your own Jitsi in the fixed room links, on top of the closed list (Meet, Zoom, `meet.jit.si`, Teams and Whereby); it takes one exact host, such as `jitsi.example.com`, and a value outside that format is ignored. `ESCRITORIO_PISO_DISCO_MB=<MB>` sets how much free disk attachments never use; without it, the larger of 2 GB and 10% of the volume. The installer asks for neither: add the line to `/etc/escritorio.env` and restart the service (`sudo systemctl restart escritorio`), and do it again after each reinstall, which rewrites the file. With Docker, put the variable in the `environment` of the `escritorio` service in `docker-compose.yml`.
+
 The installer publishes the `/` path of port 443 of this machine on your tailnet (`tailscale serve`). If that route already publishes something else, it stops without changing anything, so it never takes down what is already there. This also applies when reinstalling with another `ESCRITORIO_PORTA`: free port 443 first (see `tailscale serve status`).
 
 **Reinstalling or updating:** run the installer again with the same variables. It rewrites `/etc/escritorio.env` every time, so `ESCRITORIO_PORTA` and `ESCRITORIO_FONTE` go back to their defaults when left out (in a fork, the source-code link would point back to this repository). Users, sessions, tokens and `/opt/escritorio/times.json` are kept.
@@ -191,13 +194,42 @@ In **Settings › Floors**, whoever runs the office creates a floor from a name 
 
 The list lives in `dados/andares.json` and each floor's data in `dados/andares/<id>/` (`oauth.json`, `times.json`, `equipe.json`, `planta.json`, `placar.json` and `jornal.json`). Branding, office hours, weather, holidays, visits and phone alerts belong to the whole building. Removing a floor disconnects its token, but the folder stays on the server: delete `dados/andares/<id>/` by hand if you no longer need it. An unreadable `andares.json` stops the service from starting, so no floor disappears silently.
 
+#### Lobby: a ground floor for every company
+
+The lobby migration turns the ground floor into a lobby (saguão) with no agents, open to everyone in the building, and moves the `AGENTES_ORG` company up to a floor of its own, like the others. It never runs by itself: it is a command, run with the service stopped and as the service user (the owner of the data folder; as any other user the migration refuses):
+
+```bash
+sudo systemctl stop escritorio
+sudo sh -c 'set -a; . /etc/escritorio.env; exec runuser -u escritorio -- /usr/bin/python3 -I /opt/escritorio/escritorio.py saguao'
+sudo systemctl start escritorio
+```
+
+On Docker: `docker compose stop escritorio`, then `docker compose run --rm escritorio python3 -I escritorio.py saguao` and `docker compose start escritorio`. Back up the data folder (or the volume) first. The report lists the accounts that got the company floor, the ones left without it (grant it in the Members tab) and the pending invitations that grant the ground floor (revoke them and invite again with the company floor). If the process dies halfway, the service will not start: run the same command again to finish.
+
+`saguao --desfazer` goes back to the old ground floor, but only while nobody has used the new mode: with any conversation, wall post, attachment or DM access, or any new data on the company floor, it refuses without touching anything, and going back means restoring the backup.
+
+**Until you migrate to the lobby**, no second company goes to production, and no Wave 2 data either. In classic mode, a company's invitation goes out only from that floor's view (Settings › Members with `?andar=<id>` in the address), so the person does not get the ground floor, which still belongs to `AGENTES_ORG`.
+
 ### Team
 
 Besides whoever runs the office, it can have member accounts for the rest of the team. In **Settings › Members** (Membros), an admin types the person's name, ticks the floors they will see and confirms the account password. The office shows the invitation link (`/convite#...`) only once: send it to the person over a channel you trust. The invitation is personal, creates a single account, lasts 48 hours and can be revoked while it waits (up to 20 pending). Whoever opens the link picks a username, a password (at least 10 characters), a name and a character, and is signed in. In the same tab, an admin changes each account's role (admin or member) and the floors it sees, and removes accounts. Each of these changes asks for the admin's own password. Removing signs the person out everywhere at once. The office never runs out of admins.
 
 A member sees the office on the floors they were given, the social life, the newspaper and what is new, can turn on phone alerts and changes their own name and character in **Settings › My profile** (Meu perfil). They cannot read the agents' conversations or reply as them, and cannot touch branding, floor plan, teams, weather, floors, members or visits. A member's **Sign out of all devices** only ends their own sessions and turns off alerts only on their own devices.
 
-On the map, each signed-in person shows up with their own name and character, and each room has a text chat for whoever is in it. The chat lives only in the server's memory: each room keeps the last 50 messages for up to 10 minutes, newcomers do not see what was said before, and nothing goes to disk or to the log. Restarting the office wipes it all. Outside visitors do not see the team. Details in [where each piece of data goes](./docs/visitas-privadas-plano.md#equipe-presença-no-mapa-e-chat-por-sala) (in Portuguese).
+On the map, each signed-in person shows up with their own name and character, and each room has a text chat. With no account at all, the room chat only reaches whoever is in the room and is gone in 10 minutes. With team conversations on (below), what is said in a room is kept for the retention period, and anyone on the floor can read it, including what was said before they arrived. Outside visitors do not see the team.
+
+**Team conversations (1.6): now kept on disk.** With at least 1 account, the general and room chat, direct messages (DMs), the board, the status and attachments are kept for **1 year** (a company can lower it to 90 or 30 days), one file per company. Before 1.6, none of this went to disk. What changes for users:
+
+- **The company's administrators can read DMs**, through an audit screen. Every read is logged (without the text), and both people in the conversation see the date. Every DM says so at the top, and people confirm it before their first one.
+- **Phone alerts show the start of the message** (up to 60 characters) for mentions and DMs, and it may show on the lock screen. It can be turned off in the profile or in the phone's notification settings.
+- **Attachments up to 25 MB, ZIP included** (5 GB per company). The type comes from the content, photos lose their location (GPS), and ZIP files are checked without ever being opened on the server. There is no antivirus.
+- **The building admin reads the general chat, the rooms, the board and the attachments of every company, without writing in them** (not DMs). Moderating (deleting someone else's message, taking a notice off the board) and changing the retention belong only to whoever runs each company; in the lobby, to the building admin.
+- **Meetings:** each room can have a fixed Meet, Zoom, Jitsi, Teams or Whereby link (the company admin pastes it; https only, no password in the address), and the floor's agenda keeps title, room, time and invitees under the same retention, with an alert 5 minutes before and an `.ics` file for each person's calendar. Voice and video stay with the link's service, outside the office.
+- The database is not encrypted: whoever runs the server can read everything.
+
+Day to day: **@login** mentions someone on the floor, messages take reactions, and search looks through the general chat, the rooms and your own DMs. Each room has a board on the wall (up to 10 notes), and each person picks a status (available, busy, in a meeting, away) with a short note, shown on their character. The floor list shows who is here and where, with **Go to**, **Wave**, **Knock on the door** and **Direct message** (busy people do not get waves). From the calendar, the company admin can also call the team to an **all-hands**: everyone on the floor gets the alert, and the map walks their character to the room. Anyone in the room of a meeting in progress who has not set a status shows as "in a meeting", and the door gets the sign. Coming back to a floor after more than 1 hour shows **While you were away** at the top (Enquanto você esteve fora), with the agents' finished tasks and waits for approval or an answer, and each agent's card shows today's timeline.
+
+With no accounts, the chat stays in memory only, as before. Details in [where each piece of data goes](./docs/visitas-privadas-plano.md#conversas-da-equipe-no-disco-16) (in Portuguese).
 
 ### With self-hosted agentes.chat
 
@@ -302,6 +334,13 @@ For keeping the office on a wall TV or a second monitor. Open it with the **Modo
 - **Visitors:** the TV does not show up on the map, but it shows the people on the floor (see [Visitors](#visitors)).
 - **Sound and motion:** the TV has no sound of its own and follows whatever is on in the sound panel. With reduced motion on in the system, the camera cuts instead of gliding and the ticker does not animate.
 - **Time-lapse:** while on, the TV takes over recording that browser's [time-lapse](#time-lapse).
+
+## Presentation mode
+
+For showing the screen on a call with a client or posting a screenshot without leaking anything. Turn it on with the button on the camera bar or with `Alt+Shift+P`; it is remembered per tab until the tab closes.
+
+- **What changes:** the avatars stay, but the names become "Agente 1", "Pessoa 2" and "Você" (you), numbered in the order they show up; the speech bubbles disappear; and the screen hides whatever shows a person's or agent's name, task title, conversation, room chat, mural, status note, the scoreboard, the Conversas, Aprovações and Jornal pages, the meeting titles and guests, and the meeting room links in **Personalizar** (a Zoom link can carry the password in `?pwd=`). The 5-minute meeting alert only says "Uma reunião começa em breve".
+- **Screen only, not access control:** the mode only hides things on this screen. Whoever holds the session still reads everything through the API and the browser DevTools, and the server answers the same. Do not hand a signed-in browser to someone who should not see the data.
 
 ## Installable app (PWA)
 
@@ -531,7 +570,7 @@ escritorio.py ── 127.0.0.1:737 ── tailscale serve (HTTPS, tailnet only) 
 
 ### Transition log
 
-On every read (30 s), the server compares tasks with the previous read, by `run_id`, and keeps in memory since when each one has been in its current status. That produces the recent events (at most 50): `comecou`, `pediu_aprovacao`, `pediu_resposta`, `voltou_a_trabalhar` and `terminou`, with time, agent handle and `run_id`, without any conversation content. The first read after starting is only the baseline, with no events. Nothing goes to disk: restarting the service clears the log, and "since" starts again at the first read.
+On every read (30 s), the server compares tasks with the previous read, by `run_id`, and keeps in memory since when each one has been in its current status. That produces the recent events (at most 50): `comecou`, `pediu_aprovacao`, `pediu_resposta`, `voltou_a_trabalhar` and `terminou`, with time, agent handle and `run_id`, without any conversation content. The first read after starting is only the baseline, with no events. The log itself stays in memory: restarting the service clears it, and "since" starts again at the first read. What goes to disk is the agent timeline (1.6): only the agent id, the state and the time of each change, in `dados/linha/` (or `dados/andares/<id>/linha/`), for 14 days and up to 5,000 lines a day.
 
 ## Development
 
