@@ -440,6 +440,9 @@ class MesmaConta(unittest.TestCase):
             def concluir(self, codigo, estado):
                 pass
 
+            def confere_dono(self, estado, usuario, autorizado=True):   # o state é de quem começou (E.2)
+                return autorizado and usuario is not None
+
         class Contador:
             def __init__(self):
                 self.n = 0

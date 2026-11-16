@@ -20,7 +20,7 @@
   <img src="./docs/demo.gif" alt="Demonstração animada do escritório no modo demonstração, com agentes fictícios: o mapa em pixel art de dia, com agentes andando e trabalhando; a câmera aproxima de um agente com um balão de pergunta '?'; depois o cursor vai até um pedido da lista Esperando você (um clique leva até esse agente). Legendas curtas explicam cada passo." width="900">
 </picture>
 
-[Recursos](#recursos) · [Capturas](#capturas) · [Instalar](#instalar) · [Andares](#andares-vários-workspaces-no-mesmo-prédio) · [Equipe](#equipe) · [Personalizar](#personalizar-white-label) · [Vida social](#vida-social) · [Modo construção](#modo-construção) · [Modo TV](#modo-tv) · [App instalável](#app-instalável-pwa) · [Visitantes](#visitantes) · [Visitas por convite](#visitas-por-convite) · [Jornal](#jornal) · [Time-lapse](#time-lapse) · [Avisar no celular](#avisar-no-celular) · [Segurança](#segurança) · [Arquitetura](#arquitetura) · [Desenvolvimento](#desenvolvimento) · [Histórico de mudanças](./CHANGELOG.pt-BR.md) · [Contribuir](./CONTRIBUTING.md) · [Código de conduta](./CODE_OF_CONDUCT.md)
+[Recursos](#recursos) · [Capturas](#capturas) · [Instalar](#instalar) · [Andares](#andares-vários-workspaces-no-mesmo-prédio) · [Equipe](#equipe) · [Personalizar](#personalizar-white-label) · [Vida social](#vida-social) · [Modo construção](#modo-construção) · [Modo TV](#modo-tv) · [Modo apresentação](#modo-apresentação) · [App instalável](#app-instalável-pwa) · [Visitantes](#visitantes) · [Visitas por convite](#visitas-por-convite) · [Jornal](#jornal) · [Time-lapse](#time-lapse) · [Avisar no celular](#avisar-no-celular) · [Segurança](#segurança) · [Arquitetura](#arquitetura) · [Desenvolvimento](#desenvolvimento) · [Histórico de mudanças](./CHANGELOG.pt-BR.md) · [Contribuir](./CONTRIBUTING.md) · [Código de conduta](./CODE_OF_CONDUCT.md)
 
 🎬 **[Vídeo de lançamento](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2026.11.06)** (narração em português do Brasil, com legenda), anexado à release. 🌎 **[Vídeo do mundo e das visitas](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0)** (1.3.0), também narrado e com legenda.
 
@@ -62,7 +62,8 @@ Ele **não chama nenhum modelo de IA** e não gasta tokens. Aprovar é sempre no
 - 📺 **Modo TV:** tela cheia, tela sempre acesa e um diretor de câmera que corre para os pedidos, as brigas e as greves, com uma faixa de notícias (veja [Modo TV](#modo-tv)).
 - 📲 **App e aviso no celular:** instale o escritório na tela de início e receba um aviso quando um agente pedir a sua aprovação ou fizer uma pergunta (veja [App instalável](#app-instalável-pwa) e [Avisar no celular](#avisar-no-celular)).
 - 🏬 **Andares:** cada workspace do agentes.chat vira um andar do prédio, e o elevador da barra troca de andar (veja [Andares](#andares-vários-workspaces-no-mesmo-prédio)).
-- 👥 **Equipe:** contas de membro por convite, com nome e boneco no mapa e um chat de texto por sala (veja [Equipe](#equipe)).
+- 👥 **Equipe:** contas de membro por convite, com nome e boneco no mapa; conversas da equipe (geral, salas e DM, com menções, reações, anexos e busca), mural, status, reuniões com agenda e o resumo de enquanto você esteve fora (veja [Equipe](#equipe)).
+- 🙈 **Modo apresentação:** troca os nomes por "Agente 1" e "Pessoa 2" e esconde o que é sensível, para mostrar a tela a um cliente (veja [Modo apresentação](#modo-apresentação)).
 - 👀 **Visitantes:** quem mais da equipe está com o escritório aberto aparece no mapa com o próprio nome e boneco (veja [Visitantes](#visitantes)).
 - 🚪 **Visitas por convite:** um link de 1 hora traz alguém de fora para a sala de reunião, sem senha (veja [Visitas por convite](#visitas-por-convite)).
 - 🌎 **Mundo:** uma página pública que desce do globo ao Brasil, à cidade e à porta da recepção, com o tempo real de 28 cidades (veja [Mundo](#mundo)).
@@ -165,6 +166,8 @@ O serviço escuta em `127.0.0.1:737`, uma porta privilegiada, para que nenhum us
 
 O endereço do código-fonte que a página oferece a quem a usa (AGPL, seção 13) é, por padrão, este repositório; se você roda uma versão modificada, passe `ESCRITORIO_FONTE=<endereço https do seu código>` (um endereço `https://` simples, até 200 caracteres, sem aspas nem espaços; o instalador recusa qualquer outra coisa).
 
+Duas variáveis opcionais das conversas da equipe (1.6): `ESCRITORIO_JITSI=<host>` aceita o Jitsi da sua instalação no link fixo das salas, além da lista fechada (Meet, Zoom, `meet.jit.si`, Teams e Whereby); vale um host exato, como `jitsi.exemplo.com`, e um valor fora desse formato é ignorado. `ESCRITORIO_PISO_DISCO_MB=<MB>` define quanto disco livre os anexos nunca usam; sem ela, o maior entre 2 GB e 10% do volume. O instalador não pede nenhuma das duas: acrescente a linha ao `/etc/escritorio.env` e reinicie o serviço (`sudo systemctl restart escritorio`), e refaça depois de cada reinstalação, que reescreve o arquivo. No Docker, ponha a variável no `environment` do serviço `escritorio` no `docker-compose.yml`.
+
 O instalador publica o endereço `/` da porta 443 desta máquina na tailnet (`tailscale serve`). Se essa rota já publica outra coisa, ele para sem mudar nada, para não derrubar o que já existe. Isso vale também ao reinstalar com outra `ESCRITORIO_PORTA`: libere a 443 antes (veja `tailscale serve status`).
 
 **Reinstalar ou atualizar:** rode o instalador de novo com as mesmas variáveis. Ele reescreve o `/etc/escritorio.env` toda vez, então `ESCRITORIO_PORTA` e `ESCRITORIO_FONTE` voltam ao padrão quando ficam de fora (num fork, o link do código-fonte voltaria a apontar para este repositório). Usuários, sessões, tokens e o `/opt/escritorio/times.json` são mantidos.
@@ -191,13 +194,42 @@ Em **Configurações › Andares**, quem administra o escritório cria um andar 
 
 A lista fica em `dados/andares.json` e os dados de cada andar em `dados/andares/<id>/` (`oauth.json`, `times.json`, `equipe.json`, `planta.json`, `placar.json` e `jornal.json`). A marca, o expediente, o clima, as datas, as visitas e o aviso no celular são do prédio inteiro. Remover um andar desconecta o token dele, mas a pasta fica no servidor: apague `dados/andares/<id>/` à mão se não for usar mais. Um `andares.json` ilegível impede o serviço de subir, para nenhum andar sumir calado.
 
+#### Saguão: o térreo de todas as empresas
+
+A migração para o saguão transforma o térreo num saguão sem agentes, aberto a todas as pessoas do prédio, e sobe a empresa da `AGENTES_ORG` para um andar próprio, como as outras. Ela não roda sozinha: é um comando, com o serviço parado, rodando como o usuário do serviço (o dono da pasta de dados; como outro usuário, a migração recusa):
+
+```bash
+sudo systemctl stop escritorio
+sudo sh -c 'set -a; . /etc/escritorio.env; exec runuser -u escritorio -- /usr/bin/python3 -I /opt/escritorio/escritorio.py saguao'
+sudo systemctl start escritorio
+```
+
+No Docker: `docker compose stop escritorio`, depois `docker compose run --rm escritorio python3 -I escritorio.py saguao` e `docker compose start escritorio`. Faça backup da pasta de dados (ou do volume) antes. O relatório lista as contas que ganharam o andar da empresa, as que ficaram sem ele (dê pela aba Membros) e os convites que esperam e dão o térreo (revogue e reemita com o andar da empresa). Se o processo cair no meio, o serviço não sobe: rode o mesmo comando de novo para terminar.
+
+O `saguao --desfazer` volta ao térreo de antes, mas só enquanto ninguém usou o modo novo: com conversa, mural, anexo ou acesso a DM, ou qualquer dado novo no andar da empresa, ele recusa sem mexer em nada, e a volta passa a ser pelo backup.
+
+**Até migrar para o saguão**, nenhuma segunda empresa vai para produção, nem dado da Onda 2. No modo clássico, o convite de uma empresa sai só pela visão do andar dela (Configurações › Membros com `?andar=<id>` no endereço), para a pessoa não ganhar o térreo, que ainda é o da `AGENTES_ORG`.
+
 ### Equipe
 
 Além de quem administra, o escritório pode ter contas de membro para o resto da equipe. Em **Configurações › Membros**, quem administra escreve o nome da pessoa, marca os andares que ela vai ver e confirma a senha da conta. O escritório mostra o link do convite (`/convite#...`) uma vez só: mande à pessoa por um canal de confiança. O convite é pessoal, vale para uma conta só, dura 48 horas e pode ser revogado enquanto espera (até 20 pendentes). Quem abre o link escolhe o usuário, a senha (pelo menos 10 caracteres), o nome e o boneco, e já entra. Na mesma aba, quem administra muda o papel de cada conta (admin ou membro) e os andares que ela vê, e remove contas. Cada uma dessas mudanças pede a senha da conta de quem administra. Remover derruba as sessões da pessoa na hora. O escritório nunca fica sem um admin.
 
 O membro vê o escritório dos andares liberados, a vida social, o jornal e as novidades, pode ligar o aviso no celular e muda o próprio nome e boneco em **Configurações › Meu perfil**. Ele não lê as conversas dos agentes nem responde por eles, e não mexe em marca, planta, times, clima, andares, membros ou visitas. O **Sair de todos os aparelhos** de um membro derruba só as sessões dele e desliga o aviso só nos aparelhos dele.
 
-No mapa, cada pessoa conectada aparece com o próprio nome e boneco, e cada sala tem um chat de texto para quem está nela. O chat fica só na memória do servidor: cada sala guarda as últimas 50 mensagens por até 10 minutos, quem chega não lê o que foi dito antes, e nada vai ao disco nem ao log. Reiniciar o escritório apaga tudo. Visitantes de fora não veem a equipe. Os detalhes estão em [para onde vai cada dado](./docs/visitas-privadas-plano.md#equipe-presença-no-mapa-e-chat-por-sala).
+No mapa, cada pessoa conectada aparece com o próprio nome e boneco, e cada sala tem um chat de texto. Sem nenhuma conta, o chat da sala chega só a quem está nela e some em 10 minutos. Com as conversas da equipe ligadas (abaixo), o que se diz numa sala fica guardado pela retenção, e toda pessoa do andar pode ler, inclusive o que foi dito antes de ela chegar. Visitantes de fora não veem a equipe.
+
+**Conversas da equipe (1.6): agora ficam no disco.** Com pelo menos 1 conta, o chat geral e das salas, as mensagens diretas (DM), o mural, o status e os anexos ficam guardados por **1 ano** (a empresa pode baixar para 90 ou 30 dias), um arquivo por empresa. Antes da 1.6, nada disso ia ao disco. O que muda para quem usa:
+
+- **A DM pode ser lida pela administração da empresa**, por uma tela de auditoria. Cada leitura fica registrada (sem o texto), e as duas pessoas da conversa veem a data. Toda DM avisa isso no topo, e a pessoa confirma antes da primeira.
+- **O aviso no celular mostra o começo da mensagem** (até 60 caracteres) na menção e na DM, e ele pode aparecer na tela bloqueada. Dá para desligar no perfil ou no ajuste de notificações do celular.
+- **Anexos de até 25 MB, ZIP incluído** (5 GB por empresa). O tipo sai do conteúdo, a foto perde a localização (GPS), e o ZIP é conferido sem nunca ser aberto no servidor. Não há antivírus.
+- **O admin do prédio lê o geral, as salas, o mural e os anexos de toda empresa, sem escrever neles** (a DM, não). Moderar (apagar mensagem de outra pessoa, tirar aviso do mural) e mudar a retenção é só de quem administra cada empresa; no saguão, do admin do prédio.
+- **Reuniões:** cada sala pode ter um link fixo de Meet, Zoom, Jitsi, Teams ou Whereby (o admin da empresa cola; só https e sem senha no endereço), e a agenda do andar guarda título, sala, horário e convidados pela mesma retenção, com aviso 5 minutos antes e o `.ics` para a agenda de cada um. A voz e o vídeo ficam no serviço do link, fora do escritório.
+- O banco não é cifrado: quem opera o servidor lê tudo.
+
+No dia a dia: o **@login** menciona alguém do andar, as mensagens recebem reações e a busca procura no geral, nas salas e nas suas DMs. Cada sala tem um mural na parede (até 10 avisos), e cada pessoa escolhe um status (disponível, ocupado, em reunião, ausente) com um recado curto, que aparece no boneco. A lista do andar mostra quem está e onde, com **Ir até**, **Acenar**, **Bater na porta** e **Mensagem direta** (quem está ocupado não recebe aceno). Na agenda, quem administra a empresa também chama a equipe para uma **reunião geral**: chega o aviso a cada pessoa do andar, e o mapa leva o boneco até a sala. Quem está na sala de uma reunião em andamento e não pôs status aparece "em reunião", e a porta ganha a placa. Quem volta a um andar depois de mais de 1 hora vê no topo **Enquanto você esteve fora**, com as tarefas concluídas e as esperas de aprovação ou resposta dos agentes, e o cartão de cada agente mostra a linha do tempo de hoje.
+
+Sem nenhuma conta, o chat continua só na memória, como antes. Os detalhes estão em [para onde vai cada dado](./docs/visitas-privadas-plano.md#conversas-da-equipe-no-disco-16).
 
 ### Com o agentes.chat self-host
 
@@ -302,6 +334,13 @@ Para deixar o escritório numa TV na parede ou num segundo monitor. Abra pelo bo
 - **Visitantes:** a TV não aparece no mapa, mas mostra as pessoas do andar (veja [Visitantes](#visitantes)).
 - **Som e movimento:** a TV não tem som próprio e segue o que estiver ligado no painel de som. Com movimento reduzido no sistema, a câmera corta em vez de deslizar, e a faixa não anima.
 - **Time-lapse:** ligada, a TV passa a gravar o [time-lapse](#time-lapse) daquele navegador.
+
+## Modo apresentação
+
+Para mostrar a tela numa chamada com cliente ou postar um print sem vazar nada. Ligue pelo botão na barra da câmera ou com `Alt+Shift+P`; ele fica lembrado na aba até fechá-la.
+
+- **O que muda:** os bonecos ficam, mas os nomes viram "Agente 1", "Pessoa 2" e "Você", numerados na ordem em que aparecem; os balões somem; e a tela esconde o que mostra nome de gente ou de agente, título de tarefa, conversa, chat da sala, mural, recado de status, placar, as páginas Conversas, Aprovações e Jornal, o título e os convidados das reuniões e os links das salas no **Personalizar** (o link do Zoom pode levar a senha em `?pwd=`). O aviso de 5 minutos da reunião diz só "Uma reunião começa em breve".
+- **Só tela, não é controle de acesso:** o modo só esconde o que aparece nesta tela. Quem tem a sessão continua lendo tudo pela API e pelo DevTools do navegador, e o servidor responde igual. Não entregue um navegador logado a quem não deve ver os dados.
 
 ## App instalável (PWA)
 
@@ -531,7 +570,7 @@ escritorio.py ── 127.0.0.1:737 ── tailscale serve (HTTPS, só na tailnet
 
 ### Diário de transições
 
-A cada leitura (30 s), o servidor compara as tarefas com a leitura anterior, pelo `run_id`, e guarda na memória desde quando cada uma está no status atual. Daí saem os eventos recentes (no máximo 50): `comecou`, `pediu_aprovacao`, `pediu_resposta`, `voltou_a_trabalhar` e `terminou`, com horário, handle do agente e `run_id`, sem nenhum conteúdo das conversas. A primeira leitura depois de subir é só a base, sem eventos. Nada vai para o disco: reiniciar o serviço zera o diário e o "desde" recomeça na hora da primeira leitura.
+A cada leitura (30 s), o servidor compara as tarefas com a leitura anterior, pelo `run_id`, e guarda na memória desde quando cada uma está no status atual. Daí saem os eventos recentes (no máximo 50): `comecou`, `pediu_aprovacao`, `pediu_resposta`, `voltou_a_trabalhar` e `terminou`, com horário, handle do agente e `run_id`, sem nenhum conteúdo das conversas. A primeira leitura depois de subir é só a base, sem eventos. O diário em si fica na memória: reiniciar o serviço o zera e o "desde" recomeça na hora da primeira leitura. Vai ao disco só a linha do tempo dos agentes (1.6): o id do agente, o estado e a hora de cada mudança, em `dados/linha/` (ou `dados/andares/<id>/linha/`), por 14 dias e até 5.000 linhas por dia.
 
 ## Desenvolvimento
 

@@ -232,11 +232,12 @@ class Acesso:
         derrubadas = {k for k, v in self.sessoes.items() if v.get("usuario") == nome_u}
         return self._derrubar_sessoes(derrubadas) if derrubadas else 0
 
-    def _exige_nao_ultimo_admin(self, usuario):
-        if _papel_de(self.usuarios.get(usuario), ANDAR_PRINCIPAL) == "admin":
-            admins = sum(1 for u in self.usuarios.values() if _papel_de(u, ANDAR_PRINCIPAL) == "admin")
+    def _exige_nao_ultimo_admin(self, usuario, andar=ANDAR_PRINCIPAL):
+        if _papel_de(self.usuarios.get(usuario), andar) == "admin":
+            admins = sum(1 for u in self.usuarios.values() if _papel_de(u, andar) == "admin")
             if admins <= 1:
-                raise UltimoAdmin("o escritório precisa ter pelo menos um administrador")
+                raise UltimoAdmin("o escritório precisa ter pelo menos um administrador" if andar == ANDAR_PRINCIPAL
+                                  else "o andar precisa ter pelo menos um administrador")
 
     def _criar(self, usuario, senha):
         usuario = _normalizar_usuario(usuario)
@@ -272,34 +273,68 @@ class Acesso:
         return [{"usuario": nome_u, "nome": u.get("nome") or nome_u, "papel": _papel_de(u, ANDAR_PRINCIPAL),
                  "andares": _andares_de(u), "criado": u.get("criado", 0)} for nome_u, u in itens]
 
-    def mudar_papel(self, usuario, papel):
-        """Altera o papel do usuário no andar principal (vale na hora). Protege o último admin."""
+    def contas_do_andar(self, andar):
+        """As contas com papel no andar, para o admin da empresa: só o papel nesse andar, nada dos outros andares."""
+        itens = sorted(self.usuarios.items(), key=lambda par: (par[1].get("criado", 0), par[0]))
+        return [{"usuario": nome_u, "nome": u.get("nome") or nome_u, "papel": _papel_de(u, andar),
+                 "criado": u.get("criado", 0)} for nome_u, u in itens if _papel_de(u, andar)]
+
+    def andares_da_conta(self, usuario):
+        """Os andares em que a conta tem papel (o principal primeiro); conta que não existe: []."""
+        u = self.usuarios.get(_normalizar_usuario(usuario))
+        return _andares_de(u) if u else []
+
+    def mudar_papel(self, usuario, papel, andar=ANDAR_PRINCIPAL):
+        """Altera o papel do usuário no andar (vale na hora). Protege o último admin do andar. Num andar extra, só quem
+        já tem papel nele (sem papel: KeyError, a mesma resposta de conta que não existe)."""
         if papel not in PAPEIS:
             raise ValueError("papel inválido (use admin ou membro)")
         nome_u = _normalizar_usuario(usuario)
         with self.trava:
             u = self.usuarios.get(nome_u)
-            if not u:
+            if not u or (andar != ANDAR_PRINCIPAL and not _papel_de(u, andar)):
                 raise KeyError(usuario)
             if papel != "admin":
-                self._exige_nao_ultimo_admin(nome_u)
+                self._exige_nao_ultimo_admin(nome_u, andar)
             andares = dict(u["andares"]) if isinstance(u.get("andares"), dict) else {}
-            andares[ANDAR_PRINCIPAL] = papel
+            andares[andar] = papel
             novos = {**self.usuarios, nome_u: {**u, "andares": andares}}
             self._gravar_usuarios(novos)
 
-    def definir_andares(self, usuario, andares):
-        """Os andares extras que a conta vê, como membro (o principal fica sempre, com o papel que já tinha). Vale no
-        próximo pedido: o escritório confere o andar a cada pedido."""
+    def tirar_andar(self, usuario, andar):
+        """O admin da empresa tira a conta do andar dele (os outros andares ficam). Protege o último admin do andar.
+        Sem andar nenhum, as sessões dela caem; a conta só sai pelo admin do prédio (remover)."""
+        if andar == ANDAR_PRINCIPAL or not isinstance(andar, str) or not ANDAR_OK.fullmatch(andar):
+            raise ValueError("andar inválido")
+        nome_u = _normalizar_usuario(usuario)
+        with self.trava:
+            u = self.usuarios.get(nome_u)
+            if not u or not _papel_de(u, andar):
+                raise KeyError(usuario)
+            self._exige_nao_ultimo_admin(nome_u, andar)
+            andares = {a: p for a, p in u["andares"].items() if a != andar}
+            if not _andares_de({"andares": andares}):
+                self._derrubar_sessoes_de(nome_u)   # antes de gravar: falha no disco nunca deixa cookie sem andar valendo
+            self._gravar_usuarios({**self.usuarios, nome_u: {**u, "andares": andares}})
+        return nome_u
+
+    def definir_andares(self, usuario, andares, principal=True):
+        """Os andares extras que a conta vê. principal=True (modo clássico): o principal fica sempre, com o papel que já
+        tinha. principal=False (modo saguão): o principal só fica se a conta já tinha (o papel no prédio), e a conta
+        precisa de pelo menos 1 andar. Quem fica mantém o papel; andar novo entra como membro. Vale no próximo pedido:
+        o escritório confere o andar a cada pedido."""
         extras = _andares_validos(andares)
         nome_u = _normalizar_usuario(usuario)
         with self.trava:
             u = self.usuarios.get(nome_u)
             if not u:
                 raise KeyError(usuario)
-            principal = _papel_de(u, ANDAR_PRINCIPAL) or "membro"
-            novos = {**self.usuarios, nome_u: {**u, "andares": {ANDAR_PRINCIPAL: principal, **{a: "membro" for a in extras}}}}
-            self._gravar_usuarios(novos)
+            no_principal = _papel_de(u, ANDAR_PRINCIPAL) or ("membro" if principal else None)
+            if not principal and not extras and no_principal != "admin":
+                raise ValueError("escolha pelo menos um andar")
+            novo = {**({ANDAR_PRINCIPAL: no_principal} if no_principal else {}),
+                    **{a: _papel_de(u, a) or "membro" for a in extras}}
+            self._gravar_usuarios({**self.usuarios, nome_u: {**u, "andares": novo}})
 
     def remover(self, usuario):
         """Remove a conta, suas sessões e modos resposta. Protege o último admin. Devolve o nome normalizado da conta.
@@ -348,32 +383,40 @@ class Acesso:
     def _convites_vivos(self, agora):
         return {k: c for k, c in self.convites.items() if c.get("expira", 0) > agora}
 
-    def convidar(self, nome, andares, agora=None):
+    def convidar(self, nome, andares, agora=None, principal=True):
         """Convite pessoal (papel membro) para o nome sugerido e os andares dados. Devolve (token, convite público):
-        o token sai só aqui, uma vez; no disco fica só o sha256. Até CONVITES_MAX pendentes, cada um por 48 h."""
+        o token sai só aqui, uma vez; no disco fica só o sha256. Até CONVITES_MAX pendentes, cada um por 48 h.
+        principal=True (modo clássico): o principal entra sempre. principal=False (o admin da empresa e o modo saguão):
+        só os andares dados, pelo menos 1."""
         agora = time.time() if agora is None else agora
         nome_limpo, extras = _validar_nome(nome), _andares_validos(andares)
+        if not principal and not extras:
+            raise ValueError("escolha pelo menos um andar")
         token = secrets.token_urlsafe(32)
         with self.trava:
             vivos = self._convites_vivos(agora)
             if len(vivos) >= CONVITES_MAX:
                 raise ConvitesDemais(f"já há {CONVITES_MAX} convites esperando; revogue algum antes")
             id_convite = secrets.token_hex(4)
-            convite = {"sha": _sha(token), "nome": nome_limpo, "andares": [ANDAR_PRINCIPAL, *extras],
+            convite = {"sha": _sha(token), "nome": nome_limpo, "andares": [ANDAR_PRINCIPAL, *extras] if principal else extras,
                        "criado": int(agora), "expira": int(agora + CONVITE_VALIDADE)}
             self._gravar_convites({**vivos, id_convite: convite})
         return token, _convite_publico(id_convite, convite)
 
-    def convites_pendentes(self, agora=None):
-        """Os convites que ainda valem, sem o sha (a tela de administração)."""
+    def convites_pendentes(self, agora=None, andar=None):
+        """Os convites que ainda valem, sem o sha (a tela de administração). andar: só os convites para esse andar e
+        nenhum outro (a visão do admin da empresa)."""
         agora = time.time() if agora is None else agora
         with self.trava:
             vivos = self._convites_vivos(agora)
-        return sorted((_convite_publico(k, c) for k, c in vivos.items()), key=lambda c: c["expira"])
+        return sorted((_convite_publico(k, c) for k, c in vivos.items() if andar is None or c["andares"] == [andar]),
+                      key=lambda c: c["expira"])
 
-    def revogar_convite(self, id_convite):
+    def revogar_convite(self, id_convite, andar=None):
+        """andar: só um convite para esse andar e nenhum outro; o de outro andar é como um que não existe (KeyError)."""
         with self.trava:
-            if id_convite not in self.convites:
+            c = self.convites.get(id_convite)
+            if c is None or (andar is not None and c["andares"] != [andar]):
                 raise KeyError(id_convite)
             self._gravar_convites({k: c for k, c in self.convites.items() if k != id_convite})
 

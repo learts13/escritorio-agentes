@@ -13,6 +13,8 @@ do cliente); aqui ficam os limites, o tempo de vida e as fronteiras de sala e de
   segundos. Ninguém recebe o que foi dito antes de entrar na sala. Reiniciar o serviço apaga tudo.
 - seq: um contador por andar, que cresce a cada mudança; o cliente pede o que veio depois do último seq que viu.
 - A sala não é fronteira de segurança entre pessoas da equipe (qualquer uma pode andar até lá); o andar é.
+- O "usuario" que sai no ao_vivo (das pessoas, das mensagens e o "eu" de quem pediu) passa pela máscara do pedido: no
+  saguão, o escritorio.py troca o login por um id opaco estável (M2); aqui dentro a chave é sempre o login.
 """
 import collections
 import math
@@ -107,8 +109,10 @@ class Presenca:
                                      "olha": olha, "visto": agora, "entrou_seq": entrou}
             return a["seq"]
 
-    def ao_vivo(self, andar, usuario, desde, renovar=True):
-        """Quem mais está no andar e as mensagens novas da sala de quem pediu. renovar=False (a TV): só lê."""
+    def ao_vivo(self, andar, usuario, desde, renovar=True, mascara=None):
+        """Quem mais está no andar e as mensagens novas da sala de quem pediu. renovar=False (a TV): só lê. mascara: o
+        login -> o "usuario" que sai (None: o próprio login)."""
+        mostra = mascara or (lambda u: u)
         if isinstance(desde, bool) or not isinstance(desde, int) or desde < 0:
             desde = 0
         agora = self.relogio()
@@ -118,14 +122,16 @@ class Presenca:
             eu = a["pessoas"].get(usuario)
             if eu is not None and renovar:
                 eu["visto"] = agora
-            pessoas = [{"usuario": u, "nome": p["nome"], "aparencia": p["aparencia"], "x": p["x"], "y": p["y"],
-                        "destino": p["destino"], "sala": p["sala"], "olha": p["olha"]}
-                       for u, p in sorted(a["pessoas"].items()) if u != usuario]
+            pessoas = sorted(({"usuario": mostra(u), "nome": p["nome"], "aparencia": p["aparencia"], "x": p["x"],
+                               "y": p["y"], "destino": p["destino"], "sala": p["sala"], "olha": p["olha"]}
+                              for u, p in a["pessoas"].items() if u != usuario),
+                             key=lambda p: p["usuario"])   # na ordem do "usuario" que sai, não do login
             mensagens = []
             if eu is not None and eu["sala"]:
                 inicio = max(desde, eu["entrou_seq"] - 1)
-                mensagens = [dict(m) for _, m in a["salas"].get(eu["sala"], ()) if m["seq"] > inicio]
-            return {"seq": a["seq"], "pessoas": pessoas, "mensagens": mensagens}
+                mensagens = [{**m, "usuario": mostra(m["usuario"])} for _, m in a["salas"].get(eu["sala"], ())
+                             if m["seq"] > inicio]
+            return {"seq": a["seq"], "eu": mostra(usuario), "pessoas": pessoas, "mensagens": mensagens}
 
     def enviar(self, andar, usuario, texto):
         """Uma mensagem para a sala onde o autor está agora. Devolve o seq dela."""
@@ -141,6 +147,38 @@ class Presenca:
             msg = {"seq": a["seq"], "usuario": usuario, "nome": p["nome"], "texto": limpo,
                    "em": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.parede()))}
             a["salas"].setdefault(p["sala"], collections.deque(maxlen=ANEL)).append((agora, msg))
+            return a["seq"]
+
+    # --- consultas da Onda 2 (aceno, status, saguão): logins só para o escritorio.py, nunca para fora
+    def quem_esta(self, andar):
+        """Os logins com o escritório aberto no andar agora."""
+        with self.trava:
+            return set(self._andar(andar, self.relogio())["pessoas"])
+
+    def sala_de(self, andar, usuario):
+        with self.trava:
+            p = self._andar(andar, self.relogio())["pessoas"].get(usuario)
+            return p["sala"] if p else None
+
+    def aberto(self, usuario):
+        """A pessoa está com o escritório aberto em algum andar (o aviso no celular não precisa tocar)."""
+        agora = self.relogio()
+        with self.trava:
+            return any(agora - a["pessoas"][usuario]["visto"] < PRESENCA_TTL
+                       for a in self.andares.values() if usuario in a["pessoas"])
+
+    def no_predio(self):
+        """Quantas pessoas estão em algum andar agora, sem nome (o saguão mostra só o total, D12 a)."""
+        agora = self.relogio()
+        with self.trava:
+            return len({u for a in self.andares.values() for u, p in a["pessoas"].items()
+                        if agora - p["visto"] < PRESENCA_TTL})
+
+    def tocar(self, andar):
+        """Um seq novo no andar, para o que não é posição nem mensagem (o aceno). Devolve o seq."""
+        with self.trava:
+            a = self._andar(andar, self.relogio())
+            a["seq"] += 1
             return a["seq"]
 
     def sair(self, usuario):

@@ -1,7 +1,11 @@
+import atexit
+import contextlib
+import io
 import json
 import os
 import shutil
 import stat
+import sys
 import tempfile
 import threading
 import time
@@ -11,6 +15,19 @@ import urllib.parse
 import urllib.request
 
 PASTA = tempfile.mkdtemp(prefix="escritorio-teste-andares-")
+
+
+@atexit.register
+def _apagar_pasta():
+    """No fim do processo, e não do módulo: rodando a suíte inteira, ela é o ESCRITORIO_DADOS dos módulos seguintes. No
+    Windows, uma thread de fundo lendo o marca.json ou o times.json nessa hora segura o arquivo: tenta de novo."""
+    for _ in range(10):
+        shutil.rmtree(PASTA, ignore_errors=True)
+        if not os.path.exists(PASTA):
+            return
+        time.sleep(0.2)
+
+
 os.environ.setdefault("ESCRITORIO_DADOS", PASTA)   # rodando junto com o test_escritorio, vale a pasta dele
 if "ESCRITORIO_TIMES" not in os.environ:
     os.environ["ESCRITORIO_TIMES"] = os.path.join(PASTA, "times.json")
@@ -20,6 +37,47 @@ os.environ.setdefault("AGENTES_ORG", "00000000-0000-4000-8000-000000000000")  # 
 import andares  # noqa: E402
 import escritorio as e  # noqa: E402
 from acesso import Acesso  # noqa: E402
+
+_ORIGINAIS = {}
+
+
+def _so_local(url):
+    host = urllib.parse.urlsplit(url if isinstance(url, str) else url.full_url).hostname
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        raise AssertionError(f"um teste tentou falar com a rede ({host})")
+
+
+def setUpModule():
+    """Fusível de rede (B5): nenhum teste fala com a rede, só com os servidores que ele mesmo sobe em 127.0.0.1. O que
+    sair para fora (agentes.chat, emissor do OAuth, clima) levanta erro em vez de ir."""
+    _ORIGINAIS.update(_abrir=e._abrir, post_form=e.post_form, post_json=e.post_json, urlopen=urllib.request.urlopen)
+
+    def abrir(req):
+        _so_local(req)
+        return _ORIGINAIS["_abrir"](req)
+
+    def post_form(url, campos):
+        _so_local(url)
+        return _ORIGINAIS["post_form"](url, campos)
+
+    def post_json(url, corpo):
+        _so_local(url)
+        return _ORIGINAIS["post_json"](url, corpo)
+
+    def urlopen(url, *a, **k):
+        _so_local(url)
+        return _ORIGINAIS["urlopen"](url, *a, **k)
+    e._abrir, e.post_form, e.post_json, urllib.request.urlopen = abrir, post_form, post_json, urlopen
+
+
+def _soltar_fusivel():
+    e._abrir, e.post_form, e.post_json, urllib.request.urlopen = (_ORIGINAIS[n] for n in ("_abrir", "post_form",
+                                                                                            "post_json", "urlopen"))
+
+
+def tearDownModule():
+    _soltar_fusivel()
+
 
 ORG_B = "11111111-1111-4111-8111-111111111111"
 ORG_C = "22222222-2222-4222-8222-222222222222"
@@ -81,10 +139,77 @@ class Registro(unittest.TestCase):
             with self.assertRaises(andares.AndaresIlegiveis, msg=conteudo):
                 andares.Andares(self.dados, e.ORG)
 
+    def test_v2_do_saguao(self):
+        """O v2 (gravado pela migração): o térreo é o saguão, e a org do principal pode ser a de um andar extra."""
+        v2 = {"v": 2, "terreo": "saguao", "andares": [{"id": "aaaaaaaa", "nome": "Dev Maniac's", "org": e.ORG}]}
+        with open(os.path.join(self.dados, andares.ARQ), "w", encoding="utf-8") as f:
+            json.dump(v2, f)
+        r = andares.Andares(self.dados, e.ORG)
+        self.assertTrue(r.saguao)
+        self.assertEqual(r.lista, v2["andares"])
+        b = r.criar("B", ORG_B)
+        with self.assertRaisesRegex(ValueError, "já é um andar"):
+            r.criar("De novo", e.ORG)
+        with open(os.path.join(self.dados, andares.ARQ), encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {**v2, "andares": [*v2["andares"], b]})   # grava o v2 que leu
+        self.assertFalse(andares.Andares(tempfile.mkdtemp(dir=self.dados), e.ORG).saguao)   # sem arquivo: clássico
+        for ruim in ({**v2, "terreo": "outro"}, {"v": 2, "andares": []}, {**v2, "extra": 1},
+                     {"v": 1, "terreo": "saguao", "andares": []}):
+            with open(os.path.join(self.dados, andares.ARQ), "w", encoding="utf-8") as f:
+                json.dump(ruim, f)
+            with self.assertRaises(andares.AndaresIlegiveis, msg=ruim):
+                andares.Andares(self.dados, e.ORG)
+
+    def test_v1_continua_classico(self):
+        r = andares.Andares(self.dados, e.ORG)
+        r.criar("B", ORG_B)
+        self.assertFalse(andares.Andares(self.dados, e.ORG).saguao)
+        with open(os.path.join(self.dados, andares.ARQ), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["v"], 1)
+
     def test_pasta_so_sai_do_id(self):
         for ruim in ("../x", "AAAAAAAA", "aaaaaaa", "aaaaaaaa/..", None):
             with self.assertRaises(ValueError):
                 andares.pasta(self.dados, ruim)
+
+
+class Subcomando(unittest.TestCase):
+    """`escritorio.py saguao [--desfazer]`: só o despacho para o migracao_saguao.principal (a migração é da Trinity)."""
+
+    def test_despacha_os_argumentos_e_devolve_o_codigo(self):
+        chamadas = []
+        falso = type(sys)("migracao_saguao")
+        falso.principal = lambda argv, dados, times, org: chamadas.append((argv, dados, times, org)) or 7
+        antes = sys.modules.get("migracao_saguao")
+        sys.modules["migracao_saguao"] = falso
+        self.addCleanup(lambda: sys.modules.pop("migracao_saguao") if antes is None else
+                        sys.modules.__setitem__("migracao_saguao", antes))
+        self.assertEqual(e.despachar_saguao(["--desfazer"]), 7)
+        self.assertEqual(chamadas, [(["--desfazer"], e.DADOS, e.TIMES, e.ORG)])
+
+    def test_migracao_pela_metade_nao_deixa_subir(self):
+        """Uma queda no meio da migração (ou do desfazer) não pode subir o serviço no modo clássico sem o oauth.json na
+        raiz: a retomada é pelo subcomando. Diário ilegível também não sobe. O estado vem do migracao_saguao.estado."""
+        dados = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, dados, True)
+        diario = os.path.join(dados, "migracao-saguao.json")
+        self.assertIsNone(e.motivo_da_migracao(dados))   # sem diário
+        for estado, recusa in (("em_andamento", True), ("desfazendo", True), ("feito", False), ("desfeito", False)):
+            with open(diario, "w", encoding="utf-8") as f:
+                json.dump({"v": 1, "estado": estado}, f)
+            motivo = e.motivo_da_migracao(dados)
+            self.assertEqual(motivo is not None, recusa, estado)
+            if recusa:
+                self.assertIn("escritorio.py saguao", motivo)
+        for ruim in ("{", '{"estado": "outro"}'):
+            with open(diario, "w", encoding="utf-8") as f:
+                f.write(ruim)
+            self.assertIn("diário", e.motivo_da_migracao(dados))
+
+    def test_a_entrada_do_script_chama_o_despacho(self):
+        fonte = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "escritorio.py"), encoding="utf-8").read()
+        self.assertIn('sys.argv[1:2] == ["saguao"]', fonte)
+        self.assertIn("sys.exit(despachar_saguao(sys.argv[2:]))", fonte)
 
 
 class OutroWorkspace(unittest.TestCase):
@@ -104,9 +229,61 @@ class OutroWorkspace(unittest.TestCase):
         foto = l.foto()
         self.assertEqual((foto["conexao"], foto["agentes"], foto["tarefas"]), ("outra_org", [], []))
 
+    def test_conexao_nova_so_publica_depois_de_confirmar_a_org(self):
+        """E.2 item 5: o consentimento pode ter escolhido outra org sem tarefa com link para denunciar. A conexão nova
+        fica em "conferindo", sem agentes, até uma tarefa com o link do workspace do andar."""
+        confirmou = []
+
+        class Cred:
+            def token(self):
+                return "t"
+
+            def conferir_org(self):
+                return not confirmou
+
+            def confirmar_org(self):
+                confirmou.append(True)
+        l = e.Leitor(Cred(), e.url_app(e.AGENTES, ORG_B), os.path.join(PASTA, "nao-existe.json"), org=ORG_B)
+        l.mcp.sessao = "s"
+        tarefas = [{"agent": {"id": "b1"}, "status": "running", "label": "x", "started_at": "2026-11-14T10:00:00Z"}]
+        l.agentes, l.agentes_em = [{"id": "b1", "name": "Bolt", "handle": "bolt"}], 1_000_000
+        l._paginas = lambda nome, args, chave, token: (tarefas if chave == "tasks" else [], True)
+        l.ciclo(1_000_000)
+        foto = l.foto()
+        self.assertEqual((foto["conexao"], foto["agentes"], confirmou), ("conferindo", [], []))
+        tarefas.append(tarefa(ORG_B))
+        l.ciclo(1_000_030)
+        foto = l.foto()
+        self.assertEqual((foto["conexao"], [a["id"] for a in foto["agentes"]], confirmou), ("conectado", ["b1"], [True]))
+
     def test_principal_continua_sem_conferir_org(self):
         l = e.Leitor(None)
         self.assertIsNone(l.org)
+
+    def test_so_a_conexao_de_andar_marca_conferir_org(self):
+        """B4: o concluir() marca conferir_org só na cred de um andar (com o times.json dele); o principal clássico não
+        tem org a conferir."""
+        dados = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, dados, True)
+        antes = e.post_form
+        e.post_form = lambda url, campos: {"access_token": "AC", "refresh_token": "RF", "scope": "read", "expires_in": 3600}
+        self.addCleanup(setattr, e, "post_form", antes)
+        for times, marca in ((None, False), (os.path.join(dados, "times.json"), True)):
+            cred = e.Credenciais(os.path.join(dados, f"oauth-{marca}.json"), times)
+            cred.pendentes["st"] = {"verificador": "v", "em": time.time(), "client_id": "c", "escopo": "read",
+                                    "redirect_uri": cred.redirect_uri(), "usuario": "bia"}
+            cred.concluir("code", "st")
+            self.assertEqual(cred.conferir_org(), marca, times)
+
+    def test_desconectar_esvazia_o_que_a_conta_leu(self):
+        """B3: o andar desconectado não mostra a lista do dia, os agentes, os trabalhos nem as tarefas da conta."""
+        l = e.Leitor(None, e.url_app(e.AGENTES, ORG_B), os.path.join(PASTA, "nao-existe.json"), org=ORG_B)
+        l.estado = {**l.estado, "agentes": [{"id": "b1"}], "trabalhos": [{"agente_id": "b1"}], "tarefas": [{"id": "t"}]}
+        l.conversas = {"por_id": {"x": {}}, "mudou": {"c": 1}}
+        l.esvaziar()
+        foto = l.foto()
+        self.assertEqual((foto["agentes"], foto["trabalhos"], foto["tarefas"]), ([], [], []))
+        self.assertEqual(l.conversas_do_dia(), {"por_id": {}, "mudou": {}})
 
     def test_alguem_vendo_o_andar_adianta_a_primeira_leitura(self):
         """O escalonamento da partida (atraso) deixava o andar sem agentes até a vez dele; quem abre o andar não espera."""
@@ -281,6 +458,9 @@ class Http(unittest.TestCase):
             def concluir(self, codigo, s):
                 chamados.append((self.nome, s))
 
+            def confere_dono(self, estado, usuario, autorizado=True):   # o state é de quem começou (E.2)
+                return autorizado and usuario is not None
+
         antes_extra, antes_srv = self.extra.cred, self.srv.cred
         self.extra.cred, self.srv.cred = Cred("extra", {"st-extra"}), Cred("principal", set())
         try:
@@ -312,6 +492,130 @@ class Http(unittest.TestCase):
         self.assertEqual((st, corpo["codigo"]), (404, "andar"))
         cab = {**self.cookie, "Origin": "https://outro.exemplo", "Content-Type": "application/json"}
         self.assertEqual(self.req("/api/andares", cab, b'{"acao":"renomear","id":"x","nome":"y"}')[0], 403)
+
+    def test_visitantes_so_no_principal(self):
+        self.assertIn("visitantes", self.get("/api/estado")[1])
+        self.assertNotIn("visitantes", self.get(f"/api/estado?andar={self.extra.id}")[1])
+
+    def conta(self, usuario, papel="membro"):
+        """Uma conta só do andar extra (sem o principal), pelo convite, e o cookie dela."""
+        acesso = self.srv.acesso
+        if usuario in acesso.usuarios:
+            acesso.remover(usuario)
+        token, _ = acesso.convidar(usuario.title(), [self.extra.id], principal=False)
+        cab = {"Cookie": "esc_sessao=" + acesso.aceitar_convite(token, usuario, "senha-da-pessoa-1", usuario.title(),
+                                                                {"color": "rose", "eyes": "round", "accessory": "cap"})}
+        if papel == "admin":
+            acesso.mudar_papel(usuario, "admin", self.extra.id)
+        return cab
+
+    def test_admin_da_empresa_no_classico(self):
+        """Sem saguão: a conta só de um andar extra cai nele sem ?andar=, e o admin dele não alcança o principal."""
+        bia = self.conta("bia", "admin")
+        rodar = lambda rota, cab=bia: self.req(rota, cab)[0]
+        st, cfg = self.req("/api/config", bia)[:2]
+        cfg = json.loads(cfg)
+        self.assertEqual((st, cfg["andar"], cfg["papel"], cfg["terreo"]), (200, self.extra.id, "admin", "classico"))
+        self.assertEqual([a["id"] for a in cfg["andares"]], [self.extra.id])   # o térreo de A não aparece
+        self.assertEqual([a["id"] for a in json.loads(self.req("/api/estado", bia)[1])["agentes"]], ["b1"])
+        self.assertEqual(rodar("/api/estado?andar=principal"), 404)
+        self.assertEqual(rodar("/api/andares"), 403)
+        self.assertEqual(rodar(f"/api/membros?andar={self.extra.id}"), 200)
+        st, corpo = self.req(f"/api/membros?andar={self.extra.id}", bia)[:2]
+        self.assertEqual({c["usuario"] for c in json.loads(corpo)["contas"]}, {"bia"})   # nem o dono aparece
+        self.srv.acesso.remover("bia")
+
+    def test_oauth_amarrado_a_conta_e_ao_andar(self):
+        """E.2: o state guarda quem começou; a volta só vale na sessão dessa conta e com o papel de admin ainda valendo.
+        Qualquer outra coisa dá o 400 do state inválido e gasta o state."""
+        cred = e.Credenciais(os.path.join(self.dados, "oauth-e2.json"), self.extra.times)
+        cred._cliente = lambda escopo, agora: "cliente-x"   # sem o registro de verdade (rede)
+        antes = self.extra.cred
+        self.extra.cred = cred
+        self.addCleanup(setattr, self.extra, "cred", antes)
+        bia = self.conta("bia", "admin")
+        self.addCleanup(self.srv.acesso.remover, "bia")
+        q = f"?andar={self.extra.id}"
+        estado = lambda: urllib.parse.parse_qs(urllib.parse.urlsplit(
+            self.req("/oauth/conectar" + q, bia)[2]["Location"]).query)["state"][0]
+        self.assertEqual(self.req("/oauth/conectar?andar=principal", bia)[0], 404)
+        s1 = estado()
+        st, corpo, _ = self.req(f"/oauth/retorno?code=c&state={s1}", self.cookie)   # o link de volta na sessão de outro
+        self.assertEqual(st, 400)
+        self.assertIn("venceu (vale 10 minutos) ou já foi usado", corpo.decode())
+        self.assertFalse(cred.tem_estado(s1))   # o state foi gasto
+        self.assertEqual(self.req(f"/oauth/retorno?code=c&state={s1}", bia)[0], 400)
+        s2 = estado()
+        papeis = self.srv.acesso.usuarios["bia"]["andares"]
+        papeis[self.extra.id] = "membro"   # o papel caiu dentro do prazo do pendente (o último admin, aqui, não sai)
+        # sem papel de admin em nenhum andar, a guarda barra (o 403 do membro); o state se gasta do mesmo jeito
+        self.assertEqual(self.req(f"/oauth/retorno?code=c&state={s2}", bia)[0], 403)
+        self.assertFalse(cred.tem_estado(s2))
+        papeis[self.extra.id] = "admin"
+        s3 = estado()
+        antes_post = e.post_form
+        e.post_form = lambda url, campos: {"access_token": "AC-e2", "refresh_token": "RF-e2", "scope": "read",
+                                           "expires_in": 3600}
+        self.addCleanup(setattr, e, "post_form", antes_post)
+        st, _, h = self.req(f"/oauth/retorno?code=c&state={s3}", bia)
+        self.assertEqual((st, h["Location"]), (302, f"/#andar={self.extra.id}"))
+        self.assertTrue(cred.conferir_org())   # até uma leitura confirmar a org, nenhum agente aparece
+        self.assertFalse(self.extra.cred.tem_estado(s3))
+        # o state de um andar não serve no outro: cada conexão tem os seus pendentes
+        self.assertEqual(self.req(f"/oauth/retorno?code=c&state={estado()}", self.cookie)[0], 400)
+
+    def test_conta_sem_andar_ainda_sai(self):
+        """B6: o andar da conta saiu do prédio; o /sair e o /api/sair-todos passam antes da guarda de "sem andar"."""
+        cab = lambda c: {**c, "Origin": self.base, "Content-Type": "application/json"}
+        self.addCleanup(self.srv.acesso.remover, "caio")
+        for rota, corpo, esperado in (("/sair", b"", 303), ("/api/sair-todos", b'{"senha": "senha-da-pessoa-1"}', 200)):
+            with self.subTest(rota=rota):
+                caio = self.conta("caio")   # recria a conta a cada volta
+                extra = self.srv.andares.pop(self.extra.id)
+                try:
+                    self.assertEqual(self.req("/api/estado", caio)[0], 403)   # sem andar, nada mais passa
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(self.req(rota, cab(caio), corpo)[0], esperado)
+                finally:
+                    self.srv.andares[self.extra.id] = extra
+                self.assertEqual(self.req("/api/estado", caio)[0], 401)   # a sessão caiu
+
+    def test_desconectar_o_andar(self):
+        revogou = []
+
+        class Cred:
+            def desconectar(self):
+                revogou.append(True)
+
+            def tem_estado(self, s):
+                return False
+
+        class Conversas:
+            def esquecer(self):
+                limpou.append("conversas")
+        limpou = []
+        antes = self.extra.cred, self.extra.conversas
+        self.extra.cred, self.extra.conversas = Cred(), Conversas()
+        self.extra.leitor.esvaziar = lambda: limpou.append("leitor")
+        self.addCleanup(lambda: (setattr(self.extra, "cred", antes[0]), setattr(self.extra, "conversas", antes[1]),
+                                 delattr(self.extra.leitor, "esvaziar")))
+        bia, ana = self.conta("bia", "admin"), self.conta("ana")
+        self.addCleanup(self.srv.acesso.remover, "bia")
+        self.addCleanup(self.srv.acesso.remover, "ana")
+        rota = f"/oauth/desconectar?andar={self.extra.id}"
+        post = lambda cab, dados, r=rota: self.req(r, {**cab, "Origin": self.base, "Content-Type": "application/json"},
+                                                   json.dumps(dados).encode())[0]
+        self.assertEqual(post(ana, {"senha": "senha-da-pessoa-1"}), 403)   # membro
+        self.assertEqual(post(bia, {"senha": "errada-errada"}), 403)
+        self.assertEqual(post(bia, {}), 400)
+        self.assertEqual(post(bia, {"senha": "senha-da-pessoa-1"}, "/oauth/desconectar?andar=principal"), 404)
+        self.assertEqual((revogou, limpou), ([], []))
+        self.assertEqual(post(bia, {"senha": "senha-da-pessoa-1"}), 200)
+        self.assertEqual(limpou, ["leitor", "conversas"])   # B3: o que a conta leu sai da tela já
+        fim = time.monotonic() + 5
+        while not revogou and time.monotonic() < fim:
+            time.sleep(0.01)
+        self.assertEqual(revogou, [True])
 
     def test_criar_renomear_e_remover_de_verdade(self):
         st, corpo = self.post("/api/andares", {"acao": "criar", "nome": "Suporte", "org": ORG_C,

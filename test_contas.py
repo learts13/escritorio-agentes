@@ -358,5 +358,85 @@ class ContasUnidade(unittest.TestCase):
         self.assertEqual(len([u for u in self.a.usuarios if u.startswith("dup")]), 1)
 
 
+class EmpresasPorAndar(unittest.TestCase):
+    """1.6: o principal opcional, o papel por andar, a lista de cada andar e o último admin de cada andar."""
+    A, B = "a1b2c3d4", "b1b2c3d4"
+
+    def setUp(self):
+        self.pasta = tempfile.mkdtemp(prefix="contas-andar-")
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
+        self.a = Acesso(self.pasta)
+        with open(os.path.join(self.pasta, "codigo-primeiro-acesso.txt"), encoding="utf-8") as f:
+            codigo = f.read().strip()
+        self.a.criar_primeiro(codigo, "dono", "senha-bem-grande")   # com o arquivo fechado (unlink no Windows)
+
+    def conta(self, usuario, andares, principal=True):
+        token, _ = self.a.convidar(usuario.title(), andares, principal=principal)
+        return self.a.aceitar_convite(token, usuario, SENHA, usuario.title(), AVATAR)
+
+    def test_convite_sem_o_principal(self):
+        _, pub = self.a.convidar("Bia", [self.B, ANDAR_PRINCIPAL], principal=False)
+        self.assertEqual(pub["andares"], [self.B])   # o principal não entra nem pedido
+        self.conta("bia", [self.B], principal=False)
+        self.assertIsNone(self.a.papel("bia"))
+        self.assertEqual(self.a.papel("bia", self.B), "membro")
+        self.assertEqual(self.a.andares_da_conta("bia"), [self.B])
+        with self.assertRaises(ValueError):   # a conta precisa de pelo menos 1 andar
+            self.a.convidar("Ninguém", [], principal=False)
+
+    def test_papel_por_andar_e_ultimo_admin_do_andar(self):
+        self.conta("bia", [self.B], principal=False)
+        self.conta("caio", [self.B], principal=False)
+        self.a.mudar_papel("bia", "admin", self.B)
+        self.assertEqual((self.a.papel("bia", self.B), self.a.papel("bia")), ("admin", None))
+        with self.assertRaises(UltimoAdmin):
+            self.a.mudar_papel("bia", "membro", self.B)
+        with self.assertRaises(UltimoAdmin):
+            self.a.tirar_andar("bia", self.B)
+        self.a.mudar_papel("caio", "admin", self.B)
+        self.a.mudar_papel("bia", "membro", self.B)   # com dois admins, um pode descer
+        with self.assertRaises(KeyError):   # sem papel em A: a mesma resposta de conta que não existe
+            self.a.mudar_papel("bia", "admin", self.A)
+        with self.assertRaises(KeyError):
+            self.a.tirar_andar("bia", self.A)
+        with self.assertRaises(ValueError):
+            self.a.tirar_andar("bia", ANDAR_PRINCIPAL)   # o principal não sai por aqui
+
+    def test_tirar_andar_mantem_os_outros_e_sem_andar_derruba_a_sessao(self):
+        tok = self.conta("bia", [self.A, self.B], principal=False)
+        self.a.tirar_andar("bia", self.A)
+        self.assertEqual(self.a.andares_da_conta("bia"), [self.B])
+        self.assertEqual(self.a.sessao(tok), "bia")   # ainda tem B
+        self.a.tirar_andar("bia", self.B)
+        self.assertEqual(self.a.andares_da_conta("bia"), [])
+        self.assertIsNone(self.a.sessao(tok))   # sem andar nenhum, nenhum cookie dela vale
+        self.assertIn("bia", self.a.usuarios)   # apagar a conta fica com o admin do prédio
+
+    def test_contas_e_convites_do_andar(self):
+        self.conta("bia", [self.B], principal=False)
+        self.conta("ana", [self.A])
+        self.a.mudar_papel("bia", "admin", self.B)
+        self.assertEqual([(c["usuario"], c["papel"]) for c in self.a.contas_do_andar(self.B)], [("bia", "admin")])
+        self.assertEqual(set(self.a.contas_do_andar(self.B)[0]), {"usuario", "nome", "papel", "criado"})
+        _, de_b = self.a.convidar("Davi", [self.B], principal=False)
+        _, de_a = self.a.convidar("Eva", [self.A], principal=False)
+        self.assertEqual([c["id"] for c in self.a.convites_pendentes(andar=self.B)], [de_b["id"]])
+        with self.assertRaises(KeyError):   # o admin de B não revoga o convite de A
+            self.a.revogar_convite(de_a["id"], andar=self.B)
+        self.a.revogar_convite(de_b["id"], andar=self.B)
+        self.assertEqual(self.a.convites_pendentes(andar=self.B), [])
+
+    def test_definir_andares_mantem_o_papel_dos_que_ficam(self):
+        self.conta("bia", [self.B], principal=False)
+        self.a.mudar_papel("bia", "admin", self.B)
+        self.a.definir_andares("bia", [self.A, self.B], principal=False)
+        self.assertEqual((self.a.papel("bia", self.A), self.a.papel("bia", self.B), self.a.papel("bia")),
+                         ("membro", "admin", None))
+        self.a.definir_andares("dono", [self.A], principal=False)   # o papel no prédio fica
+        self.assertEqual((self.a.papel("dono"), self.a.papel("dono", self.A)), ("admin", "membro"))
+        with self.assertRaises(ValueError):
+            self.a.definir_andares("bia", [], principal=False)
+
+
 if __name__ == "__main__":
     unittest.main()

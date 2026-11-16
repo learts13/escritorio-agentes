@@ -16,11 +16,13 @@ import urllib.parse
 import urllib.request
 
 import andares
+import avisos
 import escritorio as e
 from acesso import Acesso
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 AVATAR = {"color": "rose", "eyes": "round", "accessory": "cap"}
 SENHA = "senha-da-pessoa-1"
 SENHA_DONO = "senha-bem-grande"
@@ -379,6 +381,346 @@ class Membros(unittest.TestCase):
             st, _, _ = self.post("/api/membros", {"acao": "remover", "usuario": " ANA ", "senha": SENHA_DONO}, self.dono)
         self.assertEqual(st, 200)
         self.assertEqual(self.srv.avisos.apagou, [("esquecer", "ana")])   # pelo nome normalizado da conta
+
+
+class EmpresasNoSaguao(unittest.TestCase):
+    """1.6, modo saguão (andares.json v2): a Dev Maniac's (A) e a empresa B em andares próprios, o térreo vira o saguão.
+    Os 4 perfis (admin do prédio, admin da empresa, membro e pessoa do prédio) contra todas as rotas, no andar próprio,
+    no alheio e no saguão, e a empresa B sem nada de A."""
+    A, B = "aaaaaaaa", "bbbbbbbb"
+    PNG = b"\x89PNG\r\n\x1a\n" + b"logo-de-b"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dados = tempfile.mkdtemp(prefix="saguao-http-")
+        cls.antes = e.BASE, e.TIMES, e.ARQ_PLANTA, e.ARQ_EQUIPE, e.ARQ_MARCA, e.ARQ_LOGO, e.ORG
+        e.ORG = ORG_A   # a org da Dev Maniac's, que subiu do térreo para o andar A
+        junta = lambda nome: os.path.join(cls.dados, nome)
+        e.TIMES, e.ARQ_PLANTA, e.ARQ_EQUIPE, e.ARQ_MARCA, e.ARQ_LOGO = (junta("times.json"), junta("planta.json"),
+                                                                        junta("equipe.json"), junta("marca.json"),
+                                                                        junta("logo.img"))
+        with open(e.TIMES, "w", encoding="utf-8") as f:   # a cópia que ficou na raiz: não pode aparecer no saguão
+            json.dump({"conversas": "ler", "times": [{"nome": "Time secreto de A", "agentes": ["pixel"]}]}, f)
+        with open(e.ARQ_MARCA, "w", encoding="utf-8") as f:
+            json.dump({"empresa": "Prédio Central", "cor": "#123456"}, f)
+        with open(junta(andares.ARQ), "w", encoding="utf-8") as f:
+            json.dump({"v": 2, "terreo": "saguao", "andares": [{"id": cls.A, "nome": "Dev Maniacs", "org": ORG_A},
+                                                                {"id": cls.B, "nome": "Empresa B", "org": ORG_B}]}, f)
+
+        class Leitor:
+            def __init__(self, agentes):
+                self.agentes = agentes
+
+            def foto(self):
+                return {**e.resumir(self.agentes, []), "atualizado": None, "erro": None, "conexao": "conectado"}
+
+            def conversas_do_dia(self):
+                return {"por_id": {}, "mudou": {}}
+
+        class Cred:   # sem rede: o Conectar só devolve um endereço
+            def url_autorizacao(self, usuario=None):
+                return "https://agentes.exemplo/autorizar"
+
+            def tem_escrita(self):
+                return False
+
+            def tem_estado(self, estado):
+                return False
+
+            def confere_dono(self, estado, usuario, autorizado=True):   # o state é de quem começou (E.2)
+                return False
+
+        cls.srv = e.Servidor(("127.0.0.1", 0), e.Pagina)
+        cls.srv.leitor = cls.srv.cred = None   # o saguão não tem conexão
+        cls.srv.acesso = Acesso(os.path.join(cls.dados, "contas"))
+        cls.srv.registro_andares = andares.Andares(cls.dados, e.ORG)
+        cls.srv.andares = {}
+        for reg, agente in zip(cls.srv.registro_andares.lista, ({"id": "a1", "name": "Pixel", "handle": "pixel"},
+                                                                 {"id": "b1", "name": "Bolt", "handle": "bolt"})):
+            andar = e.Andar(reg, cls.dados)
+            andar.leitor, andar.cred, andar.conversas, andar.respostas = Leitor([agente]), Cred(), None, None
+            cls.srv.andares[reg["id"]] = andar
+        cls.srv.avisos = avisos.Avisos("CHAVE", lambda endpoint, agora: "vapid", lambda **k: None, e.FUSO,
+                                       pode=lambda conta, andar: e.recebe_avisos(cls.srv, conta, andar))
+        cls.srv.id_pessoa = e.IdPessoa(os.path.join(cls.dados, "pessoa.chave"))
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+        e.BASE = cls.base
+        acesso = cls.srv.acesso
+        with open(os.path.join(cls.dados, "contas", "codigo-primeiro-acesso.txt")) as f:
+            codigo = f.read().strip()
+        acesso.criar_primeiro(codigo, "dono", SENHA_DONO)
+        acesso.definir_andares("dono", [cls.A], principal=False)   # o que a migração faz: admin do prédio e de A
+        acesso.mudar_papel("dono", "admin", cls.A)
+        cls.cab = {}
+        for usuario, nome, andar, papel in (("adminb", "Beto", cls.B, "admin"), ("membrob", "Bia", cls.B, "membro"),
+                                            ("membroa", "Ana", cls.A, "membro")):
+            token, _ = acesso.convidar(nome, [andar], principal=False)
+            cls.cab[usuario] = Membros.cookie(acesso.aceitar_convite(token, usuario, SENHA, nome, AVATAR))
+            if papel == "admin":
+                acesso.mudar_papel(usuario, "admin", andar)
+        cls.cab["dono"] = Membros.cookie(acesso.entrar("dono", SENHA_DONO))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        e.BASE, e.TIMES, e.ARQ_PLANTA, e.ARQ_EQUIPE, e.ARQ_MARCA, e.ARQ_LOGO, e.ORG = cls.antes
+        shutil.rmtree(cls.dados, ignore_errors=True)
+
+    req = classmethod(Membros.req.__func__)
+    get = Membros.get
+
+    def post(self, rota, obj, cab, bruto=None):
+        h = {**cab, "Content-Type": "application/json", "Origin": self.base}
+        st, corpo, _ = self.req(rota, h, bruto if bruto is not None else json.dumps(obj).encode(), "POST")
+        try:
+            return st, json.loads(corpo)
+        except ValueError:
+            return st, corpo
+
+    @staticmethod
+    def resultado(st, corpo):
+        if Membros.da_guarda(st, corpo):
+            return "guarda"
+        if st == 404 and isinstance(corpo, dict) and corpo.get("codigo") == "andar":
+            return "andar"
+        return "passa"
+
+    # ------------------------------------------------------------------ a matriz
+    def test_listas_da_guarda(self):
+        """O admin da empresa nunca alcança o que é do prédio, e o saguão é um pedaço do que o membro já via."""
+        do_predio = {"/api/andares", "/api/clima", "/api/festas", "/api/clima/busca", *e.ROTAS_ADMIN_VISITAS}
+        self.assertFalse(do_predio & (e.ADMIN_EMPRESA_GET | e.ADMIN_EMPRESA_POST))
+        self.assertTrue(e.SAGUAO_GET <= e.MEMBRO_GET and e.SAGUAO_POST <= e.MEMBRO_POST)
+        self.assertTrue(e.MEMBRO_GET <= e.ADMIN_EMPRESA_GET and e.MEMBRO_POST <= e.ADMIN_EMPRESA_POST)
+        self.assertNotIn("/api/conversa", e.SAGUAO_GET)
+
+    def test_matriz_quatro_perfis_por_andar(self):
+        """Toda rota do código, GET e POST: no andar próprio vale a lista do papel; no alheio, a rota de andar dá o 404
+        de andar que não existe; no saguão, só a lista da pessoa do prédio. O admin do prédio nunca cai na guarda."""
+        listas = {"adminb": (e.ADMIN_EMPRESA_GET, e.ADMIN_EMPRESA_POST), "membrob": (e.MEMBRO_GET, e.MEMBRO_POST)}
+        publicos = {"/entrar", "/primeiro-acesso", "/logo", "/convite"}
+        with contextlib.redirect_stdout(io.StringIO()):
+            for quem in ("dono", "adminb", "membrob"):
+                for onde, q in (("proprio", f"?andar={self.B}"), ("alheio", f"?andar={self.A}"), ("saguao", "")):
+                    for metodo in ("GET", "POST"):
+                        for rota in rotas_do_codigo():
+                            if rota in publicos or rota == "/sair" or (metodo == "POST" and rota in e.POST_PUBLICOS):
+                                continue
+                            with self.subTest(quem=quem, onde=onde, metodo=metodo, rota=rota):
+                                if metodo == "GET":
+                                    r = self.resultado(*self.get(rota + q, self.cab[quem]))
+                                else:
+                                    r = self.resultado(*self.post(rota + q, {}, self.cab[quem]))
+                                if quem == "dono":
+                                    self.assertNotEqual(r, "guarda")
+                                    continue
+                                lista = listas[quem][metodo == "POST"]
+                                comuns = e.PREDIO_GET if metodo == "GET" else e.PREDIO_POST
+                                saguao = e.SAGUAO_GET if metodo == "GET" else e.SAGUAO_POST
+                                if rota in comuns:
+                                    esperado = "passa"
+                                elif rota == "/oauth/retorno" and metodo == "GET":   # quem decide é o state (E.2 item 3)
+                                    esperado = "passa" if quem == "adminb" else "guarda"
+                                elif onde == "saguao" and metodo == "GET" and rota in e.SAGUAO_NAO_TEM:
+                                    esperado = "andar"   # o saguão não tem vida social, jornal, conversas nem conexão
+                                elif onde == "saguao":
+                                    esperado = "passa" if rota in saguao else "guarda"
+                                elif onde == "alheio":
+                                    de_andar = e.ADMIN_EMPRESA_GET if metodo == "GET" else e.ADMIN_EMPRESA_POST
+                                    esperado = "andar" if rota in de_andar else "guarda"
+                                else:
+                                    esperado = "passa" if rota in lista else "guarda"
+                                self.assertEqual(r, esperado)
+
+    # ------------------------------------------------------------------ B sem nada de A
+    def test_empresa_b_nao_ve_nada_de_a(self):
+        b = self.cab["membrob"]
+        st, estado = self.get("/api/estado", b)   # o saguão
+        self.assertEqual((st, estado["agentes"], estado["trabalhos"], estado["tarefas"], estado["conversas"]),
+                         (200, [], [], [], []))
+        self.assertNotIn("visitantes", estado)
+        self.assertNotIn("social", estado)
+        st, cfg = self.get("/api/config", b)
+        self.assertEqual((cfg["terreo"], cfg["andar"], cfg["papel"], cfg["admin_predio"]), ("saguao", "principal", "pessoa", False))
+        self.assertEqual((cfg["times"], cfg["aparencia"]), ([], {}))
+        self.assertNotIn("Time secreto", json.dumps(cfg))
+        self.assertEqual(cfg["andares"], [{"id": "principal", "nome": "Saguão", "conexao": None},
+                                          {"id": self.B, "nome": "Empresa B", "conexao": "conectado"}])
+        for rota in ("/api/estado", "/api/config", "/api/jornal", "/api/ao-vivo", "/api/membros", "/logo"):
+            with self.subTest(rota=rota):
+                self.assertEqual(self.get(f"{rota}?andar={self.A}", b)[0], 404)
+        self.assertEqual([a["id"] for a in self.get(f"/api/estado?andar={self.B}", b)[1]["agentes"]], ["b1"])
+        self.assertNotIn("visitantes", self.get(f"/api/estado?andar={self.B}", b)[1])
+
+    def test_avisos_e_push_de_a_nao_chegam_em_b(self):
+        self.srv.avisos.zerar()
+        self.srv.avisos.do_andar(self.A).transicoes([("pediu_aprovacao", "a1", "r-a")], {"agentes": [{"id": "a1", "nome": "Pixel"}]}, 1000)
+        self.assertEqual(self.get("/api/avisos", self.cab["membrob"]), (200, {"aviso": None}))
+        self.assertEqual(self.get("/api/avisos", self.cab["adminb"]), (200, {"aviso": None}))
+        self.assertEqual(self.get("/api/avisos", self.cab["membroa"])[1]["aviso"]["agente"], "a1")
+        self.assertTrue(e.recebe_avisos(self.srv, "membroa", self.A))
+        for conta, andar in (("membrob", self.A), ("adminb", self.A), (None, self.A), ("membroa", self.B), ("dono", self.B),
+                             ("membrob", "principal"), ("ninguem", self.B)):
+            self.assertFalse(e.recebe_avisos(self.srv, conta, andar), (conta, andar))
+
+    def test_marca_e_logo_por_andar(self):
+        adm, cfg_b = self.cab["adminb"], lambda: self.get(f"/api/config?andar={self.B}", self.cab["membrob"])[1]
+        self.assertEqual((cfg_b()["empresa"], cfg_b()["marca_exemplo"]), ("Empresa B", False))   # sem marca: o nome do andar
+        self.assertNotEqual(cfg_b()["cor"], "#123456")   # nunca a do prédio
+        v_antes = self.get(f"/api/estado?andar={self.B}", adm)[1]["config_v"]
+        st, cfg = self.post(f"/api/marca?andar={self.B}", {"empresa": "Bolt S.A.", "cor": "#00ff00", "serio": True}, adm)
+        self.assertEqual((st, cfg["empresa"], cfg["serio"]), (200, "Bolt S.A.", True))
+        self.assertNotEqual(self.get(f"/api/estado?andar={self.B}", adm)[1]["config_v"], v_antes)
+        self.assertEqual(self.get("/api/config", adm)[1]["empresa"], "Prédio Central")   # o saguão segue com a do prédio
+        self.assertEqual(self.get(f"/api/config?andar={self.A}", self.cab["dono"])[1]["empresa"], "Dev Maniacs")
+        self.assertEqual(self.post(f"/api/marca?andar={self.A}", {"empresa": "X", "cor": "#000000"}, adm)[0], 404)
+        self.assertTrue(Membros.da_guarda(*self.post("/api/marca", {"empresa": "X", "cor": "#000000"}, adm)))
+        st, cfg = self.post(f"/api/logo?andar={self.B}", None, adm, bruto=self.PNG)
+        self.assertEqual(st, 200)
+        self.assertTrue(cfg["logo"].startswith(f"/logo?andar={self.B}&v="))
+        st, corpo, _ = self.req(cfg["logo"], self.cab["membrob"])
+        self.assertEqual((st, corpo), (200, self.PNG))
+        self.assertEqual(self.req(cfg["logo"], self.cab["membroa"])[0], 404)   # outra empresa: como se não existisse
+        self.assertEqual(self.req(cfg["logo"])[0], 404)   # sem sessão
+        self.assertNotEqual(self.req("/logo")[1], self.PNG)   # o da tela de entrar é o do prédio
+        self.assertEqual(self.post(f"/api/logo/remover?andar={self.B}", {}, adm)[0], 200)
+        self.post(f"/api/marca?andar={self.B}", {"empresa": "Empresa B", "cor": "#00ff00", "serio": False}, adm)
+
+    # ------------------------------------------------------------------ membros e convites do andar
+    def test_admin_da_empresa_administra_so_o_andar_dele(self):
+        adm = self.cab["adminb"]
+        st, lista = self.get(f"/api/membros?andar={self.B}", adm)
+        self.assertEqual(st, 200)
+        self.assertEqual({c["usuario"]: c["papel"] for c in lista["contas"]}, {"adminb": "admin", "membrob": "membro"})
+        self.assertNotIn("andares", json.dumps(lista["contas"]))
+        self.assertEqual(self.get(f"/api/membros?andar={self.A}", adm)[0], 404)
+        self.assertTrue(Membros.da_guarda(*self.get("/api/membros", adm)))   # a lista do prédio, não
+        with contextlib.redirect_stdout(io.StringIO()):
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "convidar", "nome": "Gil", "senha": SENHA}, adm)
+            self.assertEqual((st, r["convite"]["andares"]), (200, [self.B]))
+            token = r["link"].split("#", 1)[1]
+            self.assertEqual(self.post(f"/api/membros?andar={self.B}", {"acao": "convidar", "nome": "Gil",
+                                                                         "andares": [self.A], "senha": SENHA}, adm)[0], 400)
+            st, ok, h = self.req("/convite/aceitar", {"Origin": self.base, "Content-Type": "application/json"}, json.dumps(
+                {"convite": token, "usuario": "gil", "senha": SENHA, "nome": "Gil", "avatar": AVATAR}).encode(), "POST")
+            gil = {"Cookie": h["Set-Cookie"].split(";")[0]}
+            self.assertEqual(self.srv.acesso.andares_da_conta("gil"), [self.B])
+            self.assertEqual([a["id"] for a in self.get("/api/config", gil)[1]["andares"]], ["principal", self.B])
+            # papel em B; conta sem papel em B responde como conta que não existe
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "papel", "usuario": "gil", "papel": "admin",
+                                                                "senha": SENHA}, adm)
+            self.assertEqual((st, {c["usuario"]: c["papel"] for c in r["contas"]}["gil"]), (200, "admin"))
+            for usuario in ("membroa", "dono", "nao-existe"):
+                st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "papel", "usuario": usuario, "papel": "admin",
+                                                                    "senha": SENHA}, adm)
+                self.assertEqual((st, r["erro"]), (404, "nao_existe"), usuario)
+            self.assertIsNone(self.srv.acesso.papel("membroa", self.B))
+            # remover tira só o andar B; a senha errada não tira nada
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "remover", "usuario": "gil", "senha": "errada-x"}, adm)
+            self.assertEqual((st, r["erro"]), (403, "senha_incorreta"))
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "remover", "usuario": "gil", "senha": SENHA}, adm)
+            self.assertEqual((st, "gil" in {c["usuario"] for c in r["contas"]}), (200, False))
+            self.assertIn("gil", self.srv.acesso.usuarios)
+            self.assertEqual(self.get("/api/estado", gil)[0], 401)   # sem andar nenhum, a sessão caiu
+            # o último admin de B não sai nem desce
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "papel", "usuario": "adminb", "papel": "membro",
+                                                                "senha": SENHA}, adm)
+            self.assertEqual((st, r["erro"]), (409, "ultimo_admin"))
+            # convites: só os de B, e o de outro andar não se revoga daqui
+            _, de_a = self.srv.acesso.convidar("Hugo", [self.A], principal=False)
+            st, lista = self.get(f"/api/membros?andar={self.B}", adm)
+            self.assertNotIn(de_a["id"], [c["id"] for c in lista["convites"]])
+            st, r = self.post(f"/api/membros?andar={self.B}", {"acao": "revogar", "id": de_a["id"]}, adm)
+            self.assertEqual((st, r["erro"]), (404, "nao_existe"))
+            self.srv.acesso.remover("gil")
+
+    def test_admin_do_predio_no_saguao_convida_sem_o_principal(self):
+        dono = self.cab["dono"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            st, r = self.post("/api/membros", {"acao": "convidar", "nome": "Iara", "andares": [self.B], "senha": SENHA_DONO},
+                              dono)
+            self.assertEqual((st, r["convite"]["andares"]), (200, [self.B]))
+            st, r = self.post("/api/membros", {"acao": "convidar", "nome": "Ivo", "andares": [], "senha": SENHA_DONO}, dono)
+            self.assertEqual(st, 400)   # no saguão, pelo menos um andar
+            st, r = self.post("/api/membros", {"acao": "andares", "usuario": "adminb", "andares": [self.A, self.B],
+                                               "senha": SENHA_DONO}, dono)
+            self.assertEqual(st, 200)
+            self.assertEqual((self.srv.acesso.papel("adminb", self.B), self.srv.acesso.papel("adminb", self.A),
+                              self.srv.acesso.papel("adminb")), ("admin", "membro", None))   # o admin de B não desce
+            self.post("/api/membros", {"acao": "andares", "usuario": "adminb", "andares": [self.B], "senha": SENHA_DONO}, dono)
+            self.post("/api/membros", {"acao": "revogar", "id": r.get("convite", {}).get("id", "x")}, dono)
+
+    # ------------------------------------------------------------------ o saguão
+    def test_saguao_nao_tem_agentes_nem_conexao(self):
+        dono = self.cab["dono"]
+        st, cfg = self.get("/api/config", dono)
+        self.assertEqual((cfg["papel"], cfg["admin_predio"], cfg["pode_responder"]), ("admin", True, False))
+        self.assertEqual([a["id"] for a in cfg["andares"]], ["principal", self.A, self.B])
+        for rota in ("/api/social?agente=a1", "/api/social/placar", "/api/jornal", "/api/conversa?id=x", "/oauth/conectar"):
+            with self.subTest(rota=rota):
+                st, _ = self.get(rota, dono)
+                self.assertEqual(st, 404)
+        st, _, h = self.req(f"/oauth/conectar?andar={self.B}", self.cab["adminb"])
+        self.assertEqual((st, h["Location"]), (302, "https://agentes.exemplo/autorizar"))
+        self.assertEqual(self.req(f"/oauth/conectar?andar={self.B}", self.cab["membrob"])[0], 403)
+        self.assertEqual(self.req(f"/oauth/conectar?andar={self.A}", self.cab["adminb"])[0], 404)
+        st, _, _ = self.req("/oauth/retorno?code=c&state=desconhecido", dono)
+        self.assertEqual(st, 400)   # no saguão, state desconhecido não cai no principal
+
+    def test_presenca_no_saguao_so_nas_salas_fixas(self):
+        pos = lambda sala: {"x": 40, "y": 80, "destino": None, "sala": sala, "olha": "dir"}
+        self.assertEqual(self.post("/api/presenca", pos("recepcao"), self.cab["membrob"])[0], 200)
+        self.assertEqual(self.post("/api/presenca", pos("time:Time secreto de A"), self.cab["membrob"])[0], 400)
+        ao_vivo = self.get("/api/ao-vivo", self.cab["membroa"])[1]
+        self.assertEqual([p["nome"] for p in ao_vivo["pessoas"]], ["Bia"])
+
+    def test_presenca_no_saguao_sem_login(self):
+        """M2: no saguão, o "usuario" das pessoas e das mensagens e o "eu" são um id opaco estável por pessoa
+        ("p_" e 16 hex, o HMAC do login com o segredo de dados/); fora do saguão, o login, como sempre."""
+        pos = {"x": 40, "y": 80, "destino": None, "sala": "recepcao", "olha": "dir"}
+        for quem in ("membroa", "membrob"):
+            self.assertEqual(self.post("/api/presenca", pos, self.cab[quem])[0], 200)
+        self.assertEqual(self.post("/api/sala/enviar", {"texto": "oi"}, self.cab["membrob"])[0], 200)
+        de_a, de_b = (self.get("/api/ao-vivo", self.cab[q])[1] for q in ("membroa", "membrob"))
+        self.assertRegex(de_a["eu"], r"^p_[0-9a-f]{16}$")
+        self.assertEqual(de_a["eu"], self.get("/api/ao-vivo", self.cab["membroa"])[1]["eu"])   # estável
+        self.assertNotEqual(de_a["eu"], de_b["eu"])
+        self.assertIn(de_b["eu"], [p["usuario"] for p in de_a["pessoas"]])
+        self.assertEqual([m["usuario"] for m in de_a["mensagens"]], [de_b["eu"]])
+        self.assertEqual([m["usuario"] for m in de_b["mensagens"]], [de_b["eu"]])   # a própria mensagem: o mesmo "eu"
+        self.assertNotIn("membro", json.dumps([de_a, de_b]).lower())   # nenhum login sai
+        self.assertEqual(self.srv.id_pessoa("membrob"), de_b["eu"])
+        with open(os.path.join(self.dados, "pessoa.chave"), "rb") as f:   # o segredo em dados/, nunca na resposta
+            self.assertEqual(len(f.read()), 32)
+        # fora do saguão (o andar da empresa), nada muda: o login
+        q = f"?andar={self.B}"
+        self.assertEqual(self.post("/api/presenca" + q, pos, self.cab["membrob"])[0], 200)
+        self.assertEqual(self.get("/api/ao-vivo" + q, self.cab["membrob"])[1]["eu"], "membrob")
+
+    def test_saguao_sem_nome_proprio_nao_mostra_o_login(self):
+        """M2: no saguão, a conta sem nome de exibição (o admin do prédio nasce assim, com o nome igual ao login)
+        aparece como "Pessoa" nas pessoas e nas mensagens, e as pessoas saem na ordem do id opaco; fora do saguão, o
+        nome de sempre."""
+        pos = {"x": 40, "y": 80, "destino": None, "sala": "recepcao", "olha": "dir"}
+        for quem in ("dono", "membroa", "membrob"):
+            self.assertEqual(self.post("/api/presenca", pos, self.cab[quem])[0], 200)
+        self.assertEqual(self.post("/api/sala/enviar", {"texto": "oi de quem sobe"}, self.cab["dono"])[0], 200)
+        try:
+            de_b = self.get("/api/ao-vivo", self.cab["membrob"])[1]
+            dono = self.srv.id_pessoa("dono")
+            self.assertEqual({p["usuario"]: p["nome"] for p in de_b["pessoas"]}[dono], "Pessoa")
+            self.assertEqual([m["nome"] for m in de_b["mensagens"] if m["usuario"] == dono], ["Pessoa"])
+            self.assertNotIn("dono", json.dumps(de_b).lower())   # nem o login, nem um nome igual a ele
+            self.assertEqual([p["usuario"] for p in de_b["pessoas"]], sorted(p["usuario"] for p in de_b["pessoas"]))
+            q = f"?andar={self.A}"   # no andar da empresa, nada muda
+            for quem in ("dono", "membroa"):
+                self.assertEqual(self.post("/api/presenca" + q, pos, self.cab[quem])[0], 200)
+            de_a = self.get("/api/ao-vivo" + q, self.cab["membroa"])[1]
+            self.assertEqual({p["usuario"]: p["nome"] for p in de_a["pessoas"]}["dono"], "dono")
+        finally:
+            for quem in ("dono", "membroa", "membrob"):
+                self.srv.presenca.sair(quem)
 
 
 if __name__ == "__main__":

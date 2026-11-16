@@ -13,9 +13,10 @@ const Personalizar = (() => {
   let configApp = null;      // a config da página (app.js), para o logo salvo valer ao reabrir sem recarregar
   let placa = null, painel = null;
 
+  // a marca e o logo são do andar atual (expediente.js: Andar); no principal o pedido sai como sempre
   async function enviar(url, corpo, tipo) {
     if (window.Brincar && Brincar.demo) throw new Error("na demonstração nada é salvo");   // segunda trava: nenhum POST na demo
-    const r = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": tipo }, body: corpo });
+    const r = await fetch(Andar.com(url), { method: "POST", credentials: "same-origin", headers: { "Content-Type": tipo }, body: corpo });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.erro || `HTTP ${r.status}`);
     return d;
@@ -169,6 +170,7 @@ const Personalizar = (() => {
     $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio;
     mostrarLogo(salvo.logo);
     aviso(""); mudou();
+    mostrarRetencao(cfg);
     lerPerfil();
   }
   window.addEventListener("hashchange", () => { // saiu sem salvar: volta a cor e descarta o logo escolhido
@@ -227,6 +229,88 @@ const Personalizar = (() => {
   zona.addEventListener("drop", ev => { ev.preventDefault(); zona.classList.remove("sobre"); escolherLogo(ev.dataTransfer.files[0]); });
   $("m-remover").addEventListener("click", () => { esquecerLogo(); tirarLogo = true; mostrarLogo(LOGO_PADRAO); mudou(); });
 
+  // ---------- Prazo das conversas da equipe (D3): só o admin do andar e só com config.equipe ------------------------
+  // Um cartão próprio, criado aqui (sem mexer no index.html), com o salvar dele: POST /api/canal/retencao?andar= {dias}.
+  // A empresa só baixa de 1 ano; diminuir apaga já o que passou do prazo, então pede confirmação antes.
+  const PRAZOS = [[365, "1 ano (padrão)"], [90, "90 dias"], [30, "30 dias"]];
+  let ret = null;   // {form, opcoes, confirmar, aviso, cfg}
+  function montarRetencao() {
+    const criar = (tag, classe, texto) => { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; };
+    const form = criar("form", "cartao form-marca"), campo = criar("fieldset"), aviso = criar("p", "aviso-form");
+    form.id = "form-retencao"; form.noValidate = true;
+    const titulo = criar("legend", null, "Conversas da equipe: por quanto tempo guardar"), ajuda = criar("p", "ajuda",
+      "Mensagens, anexos e mensagens diretas mais antigas que o prazo são apagadas de vez, todo dia. O prazo vale para todo o andar.");
+    ajuda.id = "ret-ajuda"; campo.setAttribute("aria-describedby", ajuda.id);
+    campo.append(titulo, ajuda);
+    const opcoes = PRAZOS.map(([dias, rotulo]) => {
+      const l = criar("label", "marcar"), r = criar("input");
+      r.type = "radio"; r.name = "ret-dias"; r.value = String(dias);
+      r.addEventListener("change", () => { confirmar.hidden = true; mostrar(""); });
+      l.append(r, criar("span", null, rotulo)); campo.append(l);
+      return r;
+    });
+    const confirmar = criar("div", "confirmar-retencao"), texto = criar("p", "aviso-form ruim"), acoes = criar("div", "acoes");
+    confirmar.dataset.papel = "confirmar"; confirmar.hidden = true; confirmar.setAttribute("role", "alert");
+    const sim = criar("button", "botao", "Diminuir e apagar"), nao = criar("button", "botao fantasma", "Cancelar");
+    sim.type = nao.type = "button";
+    acoes.append(sim, nao); confirmar.append(texto, acoes);
+    aviso.setAttribute("role", "status");
+    const salvar = criar("button", "botao", "Salvar o prazo"), rodape = criar("div", "acoes");
+    salvar.type = "submit"; rodape.append(salvar);
+    const cota = criar("p", "ajuda");   // a cota de 5 GB de anexos da empresa (D6 b), com o aviso a partir de 90%
+    cota.dataset.papel = "cota";
+    form.append(campo, cota, confirmar, aviso, rodape);
+    const mostrar = (t, tipo) => { aviso.textContent = t; aviso.className = "aviso-form" + (tipo ? ` ${tipo}` : ""); };
+    const atual = () => (ret.cfg.equipe && Number.isInteger(ret.cfg.equipe.retencao) ? ret.cfg.equipe.retencao : 365);
+    const escolhido = () => Number((opcoes.find(r => r.checked) || {}).value || atual());
+    async function enviarPrazo(dias) {
+      salvar.disabled = sim.disabled = true; mostrar("Salvando…");
+      try {
+        const r = await fetch(Andar.com("api/canal/retencao"), { method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dias }) });
+        if (r.status === 401) { location.href = "/entrar"; return; }
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { mostrar(`Não salvou: ${typeof d.mensagem === "string" && d.mensagem ? d.mensagem : `o servidor respondeu ${r.status}.`}`, "ruim"); return; }
+        if (ret.cfg.equipe && Number.isInteger(d.retencao)) ret.cfg.equipe.retencao = d.retencao;
+        confirmar.hidden = true; mostrar("Prazo salvo.", "ok");
+      } catch (e) { mostrar("Não salvou: sem conexão.", "ruim"); }
+      finally { salvar.disabled = sim.disabled = false; }
+    }
+    form.addEventListener("submit", ev => {
+      ev.preventDefault();
+      const dias = escolhido();
+      if (dias === atual()) { confirmar.hidden = true; mostrar("Esse já é o prazo."); return; }
+      if (dias > atual()) return enviarPrazo(dias);   // aumentar não apaga nada
+      texto.textContent = `Diminuir para ${dias} dias apaga agora, sem volta, as mensagens e os anexos com mais de ${dias} dias.`;
+      confirmar.hidden = false; nao.focus();
+    });
+    sim.addEventListener("click", () => enviarPrazo(escolhido()));
+    nao.addEventListener("click", () => { confirmar.hidden = true; marcar(); mostrar(""); salvar.focus(); });
+    function marcar() {
+      for (const r of opcoes) r.checked = Number(r.value) === atual();
+      const c = ret.cfg.equipe.cota, ok = c && Number.isFinite(c.usado) && Number.isFinite(c.total) && c.total > 0;
+      cota.hidden = !ok;
+      if (!ok) return;
+      const num = n => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 }), cheia = c.usado >= 0.9 * c.total;
+      const tam = n => (n < 1024 ** 3 ? `${num(n / 1024 ** 2)} MB` : `${num(n / 1024 ** 3)} GB`);
+      cota.textContent = `Anexos: ${tam(c.usado)} de ${tam(c.total)} usados.` +
+        (cheia ? " A cota está quase cheia: apague arquivos antigos ou diminua o prazo, senão os novos anexos serão recusados." : "");
+      cota.className = cheia ? "aviso-form ruim" : "ajuda";
+      if (cheia) cota.setAttribute("role", "alert"); else cota.removeAttribute("role");
+    }
+    $("form-marca").after(form);
+    return { form, marcar };
+  }
+  function mostrarRetencao(cfg) {
+    // o mesmo critério do servidor (pode_moderar): o admin do prédio lê o andar de uma empresa, mas não muda o prazo dele
+    const pode = !!cfg && !!cfg.equipe && Andar.perfil(cfg).admin && cfg.equipe.pode_moderar === true;
+    if (!pode) { if (ret) ret.form.hidden = true; return; }
+    if (!ret) ret = { cfg };
+    ret.cfg = cfg;
+    if (!ret.form) Object.assign(ret, montarRetencao());
+    ret.form.hidden = false; ret.marcar();
+  }
+
   // ---------- Meu perfil (qualquer papel): GET e POST /api/perfil, só da própria conta ---------------
   // Lido uma vez por página aberta; um servidor sem a rota (404/403) deixa a seção escondida. Mensagens do servidor, só por textContent.
   let perfilLido = false, perfilBoneco = null;
@@ -257,8 +341,27 @@ const Personalizar = (() => {
     const ex = window.Expediente;
     $("av-expediente").textContent = ex ? `Só no expediente (${ex.abre} às ${ex.fecha})` : "Só no expediente";
   }
+  // "Mostrar o começo da mensagem no aviso" (E.4; padrão ligado): só com as conversas da equipe (config.equipe), criado
+  // aqui para não mexer no index.html; vai no POST como avisos.comeco
+  let comeco = null;
+  function caixaComeco() {
+    if (comeco || !configApp || !configApp.equipe) return comeco;
+    const rot = document.createElement("label"), span = document.createElement("span"), ajuda = document.createElement("p");
+    comeco = document.createElement("input");
+    comeco.type = "checkbox"; comeco.id = "av-comeco"; comeco.checked = true;
+    rot.className = "marcar"; span.textContent = "Mostrar o começo da mensagem no aviso";
+    ajuda.id = "av-comeco-ajuda"; ajuda.className = "ajuda";
+    ajuda.textContent = "Desligado, o aviso de menção e de mensagem direta diz só quem escreveu. Na tela bloqueada, o que aparece também depende do ajuste do celular.";
+    comeco.setAttribute("aria-describedby", ajuda.id);
+    comeco.addEventListener("change", () => avisoAvisos(""));
+    rot.append(comeco, span);
+    $("av-aviso").before(rot, ajuda);
+    return comeco;
+  }
   function mostrarAvisos(p) {
     const modo = p && ["sempre", "expediente", "silencio"].includes(p.modo) ? p.modo : "sempre";
+    const c = caixaComeco();
+    if (c) c.checked = !(p && p.comeco === false);
     for (const r of document.querySelectorAll('input[name="av-modo"]')) r.checked = r.value === modo;
     if (modo === "silencio" && HHMM.test(p.de) && HHMM.test(p.ate)) { $("av-de").value = p.de; $("av-ate").value = p.ate; }
     pintarAvisos();
@@ -278,7 +381,7 @@ const Personalizar = (() => {
     }
     bt.disabled = true; avisoAvisos("Salvando…");
     try {
-      const d = await pedirPerfil({ avisos: modo === "silencio" ? { modo, de, ate } : { modo } });
+      const d = await pedirPerfil({ avisos: { ...(modo === "silencio" ? { modo, de, ate } : { modo }), ...(comeco ? { comeco: comeco.checked } : {}) } });
       mostrarAvisos(d.avisos); avisoAvisos("Avisos salvos.", "ok");
     } catch (e) { avisoAvisos(`Não salvou: ${e.message}`, "ruim"); }
     finally { bt.disabled = false; }

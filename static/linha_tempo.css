@@ -1,0 +1,28 @@
+/* Linha do tempo (linha_tempo.js): a faixa "Enquanto você esteve fora", no topo do mapa, e a linha de hoje no cartão
+   do agente. Só os tokens do estilo.css. */
+.faixa-ausencia { margin: 0; padding: 10px 8px 10px 14px; background: var(--cartao2); border-bottom: 1px solid var(--borda); }
+.faixa-ausencia[hidden] { display: none; }
+.lt-topo { display: flex; align-items: center; gap: 10px; }
+.lt-titulo { margin: 0; font-size: 14px; font-weight: 650; color: var(--texto); }
+.lt-desde { flex: 1; min-width: 0; color: var(--suave); font-size: 13px; }
+.lt-fechar { flex: none; width: var(--ctl); height: var(--ctl); margin: -6px 0; border: 0; border-radius: var(--r-botao); background: none;
+  color: var(--suave); font-size: 20px; line-height: 1; cursor: pointer; }
+.lt-fechar:hover { background: var(--cartao3); color: var(--texto); }
+.lt-lista { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; max-height: 132px; overflow-y: auto; }
+.lt-item { display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--borda);
+  border-radius: var(--r-item); background: var(--cartao); color: var(--texto2); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.lt-item:hover { border-color: var(--borda-forte); background: var(--cartao3); }
+.lt-nome { flex: none; color: var(--texto); font-weight: 650; }
+.lt-resumo { min-width: 0; overflow-wrap: anywhere; }
+.lt-fechar:focus-visible, .lt-item:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
+@media (pointer: coarse) { .lt-item { min-height: 44px; } }
+@media (max-width: 760px) { .lt-lista { flex-direction: column; flex-wrap: nowrap; } .lt-item { width: 100%; } }
+
+.lt-dia { margin: 0; padding: 0 0 0 12px; list-style: none; border-left: 2px solid var(--linha); display: grid; gap: 2px; font-size: 13px;
+  color: var(--texto2); }
+.lt-dia li { position: relative; }
+.lt-dia li::before { content: ""; position: absolute; left: -17px; top: .5em; width: 8px; height: 8px; border-radius: 50%; background: var(--livre); }
+.lt-dia li.lt-vazio { color: var(--suave); }
+.lt-dia li.lt-vazio::before { display: none; }
+.lt-hora { margin-right: 4px; color: var(--suave); font-variant-numeric: tabular-nums; }
+body.tv .faixa-ausencia { display: none !important; }

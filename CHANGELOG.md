@@ -4,6 +4,35 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 1.6.0 · 2026-11-16 · The team's office
+
+Release [`v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.6.0). Commits: [`v1.5.2...v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.2...v1.6.0).
+
+### Added
+- **Each floor is a company:** each floor has its own brand, logo, office hours, teams, floor plan, members and invites, and whoever runs the company manages only its own floor. There are four profiles: building admin, company admin, member and building guest (who only enters the lobby).
+- **Lobby:** the ground floor can become a lobby (saguão) with no agents, open to everyone in the building, and the `AGENTES_ORG` company moves up to a floor of its own, like the others. The switch is a command, never automatic (see **Changed** and [Lobby](./README.md#lobby-a-ground-floor-for-every-company)).
+- **Team conversations:** general and per-room chat, direct messages (DM), `@login` mentions, reactions, attachments up to 25 MB (ZIP included; 5 GB per company) and search across the general chat, the rooms and your own DMs, with 1 year of history. See [Team](./README.md#team).
+- **Board, status and floor list:** each room has a board on the wall (up to 10 notes). Each person picks a status (available, busy, in a meeting, away) with a short note, shown on their character. The floor list shows who is here and where, with **Go to**, **Wave**, **Knock on the door** and **Direct message**. Busy people do not get waves.
+- **Personal phone alerts:** mentions, DMs and meetings alert only the right account, with the start of the message. Tapping the alert with the office open switches floors and opens the conversation.
+- **While you were away:** coming back to a floor after more than 1 hour shows at the top what the agents did (finished tasks and waits for approval or an answer, with how long they took), and each item takes you to the agent. The agent card shows today's timeline.
+- **Meetings:** each room can have a fixed Meet, Zoom, Jitsi, Teams or Whereby link, pasted by the company admin (https only and no password in the address). The floor calendar books meetings with title, room, time and guests, alerts 5 minutes before and downloads the `.ics` for your own calendar. Voice and video stay with the link's service.
+- **All-hands and "in a meeting":** the company admin calls the team to a room; everyone on the floor gets the alert, and the map walks their character there. Anyone in the room of a meeting in progress who has not set a status shows as "in a meeting", and the door gets the sign.
+- **Presentation mode:** for showing the screen to a client or posting a screenshot. The camera bar button or `Alt+Shift+P` replaces names with "Agente 1" and "Pessoa 2" and hides bubbles, tasks, conversations, the board, status notes, meetings and room links. It is screen-only, not access control. See [Presentation mode](./README.md#presentation-mode).
+- **New variables:** `ESCRITORIO_JITSI=<host>` accepts your own Jitsi in room links (one exact host, on top of the closed list), and `ESCRITORIO_PISO_DISCO_MB=<MB>` sets how much free disk attachments never use (without it, the larger of 2 GB and 10% of the volume). See [Install](./README.md#install).
+
+### Changed
+- **Privacy: team conversations are now kept on disk.** With at least 1 account, the general and room chat, DMs, the board, status, attachments and the calendar are kept for **1 year** (the company can lower it to 90 or 30 days), in one file per company. Before 1.6, none of this went to disk. With no accounts, the chat stays in memory only, as before.
+- **Room chat is kept and read by the floor:** it no longer vanishes after 10 minutes, and everyone on the floor reads what was said, including before they arrived.
+- **DMs can be read by the company's administration**, through an audit screen. Each read is logged (without the text), and both people in the conversation see the date. Every DM says so at the top, and people confirm with **Entendi** (got it) before their first one.
+- **Phone alerts show the start of the message** (up to 60 characters) for mentions and DMs, and it may appear on the lock screen. The push service still receives an empty message: the start comes from the office when the app wakes up. Turn it off in **My profile** ("Mostrar o começo") or in the phone's notification settings.
+- **Lobby migration, explicit:** only through the `escritorio.py saguao` command, with the service stopped and run as the service user (the owner of the data folder; as any other user it refuses). Back up first. It is all or nothing, with a journal: if it stops halfway, the service will not start until the same command finishes. `saguao --desfazer` restores the previous ground floor as long as nobody has used the new mode; after that, going back is through the backup. Without running the migration, the office keeps working as before.
+- **Timeline on disk:** the agent id, the state and the time of each change are kept for 14 days in `dados/linha/` (up to 5,000 lines per day), with no task label or conversation. The rest of the transition log stays in memory only.
+
+### Security
+- **Attachments checked on the server:** the type comes from the content, photos lose their EXIF (including location) and ZIP files are checked by their metadata only, never opened. Uploads have a deadline and per-account and server-wide limits, plus a free-disk floor. There is no antivirus.
+- **Each profile only on its own floor:** a floor that does not exist and a floor without access get the same answer. The building admin reads the general chat, rooms, board and attachments of every company without writing to them, and does not read DMs. Moderating and changing retention belong to each company's admin. Mentions and meeting guests only match accounts on the same floor.
+- **The database is not encrypted:** whoever runs the server can read everything. Where each piece of data lives, who reads it and for how long is in [where each piece of data goes](./docs/visitas-privadas-plano.md#conversas-da-equipe-no-disco-16) (in Portuguese).
+
 ## 1.5.2 · 2026-11-15 · Newspaper per floor and overtime
 
 Release [`v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.2). Commits: [`v1.5.1...v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.1...v1.5.2).

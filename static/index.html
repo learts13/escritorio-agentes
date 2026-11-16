@@ -11,8 +11,10 @@
   <meta name="theme-color" content="#0f0f0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="estilo.css?v=107">
-  <link rel="stylesheet" href="chat_sala.css?v=107">
+  <link rel="stylesheet" href="estilo.css?v=108">
+  <link rel="stylesheet" href="chat_sala.css?v=108">
+  <link rel="stylesheet" href="reunioes.css?v=108">
+  <link rel="stylesheet" href="linha_tempo.css?v=108">
 </head>
 <body>
   <a class="pular" href="#principal">Ir para o conteúdo</a>
@@ -70,9 +72,10 @@
         <div class="lat-nav">
           <a href="#escritorio" data-rota="escritorio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M9 21v-5h6v5M8 8h2M14 8h2M8 12h2M14 12h2"></path></svg><span>Escritório</span></a>
           <a href="/mundo.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"></path></svg><span>Mundo</span></a>
-          <a class="so-admin" href="/visitas-admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Convidar para uma visita</span></a>
+          <a class="so-admin so-predio" href="/visitas-admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Convidar para uma visita</span></a>
           <a href="#aprovacoes" data-rota="aprovacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"></path></svg><span>Aprovações</span><span class="contador ambar" id="nav-aprovacoes" hidden></span></a>
           <a class="so-admin" href="#conversas" data-rota="conversas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span>Conversas</span><span class="contador" id="nav-conversas" hidden></span></a>
+          <a id="nav-reunioes" href="#reunioes" data-rota="reunioes" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"></path></svg><span>Reuniões</span></a>
           <a href="#jornal" data-rota="jornal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5"></path></svg><span>Jornal</span></a>
           <a href="#personalizar" data-rota="personalizar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l6 6-9 9H5v-6z"></path></svg><span>Personalizar</span></a>
           <a href="#novidades" data-rota="novidades"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 15.5v5M16 18h5"></path></svg><span>Novidades</span><span class="contador novo" id="nav-novidades" hidden>Novo</span></a>
@@ -82,7 +85,7 @@
           <h2 class="lat-titulo"><button id="t-salas" type="button" aria-expanded="true" aria-controls="salas">Salas<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></h2>
           <ul id="salas" class="salas" aria-labelledby="t-salas"></ul>
         </section>
-        <section class="lat-secao">
+        <section id="lat-agentes" class="lat-secao">
           <h2 class="lat-titulo"><button id="t-agentes" type="button" aria-expanded="true" aria-controls="lista">Agentes <span id="contagem" class="lat-n"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></h2>
           <div id="lista" class="lista" role="group" aria-labelledby="t-agentes"></div>
         </section>
@@ -122,8 +125,21 @@
           <div>
             <h1>Escritório</h1>
             <p id="resumo-esc" class="resumo">Conectando…</p>
-            <p id="olhando" class="olhando" hidden><span class="olhando-led" aria-hidden="true"></span><span id="olhando-txt"></span>
+            <p id="olhando" class="olhando" hidden><span class="olhando-led" aria-hidden="true"></span><button id="olhando-txt" class="olhando-btn" type="button" aria-expanded="false" aria-controls="equipe"></button>
               <label class="olhando-op"><input id="aparecer" type="checkbox" checked> Aparecer no escritório</label></p>
+            <!-- a lista de quem está no andar (1.6): ir até, acenar, bater na porta, o meu status e o mural da minha sala -->
+            <div id="equipe" class="equipe" hidden>
+              <p id="equipe-predio" class="equipe-predio" hidden></p>
+              <div id="meu-status" class="meu-status" hidden>
+                <label for="status-sel">Meu status</label>
+                <select id="status-sel"><option value="disponivel">Disponível</option><option value="ocupado">Ocupado</option><option value="reuniao">Em reunião</option><option value="ausente">Ausente</option></select>
+                <input id="status-txt" type="text" maxlength="40" autocomplete="off" placeholder="Recado (opcional)" aria-label="Recado do status, até 40 caracteres">
+                <button id="status-salvar" class="botao fantasma" type="button">Salvar status</button>
+              </div>
+              <ul id="equipe-lista" class="equipe-lista" aria-label="Quem está neste andar"></ul>
+              <button id="equipe-mural" class="botao fantasma equipe-mural" type="button" hidden></button>
+              <p id="equipe-aviso" class="aviso-form" role="status"></p>
+            </div>
             <span id="atualizado" class="oculto" role="status"></span>
           </div>
           <div id="estados" class="estados" role="group" aria-label="Filtrar agentes por estado">
@@ -145,6 +161,7 @@
             <p id="faixa-link" class="faixa-link so-admin" hidden><label for="faixa-link-campo">Copie o endereço e abra na barra do navegador:</label><input id="faixa-link-campo" type="text" readonly spellcheck="false" autocomplete="off"></p>
           </div>
           <p id="faixa-fora" class="faixa-fora" role="status" hidden><i class="led fora" aria-hidden="true"></i><span><strong id="faixa-fora-txt"></strong><span class="faixa-fora-mais"> · quem está sem tarefa foi para casa</span></span><a id="faixa-fora-mudar" class="so-admin" href="#personalizar">Mudar o horário</a></p>
+          <section id="faixa-ausencia" class="faixa-ausencia" aria-live="polite" hidden></section>
           <div id="palco" class="palco">
             <canvas id="tela" tabindex="0" aria-label="Mapa do escritório. Arraste para mover, use a roda ou a pinça para dar zoom e toque num agente para ver o que ele está fazendo."></canvas>
             <p class="selo-vivo" aria-hidden="true"><span id="ao-vivo" class="ao-vivo"></span><span id="relogio" class="relogio"></span></p>
@@ -173,6 +190,8 @@
             <div id="ficha" class="ficha" role="dialog" aria-labelledby="ficha-nome" hidden></div>
             <section id="conversa" class="conversa" role="dialog" aria-labelledby="conversa-titulo" tabindex="-1" hidden></section>
             <p id="social-anuncio" class="oculto" role="status"></p>
+            <!-- a sala onde estou tem link de reunião (reunioes.js): o atalho para a chamada, em outra aba -->
+            <a id="reuniao-entrar" class="reuniao-entrar" target="_blank" rel="noopener noreferrer" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3z"></path></svg>Entrar na reunião</a>
             <!-- chat da sala onde estou (chat_sala.js): só com sala, fora da TV; o servidor decide a sala -->
             <div id="chat-sala" class="chat-sala" hidden>
               <button id="chat-sala-abrir" class="chat-sala-abrir" type="button" aria-controls="chat-sala-painel" aria-expanded="false" aria-label="Chat da sala">
@@ -238,6 +257,23 @@
           <p>Quando um agente pegar uma tarefa, a conversa aparece aqui: primeiro as que esperam você, depois as em andamento e as que terminaram hoje. A lista recomeça à meia-noite.</p>
           <a class="botao secundario" href="#escritorio">Ir para o mapa</a>
         </div>
+      </section>
+      <!-- reuniões (reunioes.js, 1.6): a agenda da semana do andar; só com config.equipe.reunioes (fora do saguão) -->
+      <section id="v-reunioes" class="visao" hidden>
+        <div class="cabeca cabeca-reunioes">
+          <div><h1>Reuniões</h1><p class="resumo">A agenda do andar, de segunda a domingo. O link da sala abre a chamada em outra aba.</p></div>
+          <div class="acoes"><button id="reunioes-marcar" class="botao" type="button" hidden>Marcar reunião</button><button id="reunioes-geral" class="botao secundario" type="button" hidden>Reunião geral</button></div>
+        </div>
+        <div class="reunioes-semana" role="group" aria-labelledby="reunioes-titulo">
+          <h2 id="reunioes-titulo" tabindex="-1" aria-live="polite"></h2>
+          <div class="reunioes-nav">
+            <button id="reunioes-antes" class="botao fantasma" type="button">Anterior</button>
+            <button id="reunioes-hoje" class="botao fantasma" type="button">Esta semana</button>
+            <button id="reunioes-depois" class="botao fantasma" type="button">Próxima</button>
+          </div>
+        </div>
+        <p id="reunioes-aviso" class="aviso-form" role="status"></p>
+        <div id="reunioes-dias" class="reunioes-dias"></div>
       </section>
       <section id="v-personalizar" class="visao" hidden>
         <div class="cabeca cabeca-pers"><div><h1>Personalizar</h1><p class="resumo so-admin">A marca, o clima, as datas e os times do seu escritório. Vale para todo mundo que abre este endereço.</p><p class="resumo so-membro">O seu perfil: o nome e o boneco que o time vê.</p></div><button id="abrir-assistente" class="botao secundario so-admin" type="button">Assistente de instalação</button></div>
@@ -405,6 +441,23 @@
             <p id="equipe-aviso" class="aviso-form" role="status"></p>
             <div class="acoes"><button id="equipe-salvar" class="botao" type="button">Salvar times</button><button id="equipe-desfazer" class="botao fantasma" type="button">Desfazer</button><button id="equipe-arquivo" class="link-botao" type="button" hidden>Voltar ao times.json</button></div>
           </section>
+          <section id="a-reunioes" class="cartao ajuste so-admin" aria-labelledby="t-reunioes" hidden>
+            <h2 id="t-reunioes">Links das salas de reunião</h2>
+            <p class="ajuda">Cole o link fixo de cada sala, de Google Meet, Zoom, Jitsi, Teams ou Whereby. Quem é do andar vê o botão “Entrar na reunião”, que abre a chamada em outra aba.</p>
+            <ul id="reunioes-links" class="reunioes-links"></ul>
+            <p id="reunioes-links-aviso" class="aviso-form" role="status"></p>
+          </section>
+          <section id="a-conexao" class="cartao ajuste so-admin" aria-labelledby="t-conexao" hidden>
+            <h2 id="t-conexao">Conexão deste andar</h2>
+            <p class="ajuda">Este andar mostra os agentes do workspace dele no agentes.chat. Conecte com uma conta desse workspace; ao desconectar, o escritório esquece a autorização e os agentes saem do mapa.</p>
+            <p class="cx-linha">Estado: <strong id="cx-estado">—</strong></p>
+            <div class="acoes"><a id="cx-conectar" class="botao secundario" href="/oauth/conectar">Conectar</a></div>
+            <form id="form-desconectar" class="sair-todos" novalidate>
+              <label for="cx-senha">Sua senha, para desconectar</label>
+              <div class="st-linha"><input id="cx-senha" type="password" autocomplete="current-password" maxlength="256" required aria-describedby="cx-aviso"><button id="cx-desconectar" class="botao perigo" type="submit">Desconectar o andar</button></div>
+              <p id="cx-aviso" class="aviso-form" role="status"></p>
+            </form>
+          </section>
           <section id="a-andares" class="cartao ajuste so-admin" aria-labelledby="t-andares" hidden>
             <h2 id="t-andares">Andares</h2>
             <p class="ajuda">Cada andar é um workspace do agentes.chat, com a sua conexão e os seus times, e aparece no prédio como um andar próprio. O andar principal é o workspace do servidor e não se edita aqui. Remover um andar só desconecta e tira da lista: a pasta de dados dele continua no servidor.</p>
@@ -438,7 +491,7 @@
               <h3 id="t-form-convite" class="ajuste-sub">Convidar alguém</h3>
               <label for="cv-nome">Nome sugerido</label>
               <input id="cv-nome" maxlength="40" required autocomplete="off" placeholder="Ex.: Ana">
-              <fieldset class="cv-andares"><legend>Andares que a pessoa vê</legend><div id="cv-andares"></div></fieldset>
+              <fieldset id="cv-andares-campo" class="cv-andares"><legend>Andares que a pessoa vê</legend><div id="cv-andares"></div></fieldset>
               <label for="cv-senha">Sua senha</label>
               <input id="cv-senha" type="password" autocomplete="current-password" maxlength="256" required>
               <p id="cv-aviso" class="aviso-form" role="status"></p>
@@ -640,6 +693,56 @@
       <div class="acoes"><button id="ringue-mandar" class="botao" type="submit">Mandar pro ringue</button><button id="ringue-cancelar" class="botao fantasma" type="button">Cancelar</button></div>
     </form>
   </dialog>
+  <!-- mural da sala (1.6): até 10 avisos fixos por canal; quem fixou ou a administração tira -->
+  <dialog id="dlg-mural" class="boas-vindas dlg-mural" aria-labelledby="mural-titulo" aria-describedby="mural-ajuda">
+    <form id="form-mural" class="form-bv" novalidate>
+      <h2 id="mural-titulo">Mural</h2>
+      <p id="mural-ajuda" class="ajuda">Até 10 avisos fixos. Quem fixou, ou quem administra, tira.</p>
+      <ul id="mural-lista" class="mural-lista"></ul>
+      <p id="mural-vazio" class="ajuda" hidden>Nenhum aviso fixado ainda.</p>
+      <label id="mural-rotulo" for="mural-texto">Novo aviso</label>
+      <textarea id="mural-texto" maxlength="280" rows="3"></textarea>
+      <p id="mural-aviso" class="aviso-form" role="status"></p>
+      <div class="acoes"><button id="mural-fixar" class="botao" type="submit">Fixar aviso</button><button id="mural-fechar" class="botao fantasma" type="button">Fechar</button></div>
+    </form>
+  </dialog>
+  <p id="aceno-aviso" class="aceno-aviso" role="status" hidden></p>
+  <!-- "começa em 5 min" (reunioes.js): a minha reunião ou a que me convidou -->
+  <div id="reuniao-aviso" class="reuniao-aviso" role="status" hidden>
+    <p id="reuniao-aviso-txt"></p>
+    <a id="reuniao-aviso-entrar" class="botao reuniao-entrar-bt" target="_blank" rel="noopener noreferrer" hidden>Entrar na reunião</a>
+    <button id="reuniao-aviso-fechar" class="reuniao-aviso-fechar" type="button" aria-label="Fechar o aviso da reunião"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+  </div>
+  <dialog id="dlg-reuniao" class="boas-vindas dlg-reuniao" aria-labelledby="reuniao-titulo">
+    <form id="form-reuniao" class="form-bv" novalidate>
+      <h2 id="reuniao-titulo">Marcar reunião</h2>
+      <label for="r-titulo">Título</label>
+      <input id="r-titulo" class="as-campo" maxlength="80" required autocomplete="off" data-sensivel>
+      <label for="r-sala">Sala</label>
+      <select id="r-sala" class="as-campo"></select>
+      <div class="reuniao-quando">
+        <div class="campo-hora"><label for="r-dia">Dia</label><input id="r-dia" type="date" required></div>
+        <div class="campo-hora"><label for="r-hora">Hora</label><input id="r-hora" type="time" step="300" required></div>
+        <div class="campo-hora"><label for="r-duracao">Duração</label><select id="r-duracao" class="as-campo"></select></div>
+      </div>
+      <fieldset>
+        <legend>Convidados do andar</legend>
+        <ul id="r-convidados" class="reuniao-convidados"></ul>
+        <p id="r-sem-pessoas" class="ajuda" hidden>Ainda não há mais ninguém neste andar.</p>
+      </fieldset>
+      <p id="r-aviso" class="aviso-form" role="status"></p>
+      <div class="acoes"><button id="r-salvar" class="botao" type="submit">Marcar</button><button id="r-fechar" class="botao fantasma" type="button">Fechar</button></div>
+    </form>
+  </dialog>
+  <dialog id="dlg-reuniao-confirmar" class="boas-vindas" aria-labelledby="rc-titulo" aria-describedby="rc-texto">
+    <form id="form-rc" class="form-bv" novalidate>
+      <h2 id="rc-titulo"></h2>
+      <p id="rc-texto" class="ajuda"></p>
+      <div id="rc-sala-caixa" class="rc-sala" hidden><label for="rc-sala">Sala</label><select id="rc-sala" class="as-campo"></select></div>
+      <p id="rc-aviso" class="aviso-form" role="status"></p>
+      <div class="acoes"><button id="rc-sim" class="botao" type="submit"></button><button id="rc-nao" class="botao fantasma" type="button">Voltar</button></div>
+    </form>
+  </dialog>
   <!-- placar do ringue (vida social): ranking da semana, aberto pelo quadro na parede do ringue -->
   <dialog id="dlg-placar" class="boas-vindas dlg-placar" aria-labelledby="placar-titulo" aria-describedby="placar-semana">
     <div class="form-bv">
@@ -668,27 +771,30 @@
       </div>
     </div>
   </dialog>
-  <script src="avatar.js?v=107"></script>
-  <script src="mapa.js?v=107"></script>
-  <script src="expediente.js?v=107"></script>
-  <script src="vida.js?v=107"></script>
-  <script src="som.js?v=107"></script>
-  <script src="ceu.js?v=107"></script>
-  <script src="clima.js?v=107"></script>
-  <script src="festas.js?v=107"></script>
-  <script src="simular.js?v=107"></script>
-  <script src="efeitos.js?v=107"></script>
-  <script src="brincar.js?v=107"></script>
-  <script src="tv.js?v=107"></script>
-  <script src="jornal.js?v=107"></script>
-  <script src="novidades.js?v=107"></script>
-  <script src="timelapse.js?v=107"></script>
-  <script src="avisar.js?v=107"></script>
-  <script src="resposta_rapida.js?v=107"></script>
-  <script src="app.js?v=107"></script>
-  <script src="personalizar.js?v=107"></script>
-  <script src="ajustes.js?v=107"></script>
-  <script src="assistente.js?v=107"></script>
-  <script src="chat_sala.js?v=107"></script>
+  <script src="avatar.js?v=108"></script>
+  <script src="mapa.js?v=108"></script>
+  <script src="expediente.js?v=108"></script>
+  <script src="vida.js?v=108"></script>
+  <script src="apresentacao.js?v=108"></script>
+  <script src="som.js?v=108"></script>
+  <script src="ceu.js?v=108"></script>
+  <script src="clima.js?v=108"></script>
+  <script src="festas.js?v=108"></script>
+  <script src="simular.js?v=108"></script>
+  <script src="efeitos.js?v=108"></script>
+  <script src="brincar.js?v=108"></script>
+  <script src="tv.js?v=108"></script>
+  <script src="jornal.js?v=108"></script>
+  <script src="novidades.js?v=108"></script>
+  <script src="timelapse.js?v=108"></script>
+  <script src="avisar.js?v=108"></script>
+  <script src="resposta_rapida.js?v=108"></script>
+  <script src="linha_tempo.js?v=108"></script>
+  <script src="reunioes.js?v=108"></script>
+  <script src="app.js?v=108"></script>
+  <script src="personalizar.js?v=108"></script>
+  <script src="ajustes.js?v=108"></script>
+  <script src="assistente.js?v=108"></script>
+  <script src="chat_sala.js?v=108"></script>
 </body>
 </html>
