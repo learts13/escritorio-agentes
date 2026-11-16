@@ -245,6 +245,9 @@ function desenharTela(c, sx, sy, tela, t, k) {
   }
 }
 
+// x da luminária da mesa: o canto direito do abajur com 1 monitor; com 2 ou 3, no lugar dos papéis (o meio fica para o rosto)
+function lampadaX(mesa) { return mesa ? mesa.x - 16 + ((mesa.monitores || 2) === 1 ? 25 : 17) : 0; }
+
 function desenharMesa(c, x, y, tela, t, mesa) {
   const e = ESTILOS_MESA[(mesa && mesa.estilo) || 0], L = x - 16, itens = (mesa && mesa.itens) || 0;
   c.fillStyle = "rgba(0,0,0,.18)"; c.fillRect(L + 1, y + 17, 31, 2);
@@ -273,12 +276,15 @@ function desenharMesa(c, x, y, tela, t, mesa) {
       c.fillStyle = `rgba(255,255,255,${0.55 * (1 - f)})`; c.fillRect(L + 12 + Math.round(Math.sin(f * 6 + k * 2)), y + 3 - Math.round(f * 6), 1, 1);
     }
   }
-  if (itens & 2) { c.fillStyle = "#e9e3d5"; c.fillRect(L + 17, y + 3, 5, 3); c.fillStyle = "#c9c2b0"; c.fillRect(L + 17, y + 5, 5, 1); } // papéis
-  if (mesa && mesa.abajur) { // abajur: acende com o dono por perto (ou no toque, mesa.abajurAceso)
-    const aceso = mesa.abajurAceso ?? tela !== "apagada";
-    c.fillStyle = "#2b2b36"; c.fillRect(L + 25, y + 5, 4, 1); c.fillStyle = "#3a3a46"; c.fillRect(L + 27, y + 2, 1, 3);
-    c.fillStyle = aceso ? "#ffd36b" : "#c98f3c"; c.fillRect(L + 25, y, 5, 2); c.fillStyle = aceso ? "#fff3c4" : "#e0a95a"; c.fillRect(L + 26, y, 2, 1);
-  } else if (itens & 4) { c.fillStyle = "#8a5a3a"; c.fillRect(L + 25, y + 4, 3, 2); c.fillStyle = "#3fae5a"; c.fillRect(L + 24, y + 1, 5, 3); c.fillStyle = "#5fd07a"; c.fillRect(L + 25, y + 1, 2, 1); } // plantinha
+  // hora extra (vida.js): a luminária acende; a mesa sem abajur ganha uma, no canto dele (1 monitor) ou no lugar dos papéis
+  const lx = lampadaX(mesa), extra = !!mesa && !!mesa.horaExtra && !mesa.abajur;
+  if (itens & 2 && !(extra && lx === L + 17)) { c.fillStyle = "#e9e3d5"; c.fillRect(L + 17, y + 3, 5, 3); c.fillStyle = "#c9c2b0"; c.fillRect(L + 17, y + 5, 5, 1); } // papéis
+  if (mesa && (mesa.abajur || extra)) { // abajur: acende com o dono por perto (ou no toque, mesa.abajurAceso)
+    const aceso = mesa.horaExtra || (mesa.abajurAceso ?? tela !== "apagada");
+    c.fillStyle = "#2b2b36"; c.fillRect(lx, y + 5, 4, 1); c.fillStyle = "#3a3a46"; c.fillRect(lx + 2, y + 2, 1, 3);
+    c.fillStyle = aceso ? "#ffd36b" : "#c98f3c"; c.fillRect(lx, y, 5, 2); c.fillStyle = aceso ? "#fff3c4" : "#e0a95a"; c.fillRect(lx + 1, y, 2, 1);
+  }
+  if (!(mesa && mesa.abajur) && !(extra && lx === L + 25) && itens & 4) { c.fillStyle = "#8a5a3a"; c.fillRect(L + 25, y + 4, 3, 2); c.fillStyle = "#3fae5a"; c.fillRect(L + 24, y + 1, 5, 3); c.fillStyle = "#5fd07a"; c.fillRect(L + 25, y + 1, 2, 1); } // plantinha
   if (mesa && mesa.pato) { // patinho de borracha (a mesa do Dev)
     c.fillStyle = "#ffd23f"; c.fillRect(L + 7, y + 1, 2, 2); c.fillRect(L + 7, y + 3, 4, 2); c.fillStyle = "#e0a91c"; c.fillRect(L + 8, y + 4, 3, 1);
     c.fillStyle = "#f28c28"; c.fillRect(L + 6, y + 2, 1, 1); c.fillStyle = "#1b1b22"; c.fillRect(L + 7, y + 1, 1, 1);
@@ -1265,6 +1271,6 @@ function telaDe(atlas, nome, cx, base) {
   return { x: x0 + r[0], y: y0 + r[1], w: r[2], h: r[3], chave: base + 0.2 };
 }
 
-return { nomePlaca, montarPredio, desenharMesa, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
+return { nomePlaca, montarPredio, desenharMesa, lampadaX, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
 })();
 window.Mapa = Mapa;

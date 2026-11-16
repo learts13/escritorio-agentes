@@ -47,18 +47,20 @@ class ChangelogReal(unittest.TestCase):
     def test_entradas_titulos_e_secoes(self):
         primeira = self.entradas[0]
         self.assertEqual((primeira["titulo"], primeira["versao"], primeira["data"]),
-                         ("Chat à direita e ajustes", e.VERSAO, "2026-11-14"))   # o changelog do repositório é o desta versão
-        self.assertEqual([s["nome"] for s in primeira["secoes"]], ["Mudado", "Corrigido"])
-        self.assertEqual([s["nome"] for s in self.entradas[1]["secoes"]], ["Adicionado", "Mudado", "Corrigido", "Segurança"])
-        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:7]],
-                         [("Andares e equipe", "1.5.0", "2026-11-14"), ("Self-host e mundo maior", "1.4.0", "2026-11-12"),
+                         ("Jornal por andar e hora extra", e.VERSAO, "2026-11-15"))   # o changelog do repositório é o desta versão
+        self.assertEqual([s["nome"] for s in primeira["secoes"]], ["Adicionado", "Mudado", "Corrigido"])
+        self.assertEqual([s["nome"] for s in self.entradas[1]["secoes"]], ["Mudado", "Corrigido"])
+        self.assertEqual([s["nome"] for s in self.entradas[2]["secoes"]], ["Adicionado", "Mudado", "Corrigido", "Segurança"])
+        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:8]],
+                         [("Chat à direita e ajustes", "1.5.1", "2026-11-14"), ("Andares e equipe", "1.5.0", "2026-11-14"),
+                          ("Self-host e mundo maior", "1.4.0", "2026-11-12"),
                           ("Mundo e visitas por convite", "1.3.0", "2026-11-10"), ("Novidades", "1.2.0", "2026-11-08"),
                           ("Conectar, Configurações, modo TV, jornal e aviso no celular", "1.1.0", "2026-11-08"),
                           ("Modo construção v1", None, "2026-11-06")])
-        self.assertEqual([s["nome"] for s in self.entradas[4]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
-        self.assertEqual([s["nome"] for s in self.entradas[5]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
-        # com 11 entradas no arquivo, o teto de 10 deixa de fora a mais antiga ("Primeira versão pública")
-        self.assertEqual(self.entradas[-1]["titulo"], "Conversas, modo resposta e expediente")
+        self.assertEqual([s["nome"] for s in self.entradas[5]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
+        self.assertEqual([s["nome"] for s in self.entradas[6]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
+        # com 12 entradas no arquivo, o teto de 10 deixa de fora as duas mais antigas
+        self.assertEqual(self.entradas[-1]["titulo"], "Vida social, fatia 1: amizades, Ringue e placar semanal")
         self.assertEqual(len(self.entradas), novidades.ENTRADAS_MAX)
         datas = [ent["data"] for ent in self.entradas]
         self.assertEqual(datas, sorted(datas, reverse=True))
@@ -70,7 +72,7 @@ class ChangelogReal(unittest.TestCase):
 
     def test_itens_em_markdown_cru_e_links_so_do_repositorio(self):
         itens = [i for ent in self.entradas for sec in ent["secoes"] for i in sec["itens"]]
-        self.assertTrue(itens[0].startswith("**Chat da sala à direita:** no computador"))
+        self.assertTrue(itens[0].startswith("**Resposta rápida:** na conversa aberta"))
         self.assertFalse(any("] (" in i for i in itens))   # nenhum "](" do changelog real foi desarmado
         todos = [u for i in itens for u in links(i)]
         self.assertTrue(todos)

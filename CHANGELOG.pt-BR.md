@@ -4,6 +4,24 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 1.5.2 · 2026-11-15 · Jornal por andar e hora extra
+
+Release [`v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.2). Commits: [`v1.5.1...v1.5.2`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.1...v1.5.2).
+
+### Adicionado
+- **Resposta rápida:** na conversa aberta, com o modo resposta ligado, botões prontos ("Pode seguir", "Sim", "Não", "Pare", "Resuma o que fez") preenchem a caixa de resposta. Quem envia é você, pelo Enviar de sempre, depois de conferir.
+- **Não perturbe:** em **Configurações › Meu perfil**, cada conta escolhe quando o aviso no celular toca nos aparelhos em que ela o ligou: sempre, só no expediente ou com silêncio num horário. O que chegar no silêncio não vira aviso depois: fica em **Esperando você**.
+- **Hora extra no mapa:** fora do expediente, quem está trabalhando fica na mesa com a luminária acesa, e a ficha mostra "Hora extra". Esperar a sua aprovação ou resposta não conta.
+- **Hora extra no jornal:** o jornal conta o tempo trabalhando fora do expediente do andar e diz quem mais ficou.
+
+### Mudado
+- **Modo econômico:** o mapa desenha menos quadros quando nada se mexe. Medido em 1280 px por 60 s: parado, de 154% para 49% de CPU; com chuva, de 166% para 119%; com agentes andando, de 128% para 100%.
+
+### Corrigido
+- **Jornal por andar:** a edição leva o nome da empresa e do andar, e avisa quando o andar está sem conexão, ligado a outro workspace, com a leitura atrasada ou ainda sem atividade. O Morpheus achou o nome errado no 2º andar (tarefa #14 do quadro) e mandou a primeira correção no PR [#30](https://github.com/HelbertMoura/escritorio-agentes/pull/30), juntada a esta.
+- **Reconectar a mesma conta:** conectar de novo a mesma conta do agentes.chat não zera mais o jornal nem os avisos; só uma conta diferente zera. Se o serviço reiniciar antes da primeira leitura que confere a conta, esse zerar se perde.
+- **Aviso de conta removida:** remover uma conta desliga o aviso no celular dos aparelhos que ela ligou, e o **Sair de todos os aparelhos** de um membro desliga o aviso só nos aparelhos dele.
+
 ## 1.5.1 · 2026-11-14 · Chat à direita e ajustes
 
 Release [`v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.5.1). Commits: [`v1.5.0...v1.5.1`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.0...v1.5.1).

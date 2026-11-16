@@ -307,7 +307,7 @@ body.travado { overflow: hidden; }
 .cartao-agente { position: absolute; z-index: 4; width: 240px; padding: 10px 12px; border-radius: 12px; background: rgba(28, 28, 27, .97); border: 1px solid var(--borda); box-shadow: 0 8px 30px rgba(0,0,0,.45);
   display: grid; grid-template-columns: 40px 1fr; gap: 2px 10px; align-items: center; pointer-events: none; animation: surgir var(--rapido); }
 .cartao-agente .mini { grid-row: span 2; }
-.cartao-agente .chip { justify-self: start; }
+.cartao-agente .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .cartao-agente p { grid-column: 1 / -1; margin: 6px 0 0; color: var(--suave); font-size: 13px; }
 .cartao-agente p.dica { margin-top: 4px; color: var(--texto2); font-weight: 600; font-size: 12px; }
 
@@ -468,6 +468,8 @@ button.linha-resolvido:hover { background: rgba(255, 255, 255, .04); }
 .chip.pergunta { background: var(--azul-fundo); color: var(--azul-texto); }
 .chip.livre { background: var(--livre-fundo); color: var(--livre-texto); }
 .chip.fora { background: var(--cartao2); color: var(--suave); }
+.chip.hora-extra { background: var(--cartao2); color: var(--texto); }
+.chip.hora-extra::before { background: #ffd36b; box-shadow: 0 0 4px #ffd36b; }   /* a luminária acesa da mesa */
 .vazio { color: var(--suave); padding: 16px 8px; font-size: 14px; }
 .vazio-grande { max-width: 560px; padding: 32px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 8px; }
 .vazio-grande h2 { font-size: 20px; }
@@ -745,7 +747,11 @@ button.linha-resolvido:hover { background: rgba(255, 255, 255, .04); }
 .cp-resposta .botao:disabled { background: var(--cartao2); color: var(--suave); box-shadow: none; opacity: 1; cursor: not-allowed; }
 .cp-resposta .botao[aria-disabled="true"] { opacity: .7; cursor: progress; }
 .cp-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--suave); }
-.cp-linha[hidden], .cp-motivo[hidden], .cp-aviso-envio[hidden], .cp-envio[hidden] { display: none; }
+.cp-rapidas { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-rapida { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--borda-forte); background: var(--cartao2); color: var(--texto); font: inherit; font-size: 13px; cursor: pointer; }
+.cp-rapida:hover { border-color: var(--destaque); }
+.cp-rapida:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
+.cp-rapidas[hidden], .cp-linha[hidden], .cp-motivo[hidden], .cp-aviso-envio[hidden], .cp-envio[hidden] { display: none; }
 .cp-contador { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cp-contador.perto { color: var(--ambar-texto); }
 .cp-motivo { margin: 0; font-size: 13px; color: var(--texto2); }
@@ -1107,6 +1113,10 @@ body:not([data-papel="membro"]) .so-membro { display: none !important; }
 
 /* Meu perfil (personalizar.js) e Membros (ajustes.js) */
 .form-perfil, .cv-link { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+.form-avisos { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); }
+.form-avisos h3 { margin: 0; font-size: 15px; }
+.av-modos { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; }
+#av-janela[hidden] { display: none; }
 .seletor-boneco { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
 .boneco-previa { flex: none; width: 88px; height: 88px; image-rendering: pixelated; background: var(--campo); border-radius: 12px; }
 .boneco-campos { flex: 1 1 180px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }

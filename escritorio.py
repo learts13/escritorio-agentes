@@ -50,7 +50,7 @@ import vapid  # noqa: E402
 from ajustes import (ACESSORIOS, CLIMA_BYTES, CORES, EQUIPE_BYTES, FESTAS_BYTES, HANDLE_OK, ICONES_OK, OLHOS,  # noqa: E402
                      ROTULO_OK, limpa_texto)
 from avisos import (CORPO_MAX as PUSH_CORPO, PUSH_BYTES, Avisos, EndpointInvalido, validar_arquivo as validar_push,  # noqa: E402
-                    validar_assinatura, validar_saida)
+                    validar_assinatura, validar_preferencia, validar_saida)
 from jornal import JORNAL_BYTES, Jornal, validar as validar_jornal  # noqa: E402
 from novidades import Novidades  # noqa: E402
 from planta import PLANTA_BYTES, Planta, validar_planta  # noqa: E402
@@ -58,7 +58,7 @@ from social import PLACAR_BYTES, PLACAR_MAX, PLACAR_TETO, Social  # noqa: E402
 from visitas_sala import Salas, LimiteRequisicoes  # noqa: E402
 from presenca import Limite as LimitePresenca, Presenca  # noqa: E402
 
-VERSAO = "1.5.1"
+VERSAO = "1.5.2"
 AGENTES_PADRAO = "https://app.agentes.chat"
 # a nuvem ou a sua instalação self-host (o PUBLIC_URL dela): o main() confere (erro_agentes)
 AGENTES = os.environ.get("AGENTES_URL", "").strip().rstrip("/") or AGENTES_PADRAO
@@ -171,7 +171,8 @@ ARQUIVOS = {  # estáticos servidos (lista fechada)
     "ajustes.js": "text/javascript; charset=utf-8", "assistente.js": "text/javascript; charset=utf-8",
     "tv.js": "text/javascript; charset=utf-8", "sw.js": "text/javascript; charset=utf-8",
     "jornal.js": "text/javascript; charset=utf-8", "timelapse.js": "text/javascript; charset=utf-8",
-    "avisar.js": "text/javascript; charset=utf-8", "novidades.js": "text/javascript; charset=utf-8",
+    "avisar.js": "text/javascript; charset=utf-8", "resposta_rapida.js": "text/javascript; charset=utf-8",
+    "novidades.js": "text/javascript; charset=utf-8",
     "manifest.webmanifest": "application/manifest+json", "icone-180.png": "image/png", "icone-192.png": "image/png",
     "icone-512.png": "image/png", "icone-mascara-512.png": "image/png",
 }
@@ -820,6 +821,8 @@ class Leitor(threading.Thread):
         self.acordado = threading.Event()   # acordar(): a volta do OAuth não espera o resto do intervalo
         self.diario = Diario()
         self.diario_novo = False   # conta nova no OAuth: o próximo ciclo recomeça o Diario
+        # volta do OAuth: (agentes da conta de antes, zerar). A primeira leitura que der certo decide se é outra conta
+        self.conferir, self.conferindo = None, None
         self.jornal = None   # o Jornal da semana, posto pelo main(); conta a cada leitura que deu certo
         self.avisos = None   # o push (avisos.py), posto pelo main(): os pedidos novos vão para a fila dele
         self.agentes, self.agentes_ok, self.agentes_em = None, True, 0.0   # list_agents guardado entre as recargas
@@ -918,9 +921,14 @@ class Leitor(threading.Thread):
         with self.trava:
             if self.diario_novo:   # sem os "terminou" da conta velha nem os pedidos da nova contados como novos
                 self.diario, self.diario_novo = Diario(), False
+            if self.conferir:   # a lista de agentes vem de novo nesta leitura: a guardada pode ser da conta velha
+                vistos = self.conferindo[0] if self.conferindo else {a.get("id") for a in self.agentes or []}
+                self.conferindo, self.conferir, self.agentes = (vistos, self.conferir), None, None
         antes, inicio = self.mcp.pedidos, self.relogio()
         try:
             novo, completa, itens = self.ler(agora)
+            if self.conferindo:
+                self._conferir_conta()
             self.diario.aplicar(novo, completa)
             if self.jornal:   # nunca levanta: o jornal não derruba a leitura
                 self.jornal.ler(self.diario.novos, novo, agora)
@@ -1008,6 +1016,19 @@ class Leitor(threading.Thread):
         """Foto da memória da página Conversas (com canal e url: fica no servidor; o público sai do conversas_publicas)."""
         with self.trava:
             return self.conversas
+
+    def conferir_conta(self, zerar):
+        """Volta do OAuth: zerar() (o jornal e a vida social do andar) roda na primeira leitura que der certo, só se ela
+        vier de outra conta, sem nenhum agente em comum com a de antes. O token não diz de quem é: reconectar a mesma
+        conta (o token venceu) mantém a semana. Sem leitura de antes (o serviço subiu sem conexão), zera."""
+        with self.trava:
+            self.conferir = zerar
+
+    def _conferir_conta(self):
+        antes, zerar = self.conferindo
+        self.conferindo = None
+        if not antes & {a.get("id") for a in self.agentes or []}:
+            zerar()
 
     def zerar_memoria(self):
         with self.trava:
@@ -2619,7 +2640,8 @@ class Andar:
         self.cred = Credenciais(caminho(mod_andares.OAUTH), self.times)
         self.leitor = Leitor(self.cred, url_app(AGENTES, self.org), self.times, atraso, self.org)
         self.jornal = self.leitor.jornal = Jornal(log, FUSO, lambda dados: gravar(arq_jornal, dados), ler_jornal(arq_jornal),
-                                                  lambda: ((clima.foto() if clima else None) or {}).get("tipo"))
+                                                  lambda: ((clima.foto() if clima else None) or {}).get("tipo"),
+                                                  lambda: config_publica(self)["expediente"])
         self.conversas = Conversas(self.leitor)
         self.respostas = Respostas(self.leitor, self.conversas)
         self.social = Social(self.leitor, lambda: config_publica(self), log, FUSO, guardar=lambda dados: gravar(arq_placar, dados),
@@ -3135,8 +3157,7 @@ class Pagina(BaseHTTPRequestHandler):
         if rota == "/api/perfil":   # o próprio perfil (nome e boneco), qualquer papel; "aparencia": o boneco que os outros veem
             if self._previa():
                 return self._json(*erro(404, "previa", "Na prévia não há conta."))
-            perfil = self.server.acesso.perfil(usuario)
-            return self._json(200, {**perfil, "aparencia": aparencia_da_conta(usuario, perfil)})
+            return self._json(200, self._perfil_publico(usuario))
         if rota == "/api/membros":   # a aba Membros (a guarda já deixou só admin): contas e convites, sem segredo
             if self._previa():
                 return self._json(*erro(404, "previa", "Na prévia não há contas."))
@@ -3171,8 +3192,9 @@ class Pagina(BaseHTTPRequestHandler):
             jornal = andar.jornal
             if not jornal:
                 return self._json(*erro(404, "jornal_desligado", "O jornal está desligado neste escritório."))
-            presentes = {a["id"] for a in andar.leitor.foto().get("agentes", [])}
-            return self._json(200, jornal.publico(time.time(), presentes))
+            foto = andar.leitor.foto()   # a conexão vai junto: sem leitura, a página diz por que a edição está vazia
+            presentes = {a["id"] for a in foto.get("agentes", [])}
+            return self._json(200, {**jornal.publico(time.time(), presentes), "conexao": foto.get("conexao") or "carregando"})
         if rota == "/api/novidades":   # do disco, sem chamar o agentes.chat; ausente ou ilegível sai com entradas: []
             return self._json(200, {"versao": VERSAO, "entradas": NOVIDADES.publico()})
         if rota in ("/api/push/chave", "/api/avisos"):   # o aviso no celular (avisos.py); o rótulo da tarefa nunca sai
@@ -3215,10 +3237,16 @@ class Pagina(BaseHTTPRequestHandler):
                 andar.leitor.zerar_memoria()
             if andar.conversas:   # as conversas lidas (cache de 60 s)
                 andar.conversas.esquecer()
-            if andar.social:   # as amizades da vida social
-                andar.social.zerar()
-            if andar.jornal:   # os números da semana
-                andar.jornal.zerar()
+            social, jornal = andar.social, andar.jornal
+
+            def zerar():   # as amizades e o placar da vida social e os números da semana, se a conta for outra
+                for x in (social, jornal):
+                    if x:
+                        x.zerar()
+            if hasattr(andar.leitor, "conferir_conta"):
+                andar.leitor.conferir_conta(zerar)
+            else:
+                zerar()
             if andar.id == ANDAR_PRINCIPAL and getattr(self.server, "avisos", None):   # o último aviso (o push lê o principal)
                 self.server.avisos.zerar()
             if hasattr(andar.leitor, "acordar"):   # a primeira leitura com a conexão nova sai agora
@@ -3408,7 +3436,7 @@ class Pagina(BaseHTTPRequestHandler):
             return self._json(*erro(400, "endpoint_invalido", "Esse serviço de aviso não é aceito."))
         except (ValueError, TypeError, RecursionError):   # tamanho, UTF-8, JSON, NaN ou formato; sem ecoar nada
             return self._json(*erro(400, "pedido", "Pedido inválido."))
-        return self._json(*avisos.assinar(endpoint, time.time()))
+        return self._json(*avisos.assinar(endpoint, time.time(), None if self._previa() else self._usuario()))
 
     def _post_andares(self, rota):
         """Criar, renomear e remover andares: Origin igual à BASE, sessão de admin do prédio e JSON exato de até 1 KB.
@@ -3564,8 +3592,15 @@ class Pagina(BaseHTTPRequestHandler):
         except (ValueError, TypeError) as x:
             return self._json(*erro(400, "pedido", str(x)[:120]))
 
+    def _perfil_publico(self, usuario):
+        """GET e POST /api/perfil: o perfil, o boneco efetivo e o "Não perturbe" do aviso no celular."""
+        perfil = self.server.acesso.perfil(usuario)
+        return {**perfil, "aparencia": aparencia_da_conta(usuario, perfil),
+                "avisos": self.server.acesso.avisos_de(usuario) or {"modo": "sempre"}}
+
     def _post_perfil(self, rota):
-        """O próprio nome e boneco (qualquer papel): Origin igual à BASE, sessão e JSON {nome, avatar} de até 1 KB."""
+        """O próprio nome e boneco, ou o "Não perturbe" (qualquer papel): Origin igual à BASE, sessão e JSON {nome, avatar}
+        ou {avisos} de até 1 KB. "Avisar sempre" é o padrão e não fica gravado."""
         if self.headers.get("Origin") != BASE:
             log(evento="http", rota=rota[:40], resultado="origem_recusada")
             return self._json(*erro(403, "origem", "Origem não permitida."))
@@ -3577,11 +3612,15 @@ class Pagina(BaseHTTPRequestHandler):
         dados = self._json_pedido(1024)
         if dados is False:
             return self._json(*erro(415, "formato", "Envie JSON (application/json)."))
-        if dados is None or set(dados) != {"nome", "avatar"}:
+        if dados is None or set(dados) not in ({"nome", "avatar"}, {"avisos"}):
             return self._json(*erro(400, "pedido", "Pedido inválido."))
         try:
-            perfil = self.server.acesso.salvar_perfil(usuario, dados["nome"], dados["avatar"])
-            return self._json(200, {**perfil, "aparencia": aparencia_da_conta(usuario, perfil)})
+            if "avisos" in dados:
+                pref = validar_preferencia(dados["avisos"])
+                self.server.acesso.salvar_avisos(usuario, None if pref["modo"] == "sempre" else pref)
+            else:
+                self.server.acesso.salvar_perfil(usuario, dados["nome"], dados["avatar"])
+            return self._json(200, self._perfil_publico(usuario))
         except ValueError as x:
             return self._json(*erro(400, "pedido", str(x)[:160]))
         except NaoGravou as x:
@@ -3635,7 +3674,10 @@ class Pagina(BaseHTTPRequestHandler):
                 acesso.definir_andares(dados["usuario"], dados["andares"])
             else:
                 # some do mapa dos outros na hora, pelo nome normalizado ("Ana " e "ANA" são a conta "ana")
-                self.server.presenca.sair(acesso.remover(dados["usuario"]))
+                removida = acesso.remover(dados["usuario"])
+                self.server.presenca.sair(removida)
+                if getattr(self.server, "avisos", None):   # e o celular dela para de receber os avisos do prédio
+                    self.server.avisos.esquecer(removida)
         except UltimoAdmin:
             return self._json(*erro(409, "ultimo_admin", "O escritório precisa de pelo menos uma pessoa que administra."))
         except ConvitesDemais as x:
@@ -3653,8 +3695,8 @@ class Pagina(BaseHTTPRequestHandler):
     def _post_sair_todos(self, rota):
         """"Sair de todos os aparelhos": Origin obrigatório e igual à BASE (sem a volta para o Referer), sessão, JSON
         {"senha"} de até 1 KB. A senha conta no balde do login (8 erros em 15 min travam também o login). Zera só as
-        sessões e modos resposta de quem pediu (admin ou membro) e apaga os dois cookies deste navegador. Só o admin
-        desliga também o aviso no celular de todos os aparelhos (a lista é do prédio)."""
+        sessões e modos resposta de quem pediu (admin ou membro) e apaga os dois cookies deste navegador. O admin desliga
+        também o aviso no celular de todos os aparelhos (a lista é do prédio); o membro, só o dos aparelhos que ele assinou."""
         acesso, token = self.server.acesso, self._token()
         if self.headers.get("Origin") != BASE:
             log(evento="http", rota=rota[:40], resultado="origem_recusada")
@@ -3684,10 +3726,10 @@ class Pagina(BaseHTTPRequestHandler):
             log(evento="acesso", resultado="sair_todos_nao_gravou", detalhe=str(x))
             return self._json(*erro(500, "gravar", "Não deu para encerrar as sessões agora."))
         log(evento="acesso", resultado="sair_todos", usuario=usuario, sessoes=n)
-        # um aparelho perdido também para de receber os avisos. A lista de aparelhos é do prédio (não guarda de quem é
-        # cada um): só quem administra a zera, e o membro sair dos aparelhos dele não desliga o aviso de ninguém
-        if getattr(self.server, "avisos", None) and self._papel_de(usuario) == "admin":
-            self.server.avisos.limpar()
+        # um aparelho perdido também para de receber os avisos. A lista de aparelhos é do prédio: quem administra a zera,
+        # e o membro apaga só os aparelhos que ele assinou (a assinatura guarda a conta; a de antes, sem conta, fica)
+        if getattr(self.server, "avisos", None):
+            self.server.avisos.limpar(None if self._papel_de(usuario) == "admin" else usuario)
         return self._json(200, {"ok": True}, {"Set-Cookie": [self._cookie("", 0), self._cookie_modo("")]})
 
     def do_POST(self):
@@ -3924,9 +3966,10 @@ def main():
     clima = Clima(lambda: clima_vigente()[0])   # nasce sempre: a cidade pode chegar pela tela depois
     # jornal da semana: só ids e números, gravado de forma atômica; o clima do meio-dia sai do mesmo Clima da página
     leitor.jornal = Jornal(log, FUSO, lambda dados: gravar(ARQ_JORNAL, dados), ler_jornal(),
-                           lambda: (clima.foto() or {}).get("tipo"))
+                           lambda: (clima.foto() or {}).get("tipo"), lambda: config_publica()["expediente"])
     leitor.avisos = criar_avisos()   # aviso no celular: a thread dele fala com os serviços de push, nunca com o agentes.chat
-    if leitor.avisos:
+    if leitor.avisos:   # o "Não perturbe" de cada conta e o expediente do escritório (o do Personalizar, lido na hora)
+        leitor.avisos.preferencia, leitor.avisos.expediente = contas.avisos_de, lambda: config_publica()["expediente"]
         leitor.avisos.start()
     leitor.start()
     srv = Servidor((BIND, PORTA), Pagina)  # 127.0.0.1: a Tailscale (serve) publica só na rede privada

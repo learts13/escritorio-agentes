@@ -3,9 +3,9 @@
 """Jornal do escritório: os números da semana (de segunda a domingo, no fuso de Brasília) para a página "Jornal", que
 monta a manchete e as notas no navegador. Só ids de agentes e números: nenhum rótulo, conversa ou pessoa.
 
-Por agente: as tarefas que terminaram e as aprovações e respostas pedidas (das transições que o Diario já calcula) e os
-minutos trabalhando, aproximados pelas leituras. Por dia: o tipo de clima da primeira leitura a partir do meio-dia, as
-greves e as brigas (ganchos do social.py). Guarda só a semana atual e a anterior; quem lê e grava o dados/jornal.json é
+Por agente: as tarefas que terminaram e as aprovações e respostas pedidas (das transições que o Diario já calcula), os
+minutos trabalhando, aproximados pelas leituras, e quantos deles foram fora do expediente do andar (a hora extra). Por
+dia: o tipo de clima da primeira leitura a partir do meio-dia, as greves e as brigas (ganchos do social.py). Guarda só a semana atual e a anterior; quem lê e grava o dados/jornal.json é
 o escritorio.py (ler_jornal e o guardar que ele passa), no máximo uma vez por minuto. Nada aqui chama o agentes.chat.
 """
 import datetime
@@ -16,7 +16,8 @@ import threading
 JORNAL_BYTES, JORNAL_MAX, JORNAL_TETO = 64 * 1024, 500, 1_000_000   # tamanho do arquivo, agentes por semana, maior número
 GRAVA_A_CADA = 60
 CREDITO_MAX = 120   # s de trabalho que uma leitura credita: um buraco maior (pausa, reinício) não vira trabalho
-CAMPOS = ("tarefas", "aprovacoes", "respostas", "minutos")   # no arquivo, cada agente é a lista nesta ordem
+CAMPOS = ("tarefas", "aprovacoes", "respostas", "minutos", "extra")   # no arquivo, cada agente é a lista nesta ordem
+ANTIGOS = 4   # o jornal.json de antes da hora extra: os 4 primeiros, e a hora extra começa em zero
 EVENTOS = {"terminou": 0, "pediu_aprovacao": 1, "pediu_resposta": 2}
 TRABALHANDO = frozenset({"running", "still_running"})
 CLIMAS = frozenset({"limpo", "nublado", "neblina", "garoa", "chuva", "neve", "tempestade"})   # os do tipo_do_clima
@@ -54,9 +55,9 @@ def validar(d):
             raise ValueError("semana")
         agentes = {}
         for i, x in sem["agentes"].items():
-            if not ID_OK.fullmatch(i) or not isinstance(x, list) or len(x) != len(CAMPOS):
+            if not ID_OK.fullmatch(i) or not isinstance(x, list) or len(x) not in (ANTIGOS, len(CAMPOS)):
                 raise ValueError("agente")
-            agentes[i] = [_numero(n) for n in x]
+            agentes[i] = [_numero(n) for n in x] + [0] * (len(CAMPOS) - len(x))
         dias = {}
         for dia, x in sem["dias"].items():
             if not 0 <= (_data(dia) - inicio).days < 7 or not isinstance(x, dict) or set(x) != {"clima", "greves", "brigas"} \
@@ -71,10 +72,11 @@ class Jornal:
     """Os contadores, sob uma trava. Quem conta: o Leitor (ler, a cada leitura que deu certo) e o Social (contar, nas
     brigas e greves). Só o ler() grava, fora da trava; o GET /api/jornal só lê."""
 
-    def __init__(self, log, fuso, guardar=None, semanas=None, clima=None):
+    def __init__(self, log, fuso, guardar=None, semanas=None, clima=None, expediente=None):
         """guardar(bytes) grava o jornal.json (o gravar() atômico do escritorio.py); semanas é o que o ler_jornal() leu
-        ao subir (validado, ou None); clima() devolve o tipo do clima de agora, ou None."""
-        self.log, self.fuso, self.guardar, self.clima = log, fuso, guardar, clima
+        ao subir (validado, ou None); clima() devolve o tipo do clima de agora, ou None; expediente() devolve o do andar
+        ({"abre", "fecha"} em HH:MM, já validado), ou None: sem ele, não há hora extra."""
+        self.log, self.fuso, self.guardar, self.clima, self.expediente = log, fuso, guardar, clima, expediente
         self.trava = threading.Lock()
         self.semanas = semanas or {}
         self.ultima = None   # instante da última leitura (o crédito dos minutos)
@@ -127,11 +129,13 @@ class Jornal:
         credito = min(agora - self.ultima, CREDITO_MAX) if self.ultima is not None else 0
         self.ultima = agora
         trabalhando = {t["agente_id"] for t in resumo.get("tarefas", []) if t["status"] in TRABALHANDO}
-        resto = {}
+        resto, extra = {}, credito > 0 and trabalhando and self._fora(agora)
         for ag in sorted(trabalhando) if credito > 0 else ():
             minutos, resto[ag] = divmod(self.resto.get(ag, 0) + credito, 60)
             if minutos:
                 self._somar(sem, ag, 3, int(minutos))
+                if extra:   # o minuto que fecha fora do expediente é hora extra (aproximado, como os minutos)
+                    self._somar(sem, ag, 4, int(minutos))
         self.resto = resto   # quem parou de trabalhar perde a sobra: a conta é aproximada
         if self.clima and datetime.datetime.fromtimestamp(agora, self.fuso).hour >= 12 and \
                 sem["dias"].get(dia, {}).get("clima") is None:
@@ -143,6 +147,15 @@ class Jornal:
             return None
         self.sujo, self.gravado_em = False, agora
         return self._serializar()
+
+    def _fora(self, agora):
+        """O instante está fora do expediente do andar? abre > fecha é o turno que vira a meia-noite."""
+        e = self.expediente() if self.expediente else None
+        if not e:
+            return False
+        hora = datetime.datetime.fromtimestamp(agora, self.fuso).strftime("%H:%M")
+        abre, fecha = e["abre"], e["fecha"]
+        return not abre <= hora < fecha if abre < fecha else fecha <= hora < abre
 
     def _gravar(self, dados):
         try:

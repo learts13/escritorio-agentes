@@ -200,6 +200,7 @@ const Personalizar = (() => {
       await enviar("/api/marca", JSON.stringify({ empresa: $("m-empresa").value.trim(), cor: $("m-cor").value,
         expediente: { abre: $("m-abre").value, fecha: $("m-fecha").value }, ...(temSocial() ? { serio: $("m-serio").checked } : {}) }), "application/json");
       esquecerLogo();
+      Expediente.definir({ abre: $("m-abre").value, fecha: $("m-fecha").value }); pintarAvisos();   // o "Só no expediente (…)" já com o novo
       aviso("Salvo. Recarregando para aplicar no mapa…", "ok"); setTimeout(() => location.reload(), 700);
     } catch (e) {
       if (logoFoi) { esquecerLogo(); mostrarLogo(salvo.logo); }   // o logo já foi; só o nome e a cor ficaram para trás
@@ -244,8 +245,44 @@ const Personalizar = (() => {
     // "aparencia": o boneco efetivo, decidido pelo servidor (o salvo ou o padrão da conta), o mesmo que os outros veem no mapa
     const ap = d.aparencia && typeof d.aparencia === "object" ? d.aparencia : d.avatar && typeof d.avatar === "object" ? d.avatar : Avatar.padrao(d.usuario || "");
     perfilBoneco = Avatar.seletor($("pf-boneco"), ap, null, "pf");
+    mostrarAvisos(d.avisos);
     $("a-perfil").hidden = false;
   }
+  // "Não perturbe" do aviso no celular: {modo: sempre | expediente | silencio, de, ate}; quem decide é o servidor (avisos.py)
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const modoAvisos = () => (document.querySelector('input[name="av-modo"]:checked') || {}).value || "sempre";
+  const avisoAvisos = (t, tipo) => { const a = $("av-aviso"); a.textContent = t; a.className = "aviso-form" + (tipo ? ` ${tipo}` : ""); };
+  function pintarAvisos() {
+    $("av-janela").hidden = modoAvisos() !== "silencio";
+    const ex = window.Expediente;
+    $("av-expediente").textContent = ex ? `Só no expediente (${ex.abre} às ${ex.fecha})` : "Só no expediente";
+  }
+  function mostrarAvisos(p) {
+    const modo = p && ["sempre", "expediente", "silencio"].includes(p.modo) ? p.modo : "sempre";
+    for (const r of document.querySelectorAll('input[name="av-modo"]')) r.checked = r.value === modo;
+    if (modo === "silencio" && HHMM.test(p.de) && HHMM.test(p.ate)) { $("av-de").value = p.de; $("av-ate").value = p.ate; }
+    pintarAvisos();
+  }
+  for (const r of document.querySelectorAll('input[name="av-modo"]')) r.addEventListener("change", () => { pintarAvisos(); avisoAvisos(""); });
+  $("form-avisos").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const modo = modoAvisos(), de = $("av-de").value, ate = $("av-ate").value, bt = $("av-salvar");
+    for (const c of ["av-de", "av-ate"]) $(c).removeAttribute("aria-invalid");
+    if (modo === "silencio") {
+      const ruim = !HHMM.test(de) ? "av-de" : !HHMM.test(ate) ? "av-ate" : de === ate ? "av-ate" : "";
+      if (ruim) {
+        $(ruim).setAttribute("aria-invalid", "true");
+        avisoAvisos(de === ate && HHMM.test(de) ? "O silêncio precisa começar e acabar em horários diferentes." : "Preencha os dois horários (HH:MM).", "ruim");
+        $(ruim).focus(); return;
+      }
+    }
+    bt.disabled = true; avisoAvisos("Salvando…");
+    try {
+      const d = await pedirPerfil({ avisos: modo === "silencio" ? { modo, de, ate } : { modo } });
+      mostrarAvisos(d.avisos); avisoAvisos("Avisos salvos.", "ok");
+    } catch (e) { avisoAvisos(`Não salvou: ${e.message}`, "ruim"); }
+    finally { bt.disabled = false; }
+  });
   async function lerPerfil() {
     if (perfilLido || (window.Brincar && Brincar.demo)) return;
     try { mostrarPerfil(await pedirPerfil()); perfilLido = true; } catch (e) { if (e.status !== 401) $("a-perfil").hidden = true; }

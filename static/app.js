@@ -240,9 +240,20 @@ function combina(b) {
   return filtro === "todos" || situacao(b) === filtro;
 }
 
-let antes = performance.now();
+// Modo econômico: a toda taxa só com algo se mexendo (vida.js: Vida.mexendo), a câmera andando ou o usuário mexendo há pouco
+// (as reações do Brincar e o Konami duram até 8 s); chuva, neve ou festa com fogos, até 60 quadros/s; parado, menos ainda
+// (Vida.intervaloQuadro), e menos sem foco. Com a aba escondida o requestAnimationFrame já para sozinho.
+let antes = performance.now(), desenhadoEm = 0, mexeuEm = 0;
+for (const ev of ["pointerdown", "pointermove", "wheel", "keydown"]) addEventListener(ev, () => { mexeuEm = performance.now(); }, { capture: true, passive: true });
+const climaMexendo = () => !!window.Clima && (Clima.chove() || Clima.tipo() === "neve") && !menosMovimento.matches;
 function quadro(t) {
   requestAnimationFrame(quadro);   // no topo: um erro neste quadro não para o laço
+  if (predio && mundo) {
+    const mexendo = Vida.mexendo(mundo) || !!cam.alvo || !!arrasto || !!pinca || t - mexeuEm < 9000;
+    const animando = climaMexendo() || (!!festa && !menosMovimento.matches);
+    if (t - desenhadoEm < Vida.intervaloQuadro({ mexendo, animando, foco: document.hasFocus() }) - 4) return;   // 4 ms de folga para o vsync
+    desenhadoEm = t;
+  }
   const dt = Math.min(0.1, (t - antes) / 1000); antes = t; dtQuadro = dt;
   if (predio && mundo) {
     Vida.passo(mundo, dt);
@@ -397,6 +408,7 @@ function dt0(t) { const d = Math.min(0.1, (t - ultimoLuz) / 1000); ultimoLuz = t
 
 function desenharObjeto(o, t) {
   if (o.tipo === "mesa") {
+    o.mesa.horaExtra = naHoraExtra(o.mesa);
     Mapa.desenharMesa(ctx, o.mesa.x, o.mesa.topo, telaDaMesa(o.mesa), t, o.mesa);
   } else if (o.tipo === "cadeira") {
     Mapa.desenharCadeira(ctx, o.x, o.y, o.cor, o.estilo);
@@ -419,6 +431,12 @@ function telaDaMesa(mesa) {
     return b.lugar && b.lugar.tipo === "mesa" ? "codigo" : "descanso";
   }
   return "descanso";
+}
+
+// a luminária da mesa acende com o dono fazendo hora extra (vida.js: Vida.horaExtra) sentado nela
+function naHoraExtra(mesa) {
+  const b = mesa.handle && bonecoDaMesa.get(mesa.handle);
+  return !!b && Vida.horaExtra(b, mundo.fora) && !b.rota.length && !!b.lugar && b.lugar.tipo === "mesa";
 }
 
 function desenharAnimado(a, t) {
@@ -486,7 +504,7 @@ function desenharLuzes(dt, ceu) {
       } else if (o.tipo === "mesa") {
         const tela = telaDaMesa(o.mesa), cor = { codigo: "110,170,255", descanso: "150,120,255", aprovacao: Mapa.rgb(Mapa.cor("ambar")), pergunta: Mapa.rgb(Mapa.cor("azul")) }[tela];
         if (cor) brilho(o.mesa.x, o.mesa.topo - 6, 22, `rgba(${cor},${(cor === "150,120,255" ? 0.14 : 0.3) * noite})`);
-        if (o.mesa.abajur && (o.mesa.abajurAceso ?? tela !== "apagada")) brilho(o.mesa.x + 11, o.mesa.topo + 3, 18, `rgba(255,210,130,${0.4 * noite})`);
+        if (o.mesa.abajur && !o.mesa.horaExtra && (o.mesa.abajurAceso ?? tela !== "apagada")) brilho(o.mesa.x + 11, o.mesa.topo + 3, 18, `rgba(255,210,130,${0.4 * noite})`);
       }
       else if (/arcade|rack_tv|estacao_gamer|aquario|neon|tv_parede/.test(o.nome || "")) brilho(o.x + o.w / 2, o.y + o.h / 3, 26, `rgba(140,110,255,${0.22 * noite})`);
     }
@@ -496,6 +514,11 @@ function desenharLuzes(dt, ceu) {
     }
     ctx.globalCompositeOperation = "source-over";
   }
+  const pulso = menosMovimento.matches ? 1 : 0.88 + 0.12 * Math.sin(agora / 700);   // a luz da hora extra respira devagar
+  ctx.globalCompositeOperation = "lighter";
+  for (const o of predio.objetos) if (o.tipo === "mesa" && o.mesa.horaExtra)
+    brilho(Mapa.lampadaX(o.mesa) + 2.5, o.mesa.topo + 3, 20, `rgba(255,210,130,${Math.max(0.5, noite) * 0.45 * pulso})`);
+  ctx.globalCompositeOperation = "source-over";
 }
 
 function brilho(x, y, r, cor) {
@@ -911,7 +934,8 @@ function renderFicha() {
   const f = $("ficha"), b = boneco(selecionado);
   if (!b) { if (!f.hidden) fecharFicha(); return; }
   const t = b.trabalho, resp = itemParaResponder(b), social = socialLigada(), motivo = social ? motivoRingue(b) : "";
-  const chave = [b.id, t && t.status, t && t.rotulo, t && t.url, ondeEsta(b), seguir === b.id, resp && resp.id,
+  const extra = Vida.horaExtra(b, mundo.fora);
+  const chave = [b.id, t && t.status, t && t.rotulo, t && t.url, ondeEsta(b), extra, seguir === b.id, resp && resp.id,
     social && (amizades && amizades.id === b.id ? amizades.v : 0), motivo].join("|");
   if (chave === assinaturaFicha) { const q = f.querySelector(".ficha-tempo"); if (q && t) q.textContent = tempoNoEstado(t); return; }
   assinaturaFicha = chave;
@@ -923,7 +947,8 @@ function renderFicha() {
   topo.append(mini(b.ap), nomes, x);
   const dl = elem("dl"), linha = (rot, ...conteudo) => { const dd = elem("dd"); dd.append(...conteudo); dl.append(elem("dt", null, rot), dd); };
   const chip = elem("span", `chip ${classeDe(b)}`, textoEstado(b));
-  linha("Estado", chip, ...(t ? [document.createTextNode(" "), elem("span", "ficha-tempo suave", tempoNoEstado(t))] : []));
+  linha("Estado", chip, ...(extra ? [document.createTextNode(" "), elem("span", "chip hora-extra", "Hora extra")] : []),
+    ...(t ? [document.createTextNode(" "), elem("span", "ficha-tempo suave", tempoNoEstado(t))] : []));
   if (t) linha("Fazendo", document.createTextNode(t.rotulo || "Tarefa sem descrição"));
   linha("Onde", document.createTextNode(ondeEsta(b)));
   if (social && !Brincar.demo) linha("Amizades", secaoAmizades(b));   // a demonstração não tem amizades: nada vai ao servidor
@@ -1394,11 +1419,14 @@ function montarConvAberta(it) {
 }
 function remontarConvAberta(it) { // o foco que estava dentro da conversa volta para a peça equivalente (ou para a conversa)
   const sec = $("conv-aberta"), ativo = sec.contains(document.activeElement) ? document.activeElement : null;
-  const classe = ativo && ["cp-atualizar", "cp-externo", "cp-voltar", "conversa-lista", "cp-texto", "cp-enviar"].find(c => ativo.classList.contains(c));
+  const classe = ativo && ["cp-atualizar", "cp-externo", "cp-voltar", "conversa-lista", "cp-texto", "cp-enviar", "cp-rapida"].find(c => ativo.classList.contains(c));
+  const rapida = classe === "cp-rapida" ? [...sec.querySelectorAll(".cp-rapida")].indexOf(ativo) : -1;   // qual resposta pronta foi tocada
   const ta = sec.querySelector(".cp-texto"), rascunho = ta ? ta.value : "";   // o texto que estava sendo escrito não se perde
   montarConvAberta(it);
   if (rascunho) { sec.querySelector(".cp-texto").value = rascunho; contarResposta(); }
-  if (ativo) (classe && sec.querySelector(`.${classe}:not([hidden]):not(:disabled)`) || sec).focus({ preventScroll: true });
+  const mesma = rapida >= 0 && sec.querySelectorAll(".cp-rapida")[rapida];
+  const alvo = mesma && !mesma.closest("[hidden]") ? mesma : classe && sec.querySelector(`.${classe}:not([hidden]):not(:disabled)`);
+  if (ativo) (alvo || sec).focus({ preventScroll: true });
 }
 function ajustarConvAberta(it) { // mesma estrutura: só o título, o status, a caixa e o rótulo do link
   const sec = $("conv-aberta"), h = sec.querySelector("#conv-aberta-titulo");
@@ -1555,7 +1583,10 @@ function caixaResposta(it) {
     if (ev.ctrlKey || ev.metaKey || !toqueConv()) { ev.preventDefault(); enviarResposta(); }   // no toque, Enter quebra a linha
   });
   env.addEventListener("click", enviarResposta);
-  c.append(envio, aviso, r, linha, motivo);
+  const rapidas = RespostaRapida.montar(ta, campo => {   // só preenche: o envio segue pelo Enviar
+    contarResposta(); crescerTexto(campo); campo.focus(); campo.setSelectionRange(campo.value.length, campo.value.length);
+  });
+  c.append(envio, aviso, rapidas, r, linha, motivo);
   return c;
 }
 const toqueConv = () => matchMedia("(pointer: coarse)").matches;
@@ -1585,7 +1616,7 @@ function pintarCaixa(it) {
   if (!enviando) { ta.disabled = !pode; env.disabled = !pode; }
   ta.placeholder = pode ? `Escreva para ${nomeConv(it)}…` : "Indisponível nesta conversa";   // o motivo inteiro fica logo abaixo
   textoSe(sec.querySelector(".cp-motivo"), motivo); sec.querySelector(".cp-motivo").hidden = pode;
-  sec.querySelector(".cp-aviso-envio").hidden = sec.querySelector(".cp-linha").hidden = !pode;
+  sec.querySelector(".cp-aviso-envio").hidden = sec.querySelector(".cp-linha").hidden = sec.querySelector(".cp-rapidas").hidden = !pode;
   textoSe(dica, toqueConv() ? "Toque em Enviar para mandar" : "Enter envia · Shift+Enter quebra a linha");
   contarResposta();
   if (ext) textoSe(ext, pode ? "Mandar imagem ou arquivo no agentes.chat" : it.status === "waiting_approval" ? "Revisar no agentes.chat" : it.status === "terminou" ? "Abrir no agentes.chat" : "Responder no agentes.chat");
@@ -2033,7 +2064,9 @@ tela.addEventListener("pointermove", ev => {
 function mostrarCartao(perto, cx, cy) {
   const card = $("cartao-agente");
   if (!perto || perto.id === selecionado) { card.hidden = true; return; }
-  card.replaceChildren(mini(perto.ap), elem("strong", null, perto.nome), elem("span", `chip ${classeDe(perto)}`, textoEstado(perto)),
+  const chips = elem("span", "chips");
+  chips.append(elem("span", `chip ${classeDe(perto)}`, textoEstado(perto)), ...(Vida.horaExtra(perto, mundo.fora) ? [elem("span", "chip hora-extra", "Hora extra")] : []));
+  card.replaceChildren(mini(perto.ap), elem("strong", null, perto.nome), chips,
     elem("p", null, perto.trabalho ? perto.trabalho.rotulo : ondeEsta(perto)));
   card.append(elem("p", "dica", esperaVoce(perto) ? "Toque no selo para abrir o pedido; no agente, para ver o cartão" : "Clique para abrir o cartão"));
   const r = $("palco").getBoundingClientRect();
@@ -2407,6 +2440,7 @@ Jornal.iniciar({
     return a ? { nome: a.nome, ap: aparencia(a.handle) } : null;
   },
   empresa: () => (config && config.empresa) || "",
+  andar: () => (Andar.atual === Andar.PRINCIPAL ? "" : (andares.find(a => a.id === Andar.atual) || {}).nome || ""),
   demo: () => Brincar.demo,
   socialLigada, mini,
 });

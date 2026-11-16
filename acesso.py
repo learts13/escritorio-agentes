@@ -327,6 +327,23 @@ class Acesso:
             self._gravar_usuarios(novos)
         return self.perfil(nome_u)
 
+    def avisos_de(self, usuario):
+        """O "Não perturbe" da conta, como gravado (quem confere é o avisos.py), ou None: sem preferência ou sem conta."""
+        u = self.usuarios.get(_normalizar_usuario(usuario))
+        return u.get("avisos") if u else None
+
+    def salvar_avisos(self, usuario, pref):
+        """Grava o "Não perturbe" já validado (avisos.validar_preferencia); None tira a preferência (avisar sempre)."""
+        nome_u = _normalizar_usuario(usuario)
+        with self.trava:
+            u = self.usuarios.get(nome_u)
+            if not u:
+                raise KeyError(usuario)
+            novo = {k: v for k, v in u.items() if k != "avisos"}
+            if pref is not None:
+                novo["avisos"] = pref
+            self._gravar_usuarios({**self.usuarios, nome_u: novo})
+
     # --- convites: a conta de membro nasce de um link pessoal de uso único
     def _convites_vivos(self, agora):
         return {k: c for k, c in self.convites.items() if c.get("expira", 0) > agora}
