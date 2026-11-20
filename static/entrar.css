@@ -1,86 +1,115 @@
-/* texto em Source Sans 3 e rótulo em Doto, como a interface */
-@font-face { font-family: "Source Sans 3"; src: url("fontes/source-sans-3.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
-@font-face { font-family: Doto; src: url("fontes/doto.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* Telas de fora (entrar, primeiro acesso, convite e aviso do Conectar), com a identidade Firmópolis do app e do site:
+   Figtree no texto, Pixeloid nos títulos; o céu noturno com a janela acesa do escritório à esquerda e o formulário à direita.
+   Cantos em degrau e sombra dura, sem desfoque. */
+@font-face { font-family: Figtree; src: url("fontes/figtree.ttf") format("truetype"); font-weight: 300 900; font-display: swap; }
+@font-face { font-family: Pixeloid; src: url("fontes/PixeloidSans.woff2") format("woff2"); font-display: swap; }
 :root { color-scheme: dark;
   --destaque: #f5b83d; --destaque-texto: #1a1408;                           /* cor da marca (o entrar.js aplica a da configuração) */
-  --destaque-claro: color-mix(in srgb, var(--destaque) 72%, #fff);          /* texto na cor da marca sobre fundo escuro */
+  --destaque-claro: color-mix(in srgb, var(--destaque) 72%, #fff);
+  --destaque-escuro: color-mix(in srgb, var(--destaque) 76%, #000);
   --verde: #5fc48a; --ambar: #e0a84a; --ambar-texto: #e0a84a; --cinza: #e4e4e7;   /* estados, fixos: os mesmos do estilo.css */
+  --noite: #14141a; --grafite: #1c1c22; --grafite-2: #26262e; --campo: #111116; --linha: #3a3a46;
+  --creme: #fff4dc; --texto: #e9e3d4; --suave: #b5ae9e;
+  --fonte-pixel: Pixeloid, ui-monospace, monospace;
+  --ceu: linear-gradient(#0f1024, #1d1f45 60%, #2b2a52);
+  --estrelas: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='144' shape-rendering='crispEdges'%3E%3Cg fill='%23fff4dc'%3E%3Crect x='14' y='18' width='2' height='2' opacity='0.9'/%3E%3Crect x='70' y='6' width='2' height='2' opacity='0.5'/%3E%3Crect x='131' y='34' width='2' height='2' opacity='0.8'/%3E%3Crect x='178' y='12' width='2' height='2' opacity='0.4'/%3E%3Crect x='40' y='74' width='2' height='2' opacity='0.4'/%3E%3Crect x='102' y='96' width='2' height='2' opacity='0.7'/%3E%3Crect x='160' y='118' width='2' height='2' opacity='0.5'/%3E%3Crect x='22' y='128' width='2' height='2' opacity='0.6'/%3E%3Crect x='186' y='70' width='2' height='2' opacity='0.3'/%3E%3Crect x='84' y='46' width='2' height='2' opacity='0.3'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 192px 144px;
+  --pixel: 4px;
+  --degrau: polygon(0 var(--pixel), var(--pixel) var(--pixel), var(--pixel) 0, calc(100% - var(--pixel)) 0, calc(100% - var(--pixel)) var(--pixel),
+    100% var(--pixel), 100% calc(100% - var(--pixel)), calc(100% - var(--pixel)) calc(100% - var(--pixel)), calc(100% - var(--pixel)) 100%,
+    var(--pixel) 100%, var(--pixel) calc(100% - var(--pixel)), 0 calc(100% - var(--pixel)));
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: #0f0f11; color: #f2f2f3; font: 15px/1.5 "Source Sans 3", system-ui, sans-serif; }
+html, body { margin: 0; background: var(--noite); color: var(--texto); font: 15px/1.5 Figtree, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
-.tela { min-height: 100vh; display: flex; flex-wrap: wrap; justify-content: center; }
-.hero { flex: 1 1 520px; min-width: 0; padding: 48px; display: flex; flex-direction: column; gap: 40px; justify-content: space-between;
-  background: #1b3fb8 radial-gradient(rgba(255,255,255,.10) 1px, transparent 1px) 0 0 / 8px 8px; }
-.marca { display: flex; align-items: center; gap: 12px; font-size: 20px; }
-.marca img { border-radius: 8px; image-rendering: pixelated; }
-.chamada { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
-.etiqueta { font: 800 13px Doto, monospace; letter-spacing: 1.2px; color: #dce4ff; }   /* rótulo pontilhado; a cor da marca fica no botão e no foco */
-h1 { margin: 0; font-size: 50px; line-height: 1.05; font-weight: 700; letter-spacing: -1.4px; }
-.chamada p { margin: 0; font-size: 18px; color: #dce4ff; }
-.legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 20px; color: #dce4ff; font-size: 14px; }
-.ponto { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+:focus-visible { outline: 3px solid var(--destaque); outline-offset: 2px; }
+.tela { min-height: 100vh; min-height: 100dvh; display: flex; flex-wrap: wrap; justify-content: center; }
+
+/* ---------- o céu: marca, chamada e a janela acesa do escritório ---------- */
+.hero { position: relative; flex: 1 1 520px; min-width: 0; padding: 48px; display: flex; flex-direction: column; gap: 36px; justify-content: space-between;
+  background: var(--estrelas), var(--ceu); border-right: 4px solid var(--linha); }
+.marca { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--creme); font: 400 18px/1.2 var(--fonte-pixel); }
+.marca img { image-rendering: pixelated; }
+.exemplo { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 2px dashed rgba(255, 244, 220, .45); color: #d9d3e8; font: 600 12px Figtree, system-ui, sans-serif; }
+.chamada { display: flex; flex-direction: column; gap: 16px; max-width: 580px; }
+.etiqueta { align-self: flex-start; padding: 4px 10px; background: var(--destaque); color: var(--destaque-texto); font: 400 13px/1.4 var(--fonte-pixel); letter-spacing: .06em; text-transform: uppercase;
+  box-shadow: inset -3px -3px 0 var(--destaque-escuro), inset 3px 3px 0 var(--destaque-claro); }
+h1 { margin: 0; color: var(--creme); font: 400 clamp(30px, 3.6vw, 46px)/1.12 var(--fonte-pixel); text-wrap: balance; }
+h1 em { font-style: normal; color: var(--ambar-texto);   /* fixo: a cor da marca do cliente pode ser escura demais sobre o céu */ text-shadow: 4px 4px 0 #3a2400; }
+.chamada p { margin: 0; max-width: 34em; color: #d9d3e8; font-size: 18px; text-shadow: 0 2px 0 #0f1024; }
+/* a janela: esquadria e peitoril como no site; a cena (entrar.js) é desenhada por cima do fundo aceso */
+.desfile { width: 100%; max-width: 620px; height: 192px; image-rendering: pixelated;
+  background: linear-gradient(#2f2b49, #3b3557 70%, #463d5c); outline: 6px solid #3f3f4d; outline-offset: 0; box-shadow: 0 16px 0 2px #4a4a58; }
+.legenda { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 22px; color: #d9d3e8; font-size: 14px; }
+.ponto { display: inline-block; width: 10px; height: 10px; margin-right: 8px; }
 .verde { background: var(--verde); } .ambar { background: var(--ambar); } .cinza { background: var(--cinza); }
-.lado { flex: 0 1 500px; min-width: 0; padding: 48px 40px; display: flex; align-items: center; justify-content: center; }
-.cartao { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
-h2 { margin: 0 0 4px; font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -.8px; }
-.suave { color: #a1a1aa; margin: 0 0 10px; font-size: 14px; }
-label { font-size: 14px; font-weight: 600; margin-top: 6px; display: block; }
-input { width: 100%; height: 48px; border-radius: 10px; border: 1px solid #2e2e35; background: #17171a; color: #f2f2f3; padding: 0 14px; font: 15px "Source Sans 3", sans-serif; margin-top: 6px; }
-input:focus { outline: 2px solid var(--destaque); outline-offset: 1px; }
-button { margin-top: 14px; height: 48px; border: 0; border-radius: 12px; background: var(--destaque); color: var(--destaque-texto); font: 700 16px "Source Sans 3", sans-serif; cursor: pointer; }
-button:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
-.erro { margin: 4px 0; padding: 10px 12px; border-radius: 10px; background: #3b1212; color: #fca5a5; font-size: 14px; }
+
+/* ---------- o formulário ---------- */
+.lado { flex: 0 1 520px; min-width: 0; padding: 48px 40px; display: flex; flex-direction: column; gap: 20px; align-items: center; justify-content: center; background: var(--grafite); }
+.cartao { width: 100%; max-width: 420px; margin: auto 0; padding: 28px; display: flex; flex-direction: column; gap: 10px; background: var(--grafite-2);
+  clip-path: var(--degrau); box-shadow: inset 0 0 0 2px var(--linha), inset 0 -6px 0 #17171d; }
+h2 { margin: 0 0 4px; color: var(--creme); font: 400 26px/1.2 var(--fonte-pixel); }
+.suave { color: var(--suave); margin: 0 0 10px; font-size: 14px; }
+label { display: block; margin-top: 6px; font-size: 14px; font-weight: 700; color: var(--texto); }
+input { width: 100%; height: 48px; margin-top: 6px; padding: 0 14px; border: 2px solid var(--linha); border-radius: 0; background: var(--campo); color: var(--creme); font: 16px Figtree, sans-serif; }
+input:hover { border-color: #4f4f5e; }
+input:focus { outline: 3px solid var(--destaque); outline-offset: 0; border-color: var(--campo); }
+button { margin-top: 14px; height: 48px; border: 0; border-radius: 0; background: var(--destaque); color: var(--destaque-texto); font: 700 16px Figtree, sans-serif; cursor: pointer; }
+.enviar { box-shadow: inset -4px -4px 0 var(--destaque-escuro), inset 4px 4px 0 var(--destaque-claro); transition: transform .12s steps(3, end); }
+.enviar:hover { transform: translateY(-2px); }
+.enviar:active { transform: translateY(1px); box-shadow: inset 4px 4px 0 var(--destaque-escuro); }
+.enviar:disabled { opacity: .7; cursor: progress; transform: none; }
+.erro { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0; padding: 10px 12px; border: 2px solid #7f1d1d; background: #3b1212; color: #fca5a5; font-size: 14px; }
+.erro-ic { flex: none; width: 20px; height: 20px; background: #fca5a5; color: #3b1212; font: 400 13px var(--fonte-pixel); display: inline-flex; align-items: center; justify-content: center; }
 .rodape { margin-top: 10px; text-align: center; }
-@media (max-width: 640px) { .hero { padding: 28px 20px; gap: 24px; } h1 { font-size: 34px; } .lado { padding: 28px 16px; } }
-.desfile { width: 100%; max-width: 620px; height: 192px; image-rendering: pixelated; }
 .campo-senha { position: relative; margin-top: 6px; }
 .campo-senha input { margin-top: 0; padding-right: 92px; }
-.ver-senha { position: absolute; right: 2px; top: 2px; margin: 0; height: 44px; min-width: 80px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .15); background: transparent; color: #d6d6d2; font: 600 14px "Source Sans 3", sans-serif; }
-.ver-senha:hover { background: rgba(255, 255, 255, .06); color: #efefec; }
+.ver-senha { position: absolute; right: 4px; top: 4px; margin: 0; height: 40px; min-width: 80px; padding: 0 12px; background: var(--grafite-2); color: var(--texto); font: 600 14px Figtree, sans-serif;
+  box-shadow: inset -3px -3px 0 #111116, inset 3px 3px 0 var(--linha); }
+.ver-senha:hover { color: var(--creme); background: #2f2f39; }
+@media (pointer: coarse) { .campo-senha input { height: 52px; } .ver-senha { height: 44px; } }
 .caps { margin: 4px 0 0; min-height: 18px; font-size: 13px; color: var(--ambar-texto); }
 .caps:empty { min-height: 0; margin: -10px 0 0; }   /* sem aviso, não abre vão entre os campos (o gap do cartão é 10px) */
-input:hover { border-color: #3a3a44; }
-input:focus { outline: 2px solid var(--destaque); outline-offset: 1px; border-color: transparent; }
-.erro { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #7f1d1d; }
-.erro-ic { flex: none; width: 20px; height: 20px; border-radius: 5px; background: #fca5a5; color: #3b1212; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
-.enviar { box-shadow: 0 1px 2px rgba(0, 0, 0, .5); transition: filter 150ms cubic-bezier(.16, 1, .3, 1), transform 150ms cubic-bezier(.16, 1, .3, 1); }
-.enviar:hover { filter: brightness(1.08); }
-.enviar:active { transform: translateY(1px); }
-.enviar:disabled { opacity: .7; cursor: progress; }
-.cartao { padding: 28px; border-radius: 18px; background: #141417; border: 1px solid #26262c; }
-@media (max-width: 640px) { .cartao { padding: 20px; } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-@media (max-width: 640px) { .lado { order: -1; padding-top: 20px; } .hero { gap: 18px; } .hero h1 { font-size: 28px; } .desfile { height: 100px; } }
+/* primeiro acesso: "Onde encontro o código?" discreto, embaixo do campo */
+.onde { margin: -2px 0 0; font-size: 14px; color: var(--suave); }
+.onde summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--texto); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(233, 227, 212, .45); list-style: none; }
+.onde summary::-webkit-details-marker { display: none; }
+.onde summary:hover { color: var(--creme); text-decoration-color: currentColor; }
+.onde p { margin: 0 0 6px; line-height: 1.5; }
+.onde code { font: 13px ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--creme); background: var(--campo); border: 1px solid var(--linha); padding: 1px 6px; white-space: nowrap; }
+/* "Olá de novo, <usuário>" */
+.ola { margin: -4px 0 4px; font-size: 14px; color: var(--texto); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.nao-sou { margin: 0; height: auto; min-height: 44px; padding: 0 4px; background: none; color: var(--texto); font: 600 14px Figtree, sans-serif;
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(233, 227, 212, .45); box-shadow: none; }
+.nao-sou:hover { color: var(--creme); text-decoration-color: currentColor; }
+
 /* rodapé de parceria: fixo (não segue a personalização), com os mesmos valores do index; no pé da coluna do formulário */
-.lado { flex-direction: column; gap: 20px; }
-.lado .cartao { margin: auto 0; }
-.parceria { font: 400 12px/1.5 "Source Sans 3", system-ui, sans-serif; color: #a9a9b2; text-align: center; }
-.parceria p { margin: 0; }
+.parceria { font: 400 13px/1.5 Figtree, system-ui, sans-serif; color: #a9a294; text-align: center; }
+.parceria p { margin: 0; text-wrap: balance; }
+/* a marca da Firmópolis em cima, num degrau: fica a mesma em toda instalação (a empresa do cliente está no topo) */
+.par-marca { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px !important; padding: 6px 10px;
+  background: var(--grafite-2, #26262e); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .35); clip-path: var(--degrau, none);
+  color: var(--creme); font: 400 14px/1 var(--fonte-pixel); }
+.par-marca img { image-rendering: pixelated; }
+.parceria a.par-selo { min-height: 0; padding: 4px 7px; color: #1b1a2b; text-decoration: none; }
+.parceria a.par-selo:hover { color: #1b1a2b; background: var(--creme); }
+.par-selo { padding: 3px 6px; background: var(--ambar-texto); color: #1b1a2b; font: 400 10px/1 var(--fonte-pixel); letter-spacing: .06em; text-transform: uppercase; }
 .par-fonte { white-space: nowrap; }   /* o "·" quebra junto com o link */
-.parceria a { color: #d4d4d8; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(212, 212, 216, .45);
-  display: inline-flex; align-items: center; min-height: 32px; padding: 0 4px; border-radius: 6px; }
-.parceria a:hover { color: #f2f2f3; text-decoration-color: currentColor; }
-.parceria a:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
+.parceria a { color: var(--texto); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(233, 227, 212, .45);
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 4px; }
+.parceria a:hover { color: var(--creme); text-decoration-color: currentColor; }
 @media (pointer: coarse) { .parceria a { min-height: 44px; padding: 0 8px; } }
 /* aviso.html (erros do Conectar): ali os links são as ações da página, então o alvo é de 44 px também com mouse.
    Só dentro do cartão: o rodapé de parceria do /entrar fica fora dele e não muda */
 .cartao > .parceria { margin: 4px 0 0; font-size: 14px; }
 .cartao > .parceria a { min-height: 44px; padding: 0 10px; }
-/* primeiro acesso: "Onde encontro o código?" discreto, embaixo do campo */
-.onde { margin: -2px 0 0; font-size: 14px; color: #a1a1aa; }
-.onde summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: #d4d4d8; text-decoration: underline; text-underline-offset: 3px;
-  text-decoration-color: rgba(212, 212, 216, .45); border-radius: 6px; list-style: none; }
-.onde summary::-webkit-details-marker { display: none; }
-.onde summary:hover { color: #f2f2f3; text-decoration-color: currentColor; }
-.onde summary:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
-.onde p { margin: 0 0 6px; line-height: 1.5; }
-.onde code { font: 13px ui-monospace, "Cascadia Mono", Consolas, monospace; color: #f2f2f3; background: #1e1e22; border: 1px solid #2e2e35; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
-/* "Olá de novo, <usuário>" e a etiqueta de nome/logo de exemplo */
-.ola { margin: -4px 0 4px; font-size: 14px; color: #d4d4d8; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
-.nao-sou { margin: 0; height: auto; min-height: 44px; padding: 0 4px; border: 0; border-radius: 6px; background: none; color: #d4d4d8; font: 600 14px "Source Sans 3", sans-serif;
-  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(212, 212, 216, .45); box-shadow: none; }
-.nao-sou:hover { color: #f2f2f3; text-decoration-color: currentColor; }
-.nao-sou:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
-.marca { flex-wrap: wrap; }
-.exemplo { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px dashed rgba(220, 228, 255, .55); color: #dce4ff; font-size: 12px; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .lado { order: -1; padding: 20px 16px 28px; background: var(--estrelas), var(--ceu); }   /* no celular o formulário vem antes: ele fica no céu */
+  .hero { padding: 28px 16px; gap: 20px; border-right: 0; border-top: 4px solid var(--linha); }
+  .cartao { padding: 20px; }
+  h1 { font-size: 26px; }
+  .chamada p { font-size: 16px; }
+  .desfile { height: 112px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

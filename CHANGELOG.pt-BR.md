@@ -4,6 +4,52 @@
 
 As mudanças que importam neste projeto ficam aqui, da mais nova para a mais antiga. O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Desde a 1.1.0, as versões seguem o [SemVer](https://semver.org/lang/pt-BR/); as entradas mais antigas são marcos com data.
 
+## 2.1.0 · 2026-11-20 · A firma ganha vida
+
+Release [`v2.1.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2.1.0). Commits: [`v2.0.0...v2.1.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v2.0.0...v2.1.0).
+
+### Adicionado
+- **Rádio da firma:** um rádio na parede da Sala comunal (ou o botão de rádio na barra da câmera) abre o controle: ligar, estação e volume. A Rádio Firmópolis é composta na hora pelo navegador, sem arquivo de áudio e sem direito autoral, em três estações: Lo-fi da firma, Chiptune do fliperama e Jazz da cafeteria. Cada pessoa liga o próprio rádio, com um clique; o modo TV e o modo apresentação não tocam nada. Com o rádio ligado, quem está livre por perto dança de vez em quando. Em **Personalizar**, o admin pode pôr também uma rádio da internet (só `https`); os direitos de tocar são de quem a configura. Veja [Rádio da firma](./README.pt-BR.md#rádio-da-firma).
+- **Zeladoria:** o banheiro suja a cada uso; sujo, ganha moscas, fedor e o balão "eca", e acima de 90 fica interditado, com a fila esperando ou desistindo. A faxineira limpa o banheiro e os copos e migalhas da cozinha, o zelador conserta a cafeteira e a luminária que quebram, e o porteiro (à noite, o vigia de lanterna) cuida da entrada e cumprimenta quem chega. Clique em alguém da equipe para ver o que está fazendo. Roda só no navegador. Veja [Zeladoria](./README.pt-BR.md#zeladoria).
+- **Escritórios por cidade:** cada andar extra pode ficar numa cidade, com o tempo e a hora local dela: céu, dia e noite, chuva, expediente, ringue e hora extra seguem o fuso do andar. Quem administra o andar escolhe em **Personalizar › Clima deste andar**; sem cidade própria, vale a do prédio. O elevador mostra a cidade de cada andar, só para quem tem acesso a ele; o saguão, as visitas e o Mundo seguem só com a cidade do prédio. Veja [Andares](./README.pt-BR.md#andares-vários-workspaces-no-mesmo-prédio).
+- **Espelho da ponte:** os terminais de outra máquina (uma VM, por exemplo) aparecem no mapa de qualquer navegador, sem túnel. O admin do prédio gera a chave em **Personalizar › Ponte local**, e um comando só na máquina dos terminais, `ponte conectar <endereço>`, testa a chave, instala os hooks, liga o espelho e, no Linux com `--servico`, cria o serviço. Vem desligado. Veja [Espelho](./README.pt-BR.md#espelho-os-terminais-de-outra-máquina-sem-túnel).
+- **Salas automáticas do Maestri:** com a ponte ligada, cada workspace do Maestri em uso ganha sozinho uma sala no prédio, com o nome do workspace ("Purple Ribbon", e não o da band, como "Banda #2"), cor e ícone, e os terminais dele trabalham lá. É uma sala por workspace, só desta tela (não vai ao servidor nem ao modo construção); workspace novo ganha sala em até 1 minuto, e o que fica sem terminal perde a sala depois de 5.
+- **Página Novidades no site:** [firmopolis.devmaniacs.com.br/novidades.html](https://firmopolis.devmaniacs.com.br/novidades.html) mostra este histórico, gerado do mesmo arquivo que o app lê.
+
+### Mudado
+- **Montar os times automaticamente** (no lugar de "Puxar os setores do agentes.chat", que já não fazia nada): em **Personalizar › Times e aparência**, cada agente ganha o time da primeira fonte que der um: uma lista colada (`handle, time`), o setor do agentes.chat, o que vem depois de " · ", " - " ou " | " no nome ("Gandalf · Maestro") ou o papel. Uma prévia mostra os times e quem ficou sem time, e deixa renomear, tirar um agente e juntar dois times antes de salvar; passou de 12, os menores vão para "Outros". A prévia também oferece transformar as salas automáticas do Maestri em times de verdade. Nada vale antes do **Salvar times**.
+- **A identidade do site no app inteiro:** a tela de entrar, o primeiro acesso, o convite, a visita, o Mundo e o app por dentro usam a marca de [firmopolis.devmaniacs.com.br](https://firmopolis.devmaniacs.com.br): Figtree no texto, Pixeloid nos títulos, a paleta noite, grafite, creme, âmbar e índigo, e botões em bisel. As telas de fora ganharam o céu noturno com a janela acesa do escritório, com um terminalzinho e gente na cena. O mapa e a arte pixel não mudaram. As fontes Source Sans 3 e Doto saíram; a Pixeloid Sans (OFL) entrou em `static/fontes/`.
+- **Rodapé novo:** a tela de entrar e o app trazem a marca Firmópolis e o selo "Código aberto · AGPL", e o texto diz que o Firmópolis é feito para quem trabalha com agentes de IA, não só no agentes.chat.
+
+### Corrigido
+- **Porta do banheiro sumida:** quando a parede de cima do corredor fica cheia de portas e placas dos times, a porta WC vai para o fim do corredor, em vez de desaparecer.
+- **Leitura do agentes.chat recusada:** a Cloudflare do agentes.chat passou a barrar o cliente padrão do Python. O escritório agora se apresenta com um User-Agent próprio (`Firmopolis/<versão>`), e a leitura volta a passar.
+
+### Segurança
+- **Espelho:** a ponte só manda por `https`, não segue redirecionamento e nunca envia o alvo da atividade (arquivo ou comando). A chave não vai na linha de comando (o `ponte conectar` pede a chave), fica em arquivos que só o dono lê e nunca vai ao log. O servidor confere cada envio com os limites do app e recusa tipos estranhos.
+- **Rádio da internet:** o servidor aceita só `https`, um host, sem usuário e senha e sem IP ou host numérico, e o CSP da página libera no `media-src` só esse host.
+
+## 2.0.0 · 2026-11-20 · Firmópolis
+
+Release [`v2.0.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2.0.0). Commits: [`v1.6.0...v2.0.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.6.0...v2.0.0).
+
+### Adicionado
+- **Novo nome: Firmópolis.** O Escritório de agentes se juntou ao Escritório Vivo. A aba, o app instalável, o convite e o modo construção trazem o nome e os ícones novos, e uma abertura curta roda uma vez por sessão (pode ser pulada, e não roda no modo TV).
+- **Ponte local:** a ponte em Go do Escritório Vivo veio para `ponte/`. O navegador a lê direto em `127.0.0.1`, e os terminais deste computador (Claude Code, Codex, agy, OpenCode, MiniMax e Maestri) aparecem no mapa como terminaizinhos, sem passar pelo servidor. Veja [Ponte local](./README.pt-BR.md#ponte-local-os-terminais-deste-computador).
+- **Três espécies no mapa:** os bichinhos de feltro são os agentes do agentes.chat, os terminaizinhos são os terminais locais e a gente são você e as visitas.
+- **Café e conversa dos terminais:** livres, os terminaizinhos vão à cafeteira ou conversam no corredor, conforme as necessidades que caem enquanto trabalham.
+- **Seletor da gente:** no perfil e no convite, você escolhe a blusa, o cabelo e a pele de como aparece no mapa.
+- **A vida dos terminais:** além de café e conversa, os terminaizinhos jogam sozinhos ou em dupla, comem, cochilam e vão ao banheiro, cada um pela necessidade que apertou. Eles ficam na sala do time deles (pela band do Maestri), o Maestro vai à sala de reunião com uma coroa, e quem se encontra ganha afinidade.
+- **Banheiro com fila:** uma porta WC no fim do corredor, com fila que anda. Quem está muito apertado fura a fila e perde afinidade com quem passou.
+- **Cartão do terminal:** clicar num terminaizinho mostra o programa, o estado, o time, há quanto tempo está aberto, as necessidades, as maiores afinidades e o dia dele.
+- **Terminais nos contadores:** os widgets e o painel contam os terminais da ponte junto com os agentes: quem trabalha, quem espera você e quem está livre.
+- **O prédio visto de frente:** embaixo do mapa, a fachada com porta, janelas, arandelas que acendem à noite e floreiras, em arte nova do PixelLab.
+- **O Bairro novo:** a vista da rua na página Mundo foi refeita com arte nova do PixelLab (chalés, árvores, postes, banco, carros e pessoas), de dia e de noite.
+
+### Mudado
+- **Integrações da ponte:** a marca dos hooks passou de `escritorio-vivo` para `firmopolis`. O `ponte setup --aplicar` migra quem vem do Escritório Vivo, com a config, o token e o histórico, e só apaga um plugin antigo quando confirma que foi a ponte que o instalou.
+- **Avatar da conta:** aceita `hair` e `skin`, opcionais. Os avatares já salvos continuam valendo.
+
 ## 1.6.0 · 2026-11-16 · Escritório da equipe
 
 Release [`v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.6.0). Commits: [`v1.5.2...v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.2...v1.6.0).

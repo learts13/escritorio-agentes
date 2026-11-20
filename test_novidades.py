@@ -47,22 +47,24 @@ class ChangelogReal(unittest.TestCase):
     def test_entradas_titulos_e_secoes(self):
         primeira = self.entradas[0]
         self.assertEqual((primeira["titulo"], primeira["versao"], primeira["data"]),
-                         ("Escritório da equipe", e.VERSAO, "2026-11-16"))   # o changelog do repositório é o desta versão
-        self.assertEqual([s["nome"] for s in primeira["secoes"]], ["Adicionado", "Mudado", "Segurança"])
-        self.assertEqual([s["nome"] for s in self.entradas[1]["secoes"]], ["Adicionado", "Mudado", "Corrigido"])
-        self.assertEqual([s["nome"] for s in self.entradas[2]["secoes"]], ["Mudado", "Corrigido"])
-        self.assertEqual([s["nome"] for s in self.entradas[3]["secoes"]], ["Adicionado", "Mudado", "Corrigido", "Segurança"])
-        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:9]],
-                         [("Jornal por andar e hora extra", "1.5.2", "2026-11-15"),
+                         ("A firma ganha vida", e.VERSAO, "2026-11-20"))   # o changelog do repositório é o desta versão
+        self.assertEqual([s["nome"] for s in primeira["secoes"]], ["Adicionado", "Mudado", "Corrigido", "Segurança"])
+        self.assertEqual([s["nome"] for s in self.entradas[1]["secoes"]], ["Adicionado", "Mudado"])
+        self.assertEqual([s["nome"] for s in self.entradas[2]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
+        self.assertEqual([s["nome"] for s in self.entradas[3]["secoes"]], ["Adicionado", "Mudado", "Corrigido"])
+        self.assertEqual([s["nome"] for s in self.entradas[4]["secoes"]], ["Mudado", "Corrigido"])
+        self.assertEqual([s["nome"] for s in self.entradas[5]["secoes"]], ["Adicionado", "Mudado", "Corrigido", "Segurança"])
+        self.assertEqual([(x["titulo"], x["versao"], x["data"]) for x in self.entradas[1:10]],
+                         [("Firmópolis", "2.0.0", "2026-11-20"),
+                          ("Escritório da equipe", "1.6.0", "2026-11-16"), ("Jornal por andar e hora extra", "1.5.2", "2026-11-15"),
                           ("Chat à direita e ajustes", "1.5.1", "2026-11-14"), ("Andares e equipe", "1.5.0", "2026-11-14"),
                           ("Self-host e mundo maior", "1.4.0", "2026-11-12"),
                           ("Mundo e visitas por convite", "1.3.0", "2026-11-10"), ("Novidades", "1.2.0", "2026-11-08"),
-                          ("Conectar, Configurações, modo TV, jornal e aviso no celular", "1.1.0", "2026-11-08"),
-                          ("Modo construção v1", None, "2026-11-06")])
-        self.assertEqual([s["nome"] for s in self.entradas[6]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
-        self.assertEqual([s["nome"] for s in self.entradas[7]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
-        # com 13 entradas no arquivo, o teto de 10 deixa de fora as três mais antigas
-        self.assertEqual(self.entradas[-1]["titulo"], "Vida social, fatia 2: greve, reclamações, fofoca e entregas")
+                          ("Conectar, Configurações, modo TV, jornal e aviso no celular", "1.1.0", "2026-11-08")])
+        self.assertEqual([s["nome"] for s in self.entradas[8]["secoes"]], ["Adicionado", "Mudado", "Segurança"])
+        self.assertEqual([s["nome"] for s in self.entradas[9]["secoes"]], ["Adicionado", "Mudado", "Segurança", "Corrigido"])
+        # o teto de 10 deixa de fora as entradas mais antigas
+        self.assertEqual(self.entradas[-1]["versao"], "1.1.0")
         self.assertEqual(len(self.entradas), novidades.ENTRADAS_MAX)
         datas = [ent["data"] for ent in self.entradas]
         self.assertEqual(datas, sorted(datas, reverse=True))
@@ -74,13 +76,13 @@ class ChangelogReal(unittest.TestCase):
 
     def test_itens_em_markdown_cru_e_links_so_do_repositorio(self):
         itens = [i for ent in self.entradas for sec in ent["secoes"] for i in sec["itens"]]
-        self.assertTrue(itens[0].startswith("**Cada andar é uma empresa:** cada andar tem"))
+        self.assertTrue(itens[0].startswith("**Rádio da firma:** um rádio na parede da Sala comunal"))
         self.assertFalse(any("] (" in i for i in itens))   # nenhum "](" do changelog real foi desarmado
         todos = [u for i in itens for u in links(i)]
         self.assertTrue(todos)
         self.assertTrue(all(u.startswith(REPO) for u in todos), todos)
         self.assertIn(REPO + "blob/main/README.pt-BR.md#conectar-ao-agenteschat", todos)   # o relativo ./README…
-        self.assertIn(REPO + "blob/main/README.pt-BR.md#modo-construção", todos)   # âncora com acento
+        self.assertIn(REPO + "blob/main/README.pt-BR.md#modo-apresentação", todos)   # âncora com acento
         self.assertFalse(any("./" in u for u in todos))
 
 

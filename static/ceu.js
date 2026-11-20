@@ -1,5 +1,5 @@
-// Céu pelo horário real (fuso de Brasília por padrão): cor do céu, quão escuro está o
-// prédio e o desenho de cada janela (nuvens, sol, lua, estrelas e cidade acesa à noite).
+// Céu pelo horário real (fuso de Brasília por padrão; o andar com cidade própria passa o fuso dela em definirFuso):
+// cor do céu, quão escuro está o prédio e o desenho de cada janela (nuvens, sol, lua, estrelas e cidade acesa à noite).
 "use strict";
 
 const Ceu = (() => {
@@ -10,7 +10,16 @@ const Ceu = (() => {
     [7.5, "#5aa7f0", "#bfe3ff", 0], [12, "#3d95ee", "#a9d8ff", 0], [16.5, "#5aa7f0", "#cfe9ff", 0],
     [18, "#f0784a", "#ffc27a", 0.35], [19.3, "#3b2a6b", "#7a4a8a", 0.75], [20.5, "#101538", "#222a5a", 1], [24, "#0b1030", "#1b2350", 1],
   ];
-  const fmt = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit", hour12: false });
+  const relogio = fuso => new Intl.DateTimeFormat("pt-BR", { timeZone: fuso, hour: "2-digit", minute: "2-digit", hour12: false });
+  let fmt = relogio(FUSO), fuso = FUSO;
+  // o fuso IANA da cidade do andar (o /api/config manda em clima.fuso); sem ele, ou um que o navegador não conhece, Brasília
+  function definirFuso(f) {
+    let novo = FUSO;
+    if (typeof f === "string" && f.length <= 40) try { fmt = relogio(f); novo = f; } catch (e) { /* fuso desconhecido */ }
+    if (novo === FUSO) fmt = relogio(FUSO);
+    fuso = novo;
+    return fuso;
+  }
 
   function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
   function mistura(a, b, f) { const x = rgb(a), y = rgb(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * f)).join(",")})`; }
@@ -110,7 +119,7 @@ const Ceu = (() => {
     }
   }
 
-  return { agora, janela, acelerar };
+  return { agora, janela, acelerar, definirFuso, get fuso() { return fuso; } };
 })();
 
 window.Ceu = Ceu;

@@ -143,12 +143,24 @@ class Resumo(unittest.TestCase):
                  {"id": "a4", "name": "Antigo", "handle": "antigo", "role": ""}]
         a1, a2, a3, a4 = e.resumir(bruto, [])["agentes"]
         self.assertEqual(a1["setor"], {"nome": "Engenharia", "cor": "teal", "icone": "code", "ordem": 2})
-        self.assertEqual(a1["aparencia"], {"color": "rose", "eyes": "happy", "accessory": ""})   # cachecol: o escritório não desenha
-        self.assertEqual(a2["setor"], {"nome": "X", "cor": None, "icone": None, "ordem": 999})
-        self.assertIsNone(a2["aparencia"])   # cor própria (#rrggbb) o boneco do escritório não tem
+        self.assertEqual(a1["aparencia"], {"color": "rose", "eyes": "happy"})   # cachecol: o escritório não desenha, a tela completa
+        self.assertEqual(a2["setor"], {"nome": "X", "cor": "#ff0000", "icone": None, "ordem": 999})   # #rrggbb vale como cor do time
+        self.assertEqual(a2["aparencia"], {"color": "graphite", "eyes": "happy", "accessory": "crown"})   # #123456: a mais próxima
         self.assertEqual((a3["setor"], a3["aparencia"]), (None, None))
         self.assertNotIn("setor", a4)   # agentes.chat que ainda não manda: a tela diz para atualizar
         self.assertNotIn("aparencia", a4)
+
+    def test_setor_so_com_o_nome_e_aparencia_parcial(self):
+        # o list_agents pode mandar o department só como o nome do grupo; valor fora das listas é ignorado campo a campo
+        self.assertEqual(e.setor_do_agente("  Infra "), {"nome": "Infra", "cor": None, "icone": None, "ordem": 999})
+        self.assertIsNone(e.setor_do_agente("   "))
+        self.assertEqual(e.setor_do_agente({"name": "Arte", "color": ["x"], "icon": {"a": 1}})["cor"], None)   # sem quebrar
+        self.assertEqual(e.aparencia_do_agente({"color": "#f00", "eyes": ["x"], "accessory": {}}), {"color": "rose"})
+        self.assertEqual(e.aparencia_do_agente({"color": "#3a92e6", "eyes": "wide", "accessory": ""}),
+                         {"color": "sky", "eyes": "wide", "accessory": ""})
+        self.assertIsNone(e.aparencia_do_agente({"color": "vermelho", "eyes": "x", "accessory": "scarf"}))
+        self.assertIsNone(e.aparencia_do_agente({"color": "#12345"}))   # hex quebrado: ignorado
+        self.assertIsNone(e.aparencia_do_agente("rose"))
 
 
 def tarefa(run_id, status, agente="a1"):
@@ -778,6 +790,37 @@ class Http(unittest.TestCase):
         cfg = json.loads(self.req("/api/config", self.entrar())[1])
         self.assertEqual(cfg["expediente"], {"abre": "22:00", "fecha": "06:00"})
 
+    def test_radio_da_internet_pelo_personalizar(self):
+        """A rádio do andar: só https de um host, normalizada; a página do app libera no CSP (media-src) só essa origem."""
+        cab = {**self.entrar(), "Origin": self.base, "Content-Type": "application/json"}
+        salvar = lambda **campos: self.req("/api/marca", cab, json.dumps({"empresa": "Acme", "cor": "#112233", **campos}).encode())
+        csp = lambda: self.req("/", self.entrar())[2]["Content-Security-Policy"]
+        self.assertNotIn("media-src", csp())   # sem rádio, o media-src fica no default-src 'self'
+        st, corpo, _ = salvar(radio="HTTPS://Radio.Exemplo.com:8443/ao-vivo?q=1")
+        self.assertEqual((st, json.loads(corpo)["radio"]), (200, "https://radio.exemplo.com:8443/ao-vivo?q=1"))
+        self.assertIn("; media-src 'self' https://radio.exemplo.com:8443;", csp())
+        self.assertNotIn("media-src", self.req("/api/config", self.entrar())[2]["Content-Security-Policy"])   # só a página
+        for ruim in ("http://radio.exemplo.com/a", "https://u:s@radio.exemplo.com/", "https://localhost/a", "https://a.com;x/",
+                     "https://a.com/a b", "https://a.com/#x", "https://[::1]/", "https://a.com:99999/", "javascript:alert(1)",
+                     "https://a.com/" + "x" * 300, 5, ["https://a.com/"]):
+            with self.subTest(ruim=ruim):
+                st, corpo, _ = salvar(radio=ruim)
+                self.assertEqual((st, json.loads(corpo)), (400, {"erro": e.MSG_RADIO}))
+        self.assertIn("https://radio.exemplo.com:8443;", csp())   # recusado não grava nada
+        st, corpo, _ = salvar(cor="#445566")   # sem o campo, mantém
+        self.assertEqual(json.loads(corpo)["radio"], "https://radio.exemplo.com:8443/ao-vivo?q=1")
+        st, corpo, _ = salvar(radio="")   # vazio tira
+        self.assertEqual((st, json.loads(corpo)["radio"]), (200, ""))
+        self.assertNotIn("media-src", csp())
+
+    def test_politica_de_seguranca_com_midia(self):
+        self.assertNotIn("media-src", e.politica_seguranca())
+        self.assertIn("; media-src 'self' https://a.com https://b.com:8443;",
+                      e.politica_seguranca(False, ("https://b.com:8443", "https://a.com", "https://a.com")))
+        self.assertEqual(e.origem_radio("https://R.exemplo.com/x?y"), "https://r.exemplo.com")
+        self.assertEqual(e.origem_radio("http://r.exemplo.com/"), "")   # salvo à mão fora do formato: nada no CSP
+        self.assertEqual(e.validar_radio(None), "")
+
     def test_versao_do_logo_muda_a_cada_troca(self):
         cab = {**self.entrar(), "Origin": self.base, "Content-Type": "image/png"}
         logo = lambda dados: json.loads(self.req("/api/logo", cab, b"\x89PNG\r\n\x1a\n" + dados)[1])["logo"]
@@ -791,12 +834,12 @@ class Http(unittest.TestCase):
         self.assertEqual((st, json.loads(corpo)["logo"]), (200, f"/logo?v={padrao}"))
 
     def test_fontes_publicas_com_tipo_e_cache(self):
-        for nome, tipo in (("fontes/source-sans-3.woff2", "font/woff2"), ("fontes/doto.woff2", "font/woff2"), ("fontes/figtree.ttf", "font/ttf")):
+        for nome, tipo in (("fontes/PixeloidSans.woff2", "font/woff2"), ("fontes/figtree.ttf", "font/ttf")):
             st, corpo, h = self.req("/" + nome)   # sem sessão: a tela de entrar usa
             self.assertEqual((st, h["Content-Type"], h["Cache-Control"]), (200, tipo, "public, max-age=3600"), nome)
             with open(os.path.join(e.ESTATICO, nome), "rb") as f:
                 self.assertEqual(corpo, f.read(), nome)
-        self.assertEqual(self.req("/fontes/OFL-source-sans-3-doto.txt")[0], 302)   # fora da lista fechada: vai para /entrar
+        self.assertEqual(self.req("/fontes/PixeloidSans-LICENCA-OFL.txt")[0], 302)   # fora da lista fechada: vai para /entrar
 
     def test_logo_publico_so_como_imagem(self):
         # a tela de entrar mostra o logo personalizado: sem sessão, só PNG/JPEG/WEBP pelos bytes; o resto vira o padrão
@@ -928,7 +971,7 @@ class Estaticos(unittest.TestCase):
 
     def test_css_so_carrega_o_que_o_servidor_serve(self):
         # as fontes entram pelo @font-face, url(...), que o teste das páginas não lê; o que o entrar.css usa tem que ser público
-        for folha, publico in (("estilo.css", False), ("entrar.css", True)):
+        for folha, publico in (("estilo.css", False), ("entrar.css", True), ("visita.css", True)):
             with open(os.path.join(e.ESTATICO, folha), encoding="utf-8") as f:
                 css = f.read()
             locais = [u for u in re.findall(r"url\(\s*[\"']?([^\"')]+?)[\"']?\s*\)", css) if not re.match(r"[a-z][a-z0-9+.-]*:|//|#", u, re.I)]
@@ -1998,12 +2041,12 @@ class R1(unittest.TestCase):
         self.times({"conversas": "responder"})
         estado, cliente, escopo = self.estado_de(self.cred().url_autorizacao())
         self.assertEqual((escopo, self.oauth.registros[0]["scope"], self.oauth.registros[0]["client_name"]),
-                         ("read write", "read write", "Escritório dos agentes"))   # sem "(leitura)" na tela de consentimento
+                         ("read write", "read write", "Firmópolis"))   # sem "(leitura)" na tela de consentimento
         self.times({"conversas": "ler"})
         c = self.cred()
         self.assertEqual(self.estado_de(c.url_autorizacao())[2], "read")
         self.assertEqual((self.oauth.registros[1]["scope"], self.oauth.registros[1]["client_name"]),
-                         ("read", "Escritório dos agentes (leitura)"))
+                         ("read", "Firmópolis (leitura)"))
         self.times({"conversas": "responder"})   # o escopo mudou: registro novo
         c.url_autorizacao()
         self.assertEqual(len(self.oauth.registros), 3)
@@ -2828,7 +2871,7 @@ class Busca(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertEqual(r["resultados"][1], {"nome": "Recife", "regiao": "Pernambuco", "pais": "Brasil", "lat": -8.05, "lon": -34.88})
         self.assertEqual(r["resultados"][0], {"nome": "Olinda", "regiao": ("Pernam buco" + "x" * 80)[:60].strip(), "pais": "",
-                                              "lat": -8, "lon": -34.85})
+                                              "lat": -8, "lon": -34.85, "fuso": "America/Recife"})   # o fuso IANA passa
         self.assertEqual(len(r["resultados"]), 2)
         url = urllib.parse.urlsplit(b.urls[0])
         self.assertEqual((url.scheme, url.netloc, url.path), ("https", "geocoding-api.open-meteo.com", "/v1/search"))
@@ -2915,7 +2958,7 @@ class Docker(unittest.TestCase):
         esperados = {n + ".py" for n in locais}
         self.assertEqual(esperados, {"escritorio.py", "acesso.py", "andares.py", "presenca.py", "social.py", "planta.py", "ajustes.py", "jornal.py",
                                  "avisos.py", "vapid.py", "novidades.py", "visitas_sala.py", "conversas_equipe.py",
-                                 "migracao_saguao.py", "anexos.py", "linha.py"})
+                                 "migracao_saguao.py", "anexos.py", "linha.py", "ponte_espelho.py"})
         self.assertLessEqual(esperados, copiados)
         self.assertLessEqual(esperados, liberados)
         with open(os.path.join(raiz, "instalar.sh"), encoding="utf-8") as f:
@@ -4538,6 +4581,27 @@ class SocialPlacar(unittest.TestCase):
         finally:
             e.ARQ_PLACAR = antes
             shutil.rmtree(pasta, ignore_errors=True)
+
+
+class AgenteHttp(unittest.TestCase):
+    """Toda chamada ao agentes.chat sai com o User-Agent da Firmópolis: o Python-urllib é barrado pela Cloudflare (1010)."""
+    def test_user_agent_proprio_sem_trocar_o_que_ja_veio(self):
+        vistos = []
+
+        class Resp:
+            status, headers = 200, {}
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self, n): return b"{}"
+        original = e.urllib.request.urlopen
+        e.urllib.request.urlopen = lambda req, timeout=None: (vistos.append(req.get_header("User-agent")), Resp())[1]
+        try:
+            _ORIGINAIS["_abrir"](e.urllib.request.Request("https://agentes.exemplo.com/mcp"))
+            _ORIGINAIS["_abrir"](e.urllib.request.Request("https://agentes.exemplo.com/mcp", headers={"User-Agent": "outro"}))
+        finally:
+            e.urllib.request.urlopen = original
+        self.assertEqual(vistos, [e.AGENTE_HTTP, "outro"])
+        self.assertTrue(e.AGENTE_HTTP.startswith("Firmopolis/" + e.VERSAO + " "))
 
 
 if __name__ == "__main__":

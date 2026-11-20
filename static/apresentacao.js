@@ -5,7 +5,7 @@
 // conversa, mural e recado. Lembrado por aba (sessionStorage), com um botão na barra da câmera e o atalho Alt+Shift+P.
 const Apresentacao = (() => {
   const CHAVE = "escritorio:apresentacao", ATALHO = "Alt+Shift+P";
-  const numeros = new Map(), contagem = { agente: 0, pessoa: 0 };
+  const numeros = new Map(), contagem = { agente: 0, pessoa: 0, terminal: 0 };
   let ligado = false, botao = null;
   try { ligado = sessionStorage.getItem(CHAVE) === "1"; } catch (e) { /* armazenamento bloqueado: começa desligado */ }
 
@@ -15,9 +15,9 @@ const Apresentacao = (() => {
     if (!b) return "";
     if (!ligado) return b.nome;
     if (b.eu) return "Você";
-    const tipo = typeof b.usuario === "string" ? "pessoa" : "agente", chave = `${tipo}:${tipo === "pessoa" ? b.usuario : b.handle || b.id}`;
+    const tipo = b.terminal ? "terminal" : typeof b.usuario === "string" ? "pessoa" : "agente", chave = `${tipo}:${tipo === "pessoa" ? b.usuario : b.handle || b.id}`;
     if (!numeros.has(chave)) numeros.set(chave, ++contagem[tipo]);
-    return `${tipo === "pessoa" ? "Pessoa" : "Agente"} ${numeros.get(chave)}`;
+    return `${{ pessoa: "Pessoa", terminal: "Terminal" }[tipo] || "Agente"} ${numeros.get(chave)}`;
   }
 
   function ligar(sim) {

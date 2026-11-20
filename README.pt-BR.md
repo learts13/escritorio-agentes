@@ -2,9 +2,11 @@
 
 <div align="center">
 
-# Escritório de agentes
+# Firmópolis
 
-### Um escritório em pixel art, ao vivo, para o seu time do [agentes.chat](https://agentes.chat)
+### Um escritório em pixel art, ao vivo, para o seu time do [agentes.chat](https://agentes.chat) e para os terminais do seu computador
+
+*Antes chamado Escritório de agentes. Agora junta também o Escritório Vivo.*
 
 **Veja quem está na mesa, quem joga sinuca na sala comunal e quem espera a sua aprovação. Só leitura (fora do modo opcional de responder), a cada 30 segundos, sem IA e sem gastar tokens.**
 
@@ -20,7 +22,7 @@
   <img src="./docs/demo.gif" alt="Demonstração animada do escritório no modo demonstração, com agentes fictícios: o mapa em pixel art de dia, com agentes andando e trabalhando; a câmera aproxima de um agente com um balão de pergunta '?'; depois o cursor vai até um pedido da lista Esperando você (um clique leva até esse agente). Legendas curtas explicam cada passo." width="900">
 </picture>
 
-[Recursos](#recursos) · [Capturas](#capturas) · [Instalar](#instalar) · [Andares](#andares-vários-workspaces-no-mesmo-prédio) · [Equipe](#equipe) · [Personalizar](#personalizar-white-label) · [Vida social](#vida-social) · [Modo construção](#modo-construção) · [Modo TV](#modo-tv) · [Modo apresentação](#modo-apresentação) · [App instalável](#app-instalável-pwa) · [Visitantes](#visitantes) · [Visitas por convite](#visitas-por-convite) · [Jornal](#jornal) · [Time-lapse](#time-lapse) · [Avisar no celular](#avisar-no-celular) · [Segurança](#segurança) · [Arquitetura](#arquitetura) · [Desenvolvimento](#desenvolvimento) · [Histórico de mudanças](./CHANGELOG.pt-BR.md) · [Contribuir](./CONTRIBUTING.md) · [Código de conduta](./CODE_OF_CONDUCT.md)
+[Recursos](#recursos) · [Capturas](#capturas) · [Instalar](#instalar) · [Andares](#andares-vários-workspaces-no-mesmo-prédio) · [Equipe](#equipe) · [Personalizar](#personalizar-white-label) · [Vida social](#vida-social) · [Zeladoria](#zeladoria) · [Rádio da firma](#rádio-da-firma) · [Modo construção](#modo-construção) · [Modo TV](#modo-tv) · [Modo apresentação](#modo-apresentação) · [App instalável](#app-instalável-pwa) · [Visitantes](#visitantes) · [Visitas por convite](#visitas-por-convite) · [Ponte local](#ponte-local-os-terminais-deste-computador) · [Jornal](#jornal) · [Time-lapse](#time-lapse) · [Avisar no celular](#avisar-no-celular) · [Segurança](#segurança) · [Arquitetura](#arquitetura) · [Desenvolvimento](#desenvolvimento) · [Histórico de mudanças](./CHANGELOG.pt-BR.md) · [Contribuir](./CONTRIBUTING.md) · [Código de conduta](./CODE_OF_CONDUCT.md)
 
 🎬 **[Vídeo de lançamento](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2026.11.06)** (narração em português do Brasil, com legenda), anexado à release. 🌎 **[Vídeo do mundo e das visitas](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.3.0)** (1.3.0), também narrado e com legenda.
 
@@ -40,7 +42,9 @@
 
 ## O que é
 
-O Escritório de agentes é uma página web pequena, que você mesmo hospeda, e que transforma o seu workspace do agentes.chat num escritório vivo. Ele lê o agentes.chat pelo conector de apps externos (MCP, escopo OAuth **só de leitura**; escrita só se você ligar o modo `"responder"`) a cada 30 segundos e desenha o seu time como pessoas em pixel art, num prédio que se monta sozinho a partir dos seus times.
+O Firmópolis é uma página web pequena, que você mesmo hospeda, e que transforma o seu workspace do agentes.chat num escritório vivo. Ele lê o agentes.chat pelo conector de apps externos (MCP, escopo OAuth **só de leitura**; escrita só se você ligar o modo `"responder"`) a cada 30 segundos e desenha o seu time como pessoas em pixel art, num prédio que se monta sozinho a partir dos seus times.
+
+Com a [ponte local](#ponte-local-os-terminais-deste-computador), opcional, o mapa mostra também os terminais do seu computador (Claude Code, Codex, agy, OpenCode, MiniMax e Maestri), sem que esses dados passem pelo servidor. No prédio vivem três espécies: os **bichinhos de feltro** são os agentes do agentes.chat, os **terminaizinhos** são os terminais deste computador e a **gente** são você e as visitas.
 
 Ele **não chama nenhum modelo de IA** e não gasta tokens. Aprovar é sempre no agentes.chat; responder também, fora do modo opcional `"responder"`. No resto, o escritório só mostra o que está acontecendo e leva você até lá.
 
@@ -49,20 +53,23 @@ Ele **não chama nenhum modelo de IA** e não gasta tokens. Aprovar é sempre no
 ## Recursos
 
 - 🏢 **Prédio montado pelos seus times:** recepção com o seu logo, uma sala por time (cresce com o número de agentes), corredor, sala de reunião, sala comunal e cozinha. Agente novo ganha mesa na sala "Novos".
+- 🖥️ **Terminais deste computador:** com a ponte local, cada terminal vira um terminalzinho no mapa. Ocupado, trabalha na sala do time (com o Maestri, cada workspace em uso ganha a sua sala sozinho); quando espera você, vai para a recepção com o "!" ou o "?"; livre, toma café e conversa no corredor com outro terminal livre. Terminais de outra máquina chegam pelo espelho, sem túnel (veja [Ponte local](#ponte-local-os-terminais-deste-computador)).
+- 📻 **Rádio da firma:** três estações compostas na hora pelo navegador, sem arquivo de áudio, e uma rádio da internet opcional (veja [Rádio da firma](#rádio-da-firma)).
+- 🧹 **Zeladoria:** o banheiro suja e é interditado, a faxineira limpa, o zelador conserta o que quebra e o porteiro cuida da entrada (veja [Zeladoria](#zeladoria)).
 - 🧑‍💻 **Mapa vivo:** os agentes vão para a mesa e digitam quando recebem tarefa. Livres, jogam sozinhos fliperama, videogame, sinuca, pebolim, pingue-pongue, xadrez, dardos e basquete, tocam piano ou violão, tomam café ou conversam em dupla. Chegam de manhã e vão embora à noite pela porta da frente.
 - ✋ **Aprovações num relance:** um "!" ou "?" sobre quem espera a sua aprovação ou resposta, e a lista **"Esperando você"**, com há quanto tempo cada pedido espera. Cada um abre o pedido certo no agentes.chat (aprovar é sempre lá).
 - 🎵 **Vida e sons:** 21 poses, jogos em dupla até 3 pontos com torcida, roda de café, "toca aqui", robô aspirador à noite e mais. 45 efeitos de som opcionais, sintetizados no navegador (teclado, conversas em "simlês" com voz própria por agente, jogos, avisos, o ringue e a greve, chuva e trovão), com volume e liga/desliga por categoria. O áudio só começa depois que você interage com a página.
 - 🖱️ **Objetos clicáveis** (mouse, toque, ou Tab e Enter): a TV (5 canais), os fliperamas, a jukebox, a cafeteira, o aquário, as luminárias, o quadro de avisos, as plantas, a placa do expediente, o gato, o relógio de parede, a lousa de código, o kanban e o moodboard, o sino das vendas, o placar do ringue e as plaquinhas da greve. A maioria também chama um agente livre. Os jogos (sinuca, pebolim, pingue-pongue, xadrez, dardos, basquete) não são clicáveis: os agentes jogam sozinhos.
 - 🌦️ **Hora e clima reais:** dia e noite pelo relógio de verdade, luzes que apagam nas salas vazias e janelas com o céu da hora. Clima real da sua cidade ([Open-Meteo](https://open-meteo.com), sem chave): chuva, garoa, tempestade, neve, neblina, nublado, com vento em rajadas, raio na tempestade e árvores balançando.
 - 🎉 **Datas comemorativas:** Natal, Ano Novo (fogos), Carnaval e Páscoa (calculados), Ano Novo Chinês, Halloween, Festa Junina, Independência, Dia do Programador, Diwali e mais, com enfeites, chapéus e falas.
-- 🎨 **Personalização:** nome da empresa, cor de destaque e logo pela tela **Personalizar**; times, salas, pisos, paredes, ícones e avatares no `times.json`.
+- 🎨 **Personalização:** nome da empresa, cor de destaque e logo pela tela **Personalizar**, e os times montados sozinhos (pelo setor, pelo nome ou pelo papel), com prévia; salas, pisos, paredes, ícones e avatares também no `times.json`.
 - 🕹️ **Simulação:** um painel para ver o escritório em outra data, hora ou clima (Natal à noite na neve, por exemplo). Nada é salvo: muda só o endereço daquela aba, e a faixa "Simulação" fica à vista, com "Voltar ao real".
 - 🥊 **Vida social:** amizades e rivais, brigas de desenho animado no Ringue com placar semanal, reclamações, fofoca e uma greve que acaba com uma entrega (a pizza de moto, o café, a faixa "Sexta livre aprovada!"...). Iguais em todas as telas e só entre quem está livre (veja [Vida social](#vida-social)).
 - 🧱 **Modo construção:** pintar as salas e mover, espelhar, tirar e pôr móveis com o mouse ou o teclado, com desfazer; a planta fica salva no servidor para todos (veja [Modo construção](#modo-construção)).
 - 📺 **Modo TV:** tela cheia, tela sempre acesa e um diretor de câmera que corre para os pedidos, as brigas e as greves, com uma faixa de notícias (veja [Modo TV](#modo-tv)).
 - 📲 **App e aviso no celular:** instale o escritório na tela de início e receba um aviso quando um agente pedir a sua aprovação ou fizer uma pergunta (veja [App instalável](#app-instalável-pwa) e [Avisar no celular](#avisar-no-celular)).
-- 🏬 **Andares:** cada workspace do agentes.chat vira um andar do prédio, e o elevador da barra troca de andar (veja [Andares](#andares-vários-workspaces-no-mesmo-prédio)).
-- 👥 **Equipe:** contas de membro por convite, com nome e boneco no mapa; conversas da equipe (geral, salas e DM, com menções, reações, anexos e busca), mural, status, reuniões com agenda e o resumo de enquanto você esteve fora (veja [Equipe](#equipe)).
+- 🏬 **Andares:** cada workspace do agentes.chat vira um andar do prédio, cada um na sua cidade, com o tempo e a hora de lá, e o elevador da barra troca de andar (veja [Andares](#andares-vários-workspaces-no-mesmo-prédio)).
+- 👥 **Equipe:** contas de membro por convite, com nome e boneco no mapa (blusa, cabelo e pele escolhidos no perfil); conversas da equipe (geral, salas e DM, com menções, reações, anexos e busca), mural, status, reuniões com agenda e o resumo de enquanto você esteve fora (veja [Equipe](#equipe)).
 - 🙈 **Modo apresentação:** troca os nomes por "Agente 1" e "Pessoa 2" e esconde o que é sensível, para mostrar a tela a um cliente (veja [Modo apresentação](#modo-apresentação)).
 - 👀 **Visitantes:** quem mais da equipe está com o escritório aberto aparece no mapa com o próprio nome e boneco (veja [Visitantes](#visitantes)).
 - 🚪 **Visitas por convite:** um link de 1 hora traz alguém de fora para a sala de reunião, sem senha (veja [Visitas por convite](#visitas-por-convite)).
@@ -137,26 +144,40 @@ Todas as capturas saem do **modo demonstração** ou de uma prévia com **dados 
 </p>
 <p align="center"><em>Antes e depois: a mesma sala comunal, repintada e rearrumada.</em></p>
 
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/32-fachada-noite.png"><img src="./docs/screenshots/32-fachada-noite.png" alt="A frente do prédio à noite, embaixo do mapa: janelas, a porta de vidro com as duas arandelas acesas, floreiras, postes acesos na calçada e carros com farol na rua" width="100%"></a>
+      <p><em>O prédio visto de frente, à noite: as arandelas e os postes acendem.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/34-entrar.png"><img src="./docs/screenshots/34-entrar.png" alt="A tela de primeiro acesso: à esquerda, o céu noturno com o título 'Seu time de agentes trabalhando à vista' e uma cena com um terminalzinho na mesa, um agente de coroa, uma pessoa e dois terminais no sofá; à direita, o formulário com o código de primeiro acesso, usuário e senha, e o rodapé 'Firmópolis · Código aberto · AGPL'" width="100%"></a>
+      <p><em>A tela de entrar, com a identidade nova.</em></p>
+    </td>
+  </tr>
+</table>
+
 <p align="center">
   <img src="./docs/screenshots/09-celular.png" alt="O escritório no celular: o mapa no topo, com agentes e balões de fala, e a lista 'Esperando você' com os botões Revisar e Responder embaixo" width="300">
 </p>
 
 ## Instalar
 
-Requisitos: Linux com systemd, Python 3.10+ e [Tailscale](https://tailscale.com) com MagicDNS e HTTPS ligados.
+**Só quer ver como é?** Abra `static/index.html?demo=1` com qualquer servidor estático (por exemplo, `cd static && python3 -m http.server 8000` e `http://127.0.0.1:8000/index.html?demo=1`). É o modo demonstração, com agentes fictícios, sem instalar nada.
 
-**DNS:** o serviço só alcança a internet pública. A unit do systemd bloqueia endereços privados (`IPAddressDeny`), e isso inclui um resolvedor de DNS em IP privado, como o resolvedor da VPC na AWS ou o `169.254.169.254` no GCP e na Oracle. O stub do systemd-resolved (`127.0.0.53`) e o MagicDNS da Tailscale (`100.100.100.100`) são liberados. Sem um resolvedor que ele alcance, o escritório nunca lê o agentes.chat, e o `journalctl -u escritorio` mostra erros de resolução de nome. Para resolver, use o systemd-resolved (com o `/etc/resolv.conf` apontando para `127.0.0.53`) ou libere só o endereço do seu resolvedor num drop-in, que sobrevive às reinstalações (`sudo systemctl edit escritorio`):
+**Para o seu time, em 4 passos** (Linux com systemd, Python 3.10+ e [Tailscale](https://tailscale.com) com MagicDNS e HTTPS ligados; sem Tailscale, veja [Docker e Coolify](#docker-e-coolify)):
 
-```ini
-[Service]
-IPAddressAllow=<IP do seu resolvedor>/32
-```
+1. **Pegue o id da organização:** é o que vem depois de `/org/` no endereço do agentes.chat.
+2. **Rode o instalador** na pasta do repositório:
+   ```bash
+   sudo AGENTES_ORG=<id da sua organização> bash instalar.sh
+   ```
+3. **Crie a sua conta:** abra `https://<sua-máquina>.<sua-tailnet>.ts.net/` e use o **código de primeiro acesso** que o instalador mostrou no fim (para ver de novo: `sudo escritorio-codigo`). No celular, basta o app da Tailscale ligado.
+4. **Conecte:** clique em **Conectar ao agentes.chat** na faixa acima do mapa e autorize a leitura. Os agentes aparecem na hora. O instalador já configura o endereço de volta (`ESCRITORIO_BASE`).
 
-No GCP e na Oracle, o `169.254.169.254` também é o servidor de metadados; por isso, lá, prefira o systemd-resolved.
+Pronto. O resto (marca, cidade, times, rádio, andares) se ajusta pela tela **Personalizar**, sem mexer em arquivo. Para ver também os terminais do seu computador, siga a [Ponte local](#ponte-local-os-terminais-deste-computador). Os detalhes do instalador estão abaixo; só precisa deles se algo sair do comum.
 
-```bash
-sudo AGENTES_ORG=<id da sua organização> bash instalar.sh
-```
+#### Detalhes do instalador
 
 No fim, num terminal, o instalador mostra o **código de primeiro acesso**. Para ver de novo, rode `sudo escritorio-codigo`. O código vale uma vez, só enquanto não existe usuário, e não expira. Quando a saída não é um terminal (automação, `| tee`), o código não aparece: rode `sudo escritorio-codigo` depois.
 
@@ -172,7 +193,14 @@ O instalador publica o endereço `/` da porta 443 desta máquina na tailnet (`ta
 
 **Reinstalar ou atualizar:** rode o instalador de novo com as mesmas variáveis. Ele reescreve o `/etc/escritorio.env` toda vez, então `ESCRITORIO_PORTA` e `ESCRITORIO_FONTE` voltam ao padrão quando ficam de fora (num fork, o link do código-fonte voltaria a apontar para este repositório). Usuários, sessões, tokens e o `/opt/escritorio/times.json` são mantidos.
 
-Abra `https://<sua-máquina>.<sua-tailnet>.ts.net/` e use o código para criar o seu usuário e a senha. Depois, autorize a leitura no agentes.chat (veja [Conectar ao agentes.chat](#conectar-ao-agenteschat)). No celular, basta o app da Tailscale ligado.
+**Se o escritório não lê o agentes.chat** e o `journalctl -u escritorio` mostra erros de resolução de nome, o problema é o DNS: o serviço só alcança a internet pública. A unit do systemd bloqueia endereços privados (`IPAddressDeny`), e isso inclui um resolvedor de DNS em IP privado, como o resolvedor da VPC na AWS ou o `169.254.169.254` no GCP e na Oracle. O stub do systemd-resolved (`127.0.0.53`) e o MagicDNS da Tailscale (`100.100.100.100`) são liberados. Para resolver, use o systemd-resolved (com o `/etc/resolv.conf` apontando para `127.0.0.53`) ou libere só o endereço do seu resolvedor num drop-in, que sobrevive às reinstalações (`sudo systemctl edit escritorio`):
+
+```ini
+[Service]
+IPAddressAllow=<IP do seu resolvedor>/32
+```
+
+No GCP e na Oracle, o `169.254.169.254` também é o servidor de metadados; por isso, lá, prefira o systemd-resolved.
 
 ### Conectar ao agentes.chat
 
@@ -192,7 +220,14 @@ Cada workspace do agentes.chat pode virar um andar do escritório, com a sua con
 
 Em **Configurações › Andares**, quem administra o escritório cria um andar com o nome e o id do workspace (o que vem depois de `/org/` no endereço do app), confirmando a senha da conta. Depois, o **Conectar** daquele andar abre a autorização do agentes.chat: escolha ali o workspace certo. Se a conta conectada for de outro workspace, o andar avisa e não mostra nada dele. Na barra do topo, o **elevador** troca de andar sem recarregar a página. São até 6 andares extras, e cada um lê o agentes.chat com o seu próprio token, no seu próprio ritmo.
 
-A lista fica em `dados/andares.json` e os dados de cada andar em `dados/andares/<id>/` (`oauth.json`, `times.json`, `equipe.json`, `planta.json`, `placar.json` e `jornal.json`). A marca, o expediente, o clima, as datas, as visitas e o aviso no celular são do prédio inteiro. Remover um andar desconecta o token dele, mas a pasta fica no servidor: apague `dados/andares/<id>/` à mão se não for usar mais. Um `andares.json` ilegível impede o serviço de subir, para nenhum andar sumir calado.
+A lista fica em `dados/andares.json` e os dados de cada andar em `dados/andares/<id>/` (`oauth.json`, `times.json`, `equipe.json`, `planta.json`, `placar.json`, `jornal.json` e, com cidade própria, `clima.json`). As datas, as visitas e o aviso no celular são do prédio inteiro.
+
+**Cada andar na sua cidade:** um andar extra pode ficar em outra cidade, com o tempo e a hora local dela. Quem administra o andar escolhe a cidade em **Personalizar › Clima deste andar**, com a mesma busca do prédio; sem cidade própria, o andar herda a do prédio, como sempre. No mapa daquele andar, o céu, o dia e a noite, a chuva e o expediente seguem a cidade e o fuso dela, e o elevador mostra cada andar com a sua cidade (por exemplo, "Dev Maniac's · Mateus Leme"). A cidade de um andar só aparece para quem tem acesso a ele: o saguão, as visitas e o Mundo, que é público, mostram só a cidade do prédio. O tempo de cada cidade é consultado uma vez a cada 15 minutos, por coordenada (andares na mesma cidade dividem a consulta), e no máximo uma consulta por minuto no total. A vida social (o ringue) e o jornal (a hora extra) do andar usam o mesmo fuso; o aviso no celular continua no fuso de Brasília. Remover um andar desconecta o token dele, mas a pasta fica no servidor: apague `dados/andares/<id>/` à mão se não for usar mais. Um `andares.json` ilegível impede o serviço de subir, para nenhum andar sumir calado.
+
+<p align="center">
+  <a href="./docs/screenshots/31-andares-cidades.png"><img src="./docs/screenshots/31-andares-cidades.png" alt="O mesmo instante em dois andares do prédio: em cima, o Térreo em São Paulo às 10h30, de manhã e com sol; embaixo, o 2º andar em Tóquio às 22h30, de noite, fora do expediente e com o vigia na entrada. O elevador da lateral mostra o nome e a cidade de cada andar" width="900"></a>
+</p>
+<p align="center"><em>O mesmo instante em dois andares: São Paulo de manhã, Tóquio de noite.</em></p>
 
 #### Saguão: o térreo de todas as empresas
 
@@ -271,9 +306,14 @@ O repositório traz um `Dockerfile` e um `docker-compose.yml`. Não há imagem p
 
 Pela tela **Personalizar**: nome da empresa, cor de destaque e logo (PNG, JPEG ou WEBP), e mais:
 
-- **Cidade do clima:** busque pelo nome. A busca passa pelo servidor, que pergunta ao geocoding do Open-Meteo (dados do Open-Meteo, com os mesmos termos do clima, em [Terceiros](#terceiros)), com no máximo 10 buscas por minuto e 200 por dia, para o escritório inteiro. Escolha **Usar esta**, **Sem clima** ou **Voltar ao times.json**. A cidade nova vale sem reiniciar nem recarregar; o tempo dela aparece em até 1 minuto. Fica em `dados/clima.json`, com as coordenadas em 2 casas (cerca de 1 km).
+- **Cidade do clima:** busque pelo nome. A busca passa pelo servidor, que pergunta ao geocoding do Open-Meteo (dados do Open-Meteo, com os mesmos termos do clima, em [Terceiros](#terceiros)), com no máximo 10 buscas por minuto e 200 por dia, para o escritório inteiro. Escolha **Usar esta**, **Sem clima** ou **Voltar ao times.json**. A cidade nova vale sem reiniciar nem recarregar; o tempo dela aparece em até 1 minuto. Fica em `dados/clima.json`, com as coordenadas em 2 casas (cerca de 1 km). Num andar extra, a mesma seção vira **Clima deste andar**: quem administra o andar escolhe a cidade dele (gravada em `dados/andares/<id>/clima.json`, com o fuso, para a hora do mapa) ou **Usar a cidade do prédio**. A cidade do prédio só se escolhe no andar principal, por quem administra o prédio.
 - **Datas comemorativas:** ligue e desligue cada uma das 13 datas embutidas e crie até 24 datas próprias, com nome, dia (todo ano, ou uma vez só), de 1 a 14 dias, um tema (as cores, os enfeites e o chapéu de uma das festas, ou o genérico) e até 3 falas. Ficam em `dados/festas.json`.
-- **Times e aparência:** nome, tipo, cor e ícone de cada time (até 12), os agentes de cada um (cada agente num time só) e a aparência de cada agente. Ficam em `dados/equipe.json` e substituem inteiros os `times` e a `aparencia` do `times.json`; **Voltar ao times.json** apaga o arquivo. Renomear um time tira da sala dele a pintura e os móveis do modo construção: a tela avisa antes de salvar. **Puxar os setores do agentes.chat** copia cada setor como um time (nome, cor e ícone) e a aparência de cada agente, quando o seu agentes.chat manda o `department` no `list_agents`; time de mesmo nome mantém o tipo, a parede e o piso, e nada vale antes de salvar.
+- **Times e aparência:** nome, tipo, cor e ícone de cada time (até 12), os agentes de cada um (cada agente num time só) e a aparência de cada agente. Ficam em `dados/equipe.json` e substituem inteiros os `times` e a `aparencia` do `times.json`; **Voltar ao times.json** apaga o arquivo. Renomear um time tira da sala dele a pintura e os móveis do modo construção: a tela avisa antes de salvar. **Montar os times automaticamente** dá a cada agente o time da primeira fonte que tiver um: uma lista colada (`handle, time`, uma por linha, para quem automatiza por script), o setor do agentes.chat (quando o `list_agents` manda o `department`), o que vem depois de “ · ”, “ - ” ou “ | ” no nome (“Gandalf · Maestro” vai para Maestro) ou o papel curto (até 3 palavras). Nomes iguais sem acento nem caixa viram um time só. Uma prévia mostra os times, a fonte de cada um e quem ficou sem time (vai para “Novos”), e deixa renomear, tirar um agente e juntar dois times; acima de 12 times, os menores se juntam em “Outros”. O tipo e o ícone saem do nome (Infra, NOC e Ops: Ops; Direção, Diretoria e Gestão: Gabinete; o resto, Mesas), e time de mesmo nome mantém o tipo, a parede e o piso. A aparência do agentes.chat (`appearance`) entra só com o que está nas listas do app (cor `#hex` vira a mais próxima). Com a ponte local ligada, cada workspace do Maestri em uso (com terminal vivo) ganha sozinho uma sala só de exibição, com o nome do workspace, que não vai ao servidor nem ao Modo construção (entra em até 1 minuto, sai 5 minutos depois do último terminal, e não passa do teto de 12 times); time de mesmo nome recebe os terminais do workspace no lugar dela, e a prévia também oferece criar essas salas como times de verdade. Se nenhuma fonte der time, a prévia diz o que fazer. Nada vale antes de **Usar estes times** e **Salvar times**.
+
+<p align="center">
+  <a href="./docs/screenshots/30-times-automaticos.png"><img src="./docs/screenshots/30-times-automaticos.png" alt="A prévia de Montar os times automaticamente: 'Vou criar estes 5 times com 7 agentes (6 pelo setor do agentes.chat, 1 pelo papel)', com Diretoria, Produto, Operações, Comercial e Atendimento, cada um com o nome editável, o tipo, o ícone, a fonte, os agentes com um x para tirar e a lista Juntar com; embaixo, Usar estes times e Cancelar" width="900"></a>
+</p>
+<p align="center"><em>A prévia dos times automáticos: renomear, tirar um agente ou juntar dois times antes de salvar.</em></p>
 
 O que a tela salva vale mais que o `times.json`, e a tela diz de onde vem o que está valendo.
 
@@ -308,6 +348,35 @@ Uma camada de diversão sorteada pelo servidor. Os agentes livres fazem amizades
 - **Não chama o agentes.chat** nem mexe no trabalho dos agentes: usa só a leitura que o escritório já faz.
 - Os números (chances, tetos e intervalos) ficam no topo do `social.py`, e as falas, no `FRASES.social` do `static/vida.js`, para trocar no white-label.
 
+### Zeladoria
+
+O prédio também tem quem cuide dele, e o banheiro pode ficar podre. Tudo roda só no navegador, como a vida dos terminais: nada vai ao servidor. Não há nada para configurar.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/26-banheiro-interditado.png"><img src="./docs/screenshots/26-banheiro-interditado.png" alt="O banheiro interditado no fim do corredor: a placa na porta WC, o balão 'Interditado' e dois terminaizinhos, Gil e Ivo, esperando na fila com o alerta" width="100%"></a>
+      <p><em>Interditado: a fila espera e, depois de um tempo, desiste.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/28-porteiro.png"><img src="./docs/screenshots/28-porteiro.png" alt="O porteiro Seu Lima, de quepe, na entrada do prédio, ao lado da recepção com o gato dormindo" width="100%"></a>
+      <p><em>O porteiro na entrada; à noite, o vigia de lanterna.</em></p>
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <a href="./docs/screenshots/27-faxineira-zelador.png"><img src="./docs/screenshots/27-faxineira-zelador.png" alt="Em cima, a faxineira Dona Rosa limpando a porta do banheiro com balde e rodo; embaixo, a zeladora Dona Neide com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'" width="900"></a>
+</p>
+<p align="center"><em>A faxineira no banheiro e a zeladora consertando a cafeteira.</em></p>
+
+- **Sujeira:** cada ida ao banheiro suja um pouco, e o terminal apertado e quem furou a fila sujam mais. Acima de 60, aparecem moscas e linhas de fedor na porta WC, e quem sai mostra o balão "eca". Acima de 90, o banheiro fica **interditado**, com placa: ninguém entra, a fila espera com o alerta e, depois de um tempo, desiste. Depois do café e do lanche, sobram copos e migalhas no chão.
+- **Faxina:** quando a sujeira passa de 60, ou numa ronda (mais frequente à noite), a faxineira entra pela rua com balde e rodo, limpa o banheiro com brilho, recolhe copos e migalhas e vai embora.
+- **Manutenção:** de vez em quando algo quebra. Com a cafeteira quebrada, ninguém toma café (agentes, roda e terminais desistem, com o alerta). Com uma luminária do corredor quebrada, ela pisca. O zelador vem com a caixa de ferramentas, conserta com faíscas e vai embora.
+- **Portaria:** no expediente, o porteiro fica na entrada, lê o jornal, toma café e cumprimenta quem chega. Fora do expediente, o vigia assume com a lanterna e faz a ronda.
+- **Cartão:** clicar em alguém da equipe mostra o nome, a função e o que está fazendo. No modo apresentação, a etiqueta mostra só a função. Com menos movimento (`prefers-reduced-motion`), moscas, brilho e faíscas ficam parados.
+- **Para testar:** a demonstração (`?demo=1`) suja e quebra coisas sozinha. No console: `Zeladoria.sujar(95)` (interdita), `Zeladoria.quebrar("cafe")` ou `Zeladoria.quebrar("luz")`, `Zeladoria.chamar("limpeza")`, `Zeladoria.estado()` e `Zeladoria.zerar()`. Os números ficam no topo do `static/zeladoria.js`.
+
 ## Modo construção
 
 Arrume o escritório com o mouse, no computador. Abra pela tela **Personalizar** (`construir.html`); no celular, o editor mostra só um aviso, e a página principal mostra o resultado.
@@ -341,6 +410,22 @@ Para mostrar a tela numa chamada com cliente ou postar um print sem vazar nada. 
 
 - **O que muda:** os bonecos ficam, mas os nomes viram "Agente 1", "Pessoa 2" e "Você", numerados na ordem em que aparecem; os balões somem; e a tela esconde o que mostra nome de gente ou de agente, título de tarefa, conversa, chat da sala, mural, recado de status, placar, as páginas Conversas, Aprovações e Jornal, o título e os convidados das reuniões e os links das salas no **Personalizar** (o link do Zoom pode levar a senha em `?pwd=`). O aviso de 5 minutos da reunião diz só "Uma reunião começa em breve".
 - **Só tela, não é controle de acesso:** o modo só esconde o que aparece nesta tela. Quem tem a sessão continua lendo tudo pela API e pelo DevTools do navegador, e o servidor responde igual. Não entregue um navegador logado a quem não deve ver os dados.
+
+## Rádio da firma
+
+Um rádio na parede da Sala comunal. Clique nele (ou chegue nele com `Tab` e aperte `Enter`), ou no botão de rádio da barra da câmera, para abrir o controle: ligar e desligar, a estação e o volume. Não há nada para instalar nem configurar.
+
+<p align="center">
+  <a href="./docs/screenshots/29-radio.png"><img src="./docs/screenshots/29-radio.png" alt="O controle da Rádio Firmópolis aberto em cima da sala comunal: o botão Desligar o rádio, as estações Lo-fi da firma (escolhida), Chiptune do fliperama e Jazz da cafeteria, o volume e 'Tocando: Lo-fi da firma'" width="900"></a>
+</p>
+<p align="center"><em>O rádio ligado no Lo-fi da firma.</em></p>
+
+- **Rádio Firmópolis, feita no navegador:** três estações compostas na hora com Web Audio, sem nenhum arquivo de áudio e sem direito autoral: **Lo-fi da firma** (calma, para trabalhar), **Chiptune do fliperama** e **Jazz da cafeteria**. Cada música sorteia tom, andamento, progressão de acordes e forma (introdução, partes A e B, final); a melodia volta com variação e a bateria troca de levada, então não há laço curto. A troca de estação e o volume mudam suavemente.
+- **Cada pessoa liga o seu:** o rádio só toca depois de um clique (os navegadores bloqueiam som sozinho) e só para quem ligou. A estação e o volume ficam lembrados neste navegador; o volume começa baixo. O rádio é independente do painel de som.
+- **No mapa:** com o rádio ligado, saem notinhas dele e, de vez em quando, quem está livre e de pé por perto dança um pouco; os terminaizinhos livres fazem a carinha feliz. Com movimento reduzido no sistema, ninguém dança.
+- **Modo TV e modo apresentação** não tocam nada: ligar um deles desliga o rádio.
+- **Rádio da internet (opcional):** em **Personalizar > Rádio da internet**, quem administra o andar cola o endereço `https://` de um stream de áudio. Ele aparece como uma quarta estação. O servidor aceita só `https`, um host só, sem usuário e senha, até 300 caracteres, e libera no CSP da página (`media-src`) só esse host. **Os direitos de tocar essa rádio são de quem a configura.**
+- Para conferir o som sem tocar, `Radio.renderizar("lofi", 30)` (no console do navegador) devolve um trecho gravado com `OfflineAudioContext`.
 
 ## App instalável (PWA)
 
@@ -427,6 +512,11 @@ Dá para trazer alguém de fora para dentro do escritório, sem criar usuário n
 - **Leve:** o mapa de longe pesa 47 KB. Os dois níveis de detalhe só baixam com zoom: 160 KB a partir de 2x e 395 KB no zoom máximo, em pedaços e só os da vista. Com "reduzir movimento" ligado nada se mexe, e a animação pausa com a aba escondida.
 - **Testar:** `python ferramentas/previa.py ferramentas/previa.exemplo.json` e abra `http://127.0.0.1:7372/mundo.html`. `?hora=22`, `?clima=chuva` e `?data=2026-12-25` simulam hora, tempo e data.
 
+<p align="center">
+  <a href="./docs/screenshots/33-bairro.png"><img src="./docs/screenshots/33-bairro.png" alt="O bairro do escritório na página Mundo, de dia: uma loja de toldo listrado, um sobrado, um chalé, árvores, postes, gente na calçada e um carro na rua; à esquerda, o texto do Mundo e o botão Entrar na recepção" width="600"></a>
+</p>
+<p align="center"><em>O bairro, refeito com arte nova: a porta leva à recepção.</em></p>
+
 O que o servidor manda para essa página está em [Segurança](#segurança).
 
 ### Trocar as cidades ou a arte do mundo
@@ -438,6 +528,60 @@ Quem só instala não precisa de nada disto: os arquivos de `static/mundo/` já 
 - **Arte:** `arte/pixellab/mundo/` (marcos, prédios, casas, árvores, carros, serras). Sem a arte de um marco, a cidade usa um prédio genérico.
 - **Terreno:** `arte/mundo/biomas.json` e `serras.json`, mais os recortes do Natural Earth em `arte/mundo/fontes/` (contornos, rios, rodovias e cidades; a origem de cada um está em `LICENCA.md`).
 - **Remontar:** `python ferramentas/montar_mundo.py` regrava `static/mundo/` em cerca de um minuto. Precisa do [Pillow](https://python-pillow.org) na sua máquina; o servidor nunca roda essa ferramenta.
+
+## Ponte local: os terminais deste computador
+
+A ponte (`ponte/`, em Go) lê os terminais de IA desta máquina (Claude Code, Codex, agy, OpenCode, MiniMax e Maestri) e os entrega ao mapa. Quem lê é o seu navegador, direto em `ws://127.0.0.1:47820`, e nada passa pelo servidor do Firmópolis.
+
+São três passos, na máquina onde os terminais rodam (precisa do [Go](https://go.dev/dl/)):
+
+1. **Compile a ponte no lugar onde ela vai ficar** (os hooks guardam esse caminho):
+   ```bash
+   cd ponte && go build -o ~/.local/bin/ponte ./cmd/ponte      # Linux e macOS
+   ```
+   No Windows, o comando com o caminho certo está no [`ponte/README.md`](./ponte/README.md#1-compilar-no-lugar-definitivo).
+2. **Ligue os hooks e libere o seu Firmópolis:**
+   ```bash
+   ponte setup --aplicar --origem https://<endereço do seu Firmópolis>
+   ponte          # deixa a ponte rodando; para subir sozinha, veja o ponte/README.md
+   ```
+   O `setup` instala os hooks dos programas que encontrar, grava o endereço na lista de origens aceitas e mostra o token.
+3. **Cole o token** no Firmópolis, em **Personalizar > Ponte local**. Ele fica só naquele navegador.
+
+Os terminais rodam numa VM ou em outra máquina? Pule estes passos e use o [espelho](#espelho-os-terminais-de-outra-máquina-sem-túnel): um comando só, na máquina dos terminais.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/24-terminais-salas-maestri.png"><img src="./docs/screenshots/24-terminais-salas-maestri.png" alt="O prédio com terminaizinhos de vários programas, todos fictícios: Nina · Codex na recepção esperando aprovação, Ada · Claude Code +2 na sala de reunião, Gil · Claude Code na sala comunal e Lin · Codex, Rui · OpenCode, Bea · agy e Zé · MiniMax nas salas Loja e Front, criadas sozinhas para o Maestri" width="100%"></a>
+      <p><em>Terminais de cinco programas e as salas automáticas do Maestri.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/25-cartao-terminal.png"><img src="./docs/screenshots/25-cartao-terminal.png" alt="O cartão do terminal Ada, o Maestro de coroa, na sala de reunião: Claude Code, Trabalhando, projeto, o que está fazendo, workspace, 2 ajudantes, desde quando, as necessidades em barras e o dia de hoje" width="100%"></a>
+      <p><em>O cartão do terminal: o Maestro, de coroa, com as necessidades e o dia dele.</em></p>
+    </td>
+  </tr>
+</table>
+
+
+- **No mapa:** cada terminal entra pela rua com o nome e o programa na etiqueta ("Ada · Codex"). Ocupado, trabalha na sala do time dele (com o Maestri, a sala do workspace). Quando espera a sua aprovação ou resposta, ou deu erro, vai para a recepção com o "!" ou o "?". Livre, fica na sala comunal ou na cozinha.
+- **Café e conversa:** cada terminal tem as duas necessidades, que caem mais depressa enquanto ele trabalha. Livre, depois de uma pausa, vai à cafeteira ou chama outro terminal livre para um papo no corredor. É só cosmético, e o estado real manda: se o terminal volta a trabalhar, larga o café na hora.
+- **Segurança:** a ponte só escuta em 127.0.0.1 e só aceita o WebSocket de uma origem da lista com o token certo. O navegador recebe uma versão reduzida: sem o alvo da atividade (arquivo ou comando) e sem o histórico do dia.
+- **Sem a ponte:** o app tenta de novo, com espera crescente até 1 minuto, e não mostra erro na tela. No Chrome, a primeira conexão pode pedir a permissão de acesso à rede local. O Safari pode recusar `ws://` vindo de uma página https.
+
+### Espelho: os terminais de outra máquina, sem túnel
+
+Se os terminais rodam numa máquina (uma VM, por exemplo) e você abre o Firmópolis em outra, ligue o espelho. A ponte daquela máquina manda ao servidor a mesma versão reduzida que o navegador recebe, e quem é do andar vê os terminais no mapa, de qualquer navegador. O espelho vem desligado.
+
+1. Em **Personalizar > Ponte local**, o admin do prédio clica em **Gerar chave**. A tela mostra o comando pronto, uma vez só: `ponte conectar https://<seu Firmópolis>`, e a chave para colar quando ele pedir.
+2. Rode o comando na máquina dos terminais. Ele testa a chave antes de mudar qualquer coisa, instala os hooks, grava o espelho e diz o próximo passo. No Linux, `ponte conectar ... --servico` cria e liga o serviço `firmopolis-ponte` do systemd do usuário.
+3. No mapa, os terminais aparecem, e **Personalizar > Ponte local** mostra "Pelo servidor".
+
+- **Pela variável, em vez da tela:** defina `ESCRITORIO_PONTE_CHAVE` no servidor (gere com `openssl rand -hex 32`) e rode na máquina dos terminais `ponte conectar https://<seu Firmópolis> <a mesma chave>`. Com a variável definida, a tela não gera nem desliga a chave. Na instalação pelo `instalar.sh`, prefira a chave da tela: ela fica em `dados/` e sobrevive à reinstalação, que reescreve o `/etc/escritorio.env`.
+- **Só os comandos:** `ponte setup --aplicar --espelho https://<seu Firmópolis> --chave-espelho <chave>` grava o espelho sem mexer nos hooks, e `ponte setup --aplicar --sem-espelho` desliga. Os dois valem na hora, sem reiniciar a ponte.
+- **Em que andar aparece:** no modo clássico, no andar principal. No modo saguão, o saguão nunca recebe o espelho; defina `ESCRITORIO_PONTE_ANDAR` com o id do andar da empresa que deve ver os terminais.
+- **Como funciona:** a ponte manda um `POST /api/ponte/espelho` com a chave no `Authorization: Bearer`, só por https, uns 2 s depois de cada mudança e, no mínimo, a cada 30 s. Se o servidor não responde, ela espera mais a cada falha, até 5 minutos, sem travar. O servidor guarda só na memória, e o app lê `GET /api/ponte` a cada 3 s. Passados 90 s sem nada, o espelho conta como desligado. A ponte local deste computador, se estiver ligada, tem prioridade.
+- **Segurança:** com o espelho ligado, **os nomes dos terminais, dos projetos, dos workspaces e das bands passam a ir ao servidor**, com os estados e o nome das ferramentas. Nunca vai o alvo (arquivo ou comando) nem os membros das bands. O servidor confere tudo com os mesmos limites do app (48 terminais, nomes de até 40 letras, 32 workspaces, 200 eventos do dia por terminal) e aceita até 256 KB por envio, no máximo um por segundo. Só quem é do andar lê; o saguão, as visitas e quem não entrou não recebem nada. A chave fica no `espelho.json` da pasta da ponte (só o seu usuário lê) e em `dados/ponte-espelho.chave` no servidor (0600). Ela nunca vai ao log. Gerar outra chave faz a anterior parar de valer na hora.
 
 ## Jornal
 
@@ -601,7 +745,7 @@ A arte (`arte/pixellab` e `static/tema`) sai sob a mesma licença do projeto, a 
 
 ## Terceiros
 
-- **Fontes** Figtree, Silkscreen, Source Sans 3 e Doto: SIL Open Font License 1.1 (`static/fontes`, licenças em `static/fontes/OFL-*.txt`).
+- **Fontes** Figtree, Silkscreen e Pixeloid Sans: SIL Open Font License 1.1 (`static/fontes`, licenças em `static/fontes/OFL-figtree-silkscreen.txt` e `static/fontes/PixeloidSans-LICENCA-OFL.txt`).
 - **Clima:** [Open-Meteo](https://open-meteo.com) (sem chave), com dados sob CC BY 4.0. A API gratuita é **só para uso não comercial** ([termos](https://open-meteo.com/en/terms)): uma empresa, ou um site com assinatura ou anúncios, precisa de um plano pago do Open-Meteo ou de um servidor Open-Meteo próprio ([código aberto](https://github.com/open-meteo/open-meteo)). A busca de cidade usa o geocoding do mesmo Open-Meteo (`geocoding-api.open-meteo.com`), com os mesmos termos. Este servidor chama os endereços gratuitos (nas classes `Clima` e `BuscaCidades` do `escritorio.py`), então qualquer das duas opções pede trocar esses endereços (e acrescentar a chave do plano). Senão, desligue o clima: **Sem clima** no **Personalizar**, ou tire o `clima` do `times.json`.
 
 ## Licença
@@ -616,4 +760,4 @@ Feito para o [agentes.chat](https://agentes.chat), com autorização dos desenvo
 
 - Ao time do agentes.chat, pelo conector MCP só de leitura e pelo apoio a um escritório open source.
 - Ao [Open-Meteo](https://open-meteo.com), à [Tailscale](https://tailscale.com) e ao [PixelLab](https://pixellab.ai).
-- A quem desenhou as fontes Figtree, Silkscreen, Source Sans 3 e Doto, por liberá-las sob a OFL.
+- A quem desenhou as fontes Figtree, Silkscreen e Pixeloid Sans, por liberá-las sob a OFL.

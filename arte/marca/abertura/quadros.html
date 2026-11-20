@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111">
+<script src="../../../static/abertura.js"></script>
+<script>
+// Folha de quadros para conferir a animação: um quadro a cada 300 ms.
+var ts=[0,300,600,900,1100,1400,1650,1900,2150,2300,2450,2700];
+ts.forEach(function(t){var c=document.createElement('canvas');c.width=320;c.height=320;c.style.margin='2px';document.body.appendChild(c);Abertura.desenhar(c.getContext('2d'),320,320,t);});
+</script>

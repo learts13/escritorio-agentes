@@ -10,10 +10,10 @@ const app = fs.readFileSync("static/app.js", "utf8"), html = fs.readFileSync("st
 // (1) o script logo depois do vida.js
 assert.match(html, /<script src="vida\.js\?v=\d+"><\/script>\s*<script src="apresentacao\.js\?v=\d+"><\/script>/);
 
-// (2) os dois balões só fora da apresentação
+// (2) os balões (agentes, visitas e a equipe da zeladoria) só fora da apresentação
 const cena = /\nfunction desenharCena\([\s\S]*?\n\}\n/.exec(app)[0];
 const baloes = cena.split("\n").filter(l => l.includes("desenharBalao("));
-assert.equal(baloes.length, 2);
+assert.equal(baloes.length, 3);
 assert.match(cena, /const baloes = !\(window\.Apresentacao && Apresentacao\.ligado\(\)\);/);
 for (const l of baloes) assert.match(l, /^\s*if \(baloes\) /, l.trim());
 // (3) a placa "em reunião" na porta (mapa.js), logo depois das portas, nas coordenadas do mundo

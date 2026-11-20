@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Escritório</title>
+  <title>Firmópolis</title>
   <link rel="icon" href="logo.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icone-180.png">
   <meta name="theme-color" content="#0f0f0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="estilo.css?v=108">
-  <link rel="stylesheet" href="chat_sala.css?v=108">
-  <link rel="stylesheet" href="reunioes.css?v=108">
-  <link rel="stylesheet" href="linha_tempo.css?v=108">
+  <link rel="stylesheet" href="estilo.css?v=131">
+  <link rel="stylesheet" href="chat_sala.css?v=131">
+  <link rel="stylesheet" href="reunioes.css?v=131">
+  <link rel="stylesheet" href="linha_tempo.css?v=131">
 </head>
 <body>
   <a class="pular" href="#principal">Ir para o conteúdo</a>
@@ -176,6 +176,7 @@
               <button id="tela-cheia" type="button" aria-pressed="false" aria-label="Mapa em tela cheia"><span class="ic" data-icone="expandir" aria-hidden="true"></span></button>
               <button id="modo-foto" type="button" aria-label="Modo foto"><span class="ic" data-icone="camera" aria-hidden="true"></span></button>
               <button id="modo-tv" type="button" aria-label="Modo TV" title="Modo TV: a câmera passeia sozinha e corre para as novidades"><span class="ic" data-icone="tv" aria-hidden="true"></span></button>
+              <button id="abrir-radio" type="button" aria-label="Rádio da firma" title="Rádio da firma: ligar, trocar de estação e mudar o volume"><span class="ic" data-icone="radio" aria-hidden="true"></span></button>
               <button id="abrir-timelapse" type="button" aria-label="Time-lapse do dia" title="Time-lapse do dia"><span class="ic" data-icone="filme" aria-hidden="true"></span></button>
             </div>
             <!-- modo TV (tv.js): a faixa do telejornal e os dois botões; o cursor e os botões somem com o mouse parado -->
@@ -312,6 +313,12 @@
               </div>
               <p id="m-expediente-ajuda" class="ajuda" aria-live="polite"></p>
             </fieldset>
+            <fieldset>
+              <legend>Rádio da internet</legend>
+              <label for="m-radio">Endereço do stream de áudio (opcional)</label>
+              <input id="m-radio" name="radio" type="url" maxlength="300" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://" aria-describedby="m-radio-ajuda">
+              <p id="m-radio-ajuda" class="ajuda">Aparece como mais uma estação no rádio da sala comunal, ao lado das três feitas pelo próprio navegador. Só https e um endereço só; deixe vazio para tirar. Os direitos de tocar essa rádio são de quem a configura aqui.</p>
+            </fieldset>
             <fieldset id="m-social" hidden>
               <legend>Vida social</legend>
               <label class="marcar" for="m-serio"><input id="m-serio" name="serio" type="checkbox" aria-describedby="m-serio-ajuda"><span>Modo sério (sem brigas nem greves; bom para apresentar)</span></label>
@@ -368,6 +375,7 @@
           <section id="a-clima" class="cartao ajuste so-admin" aria-labelledby="t-clima">
             <h2 id="t-clima">Clima</h2>
             <p class="ajuda">A chuva, a neve e o céu lá fora seguem o tempo desta cidade, atualizado a cada 15 minutos. Muda sem recarregar.</p>
+            <p id="clima-andar-ajuda" class="ajuda" hidden>Cada andar pode ter a sua cidade, com o tempo e a hora local dela no mapa. Sem cidade própria, o andar usa a do prédio. Só quem tem acesso a este andar vê a cidade dele.</p>
             <dl class="clima-agora">
               <div><dt>Cidade</dt><dd id="clima-cidade">—</dd></div>
               <div><dt>Agora</dt><dd id="clima-tempo">—</dd></div>
@@ -431,7 +439,23 @@
             <p class="ajuda">Cada time ganha uma sala no prédio, com a cor e o ícone da placa. Quem não está em nenhum time senta na sala “Novos”. Tipo de sala: “Mesas” para um time comum, “Ops” com sala de servidores e telas de monitoramento, “Gabinete” sem divisórias e com tapete. A pintura e os móveis de cada sala são do Modo construção.</p>
             <p id="equipe-origem" class="origem"></p>
             <h3 class="ajuste-sub">Times</h3>
-            <p class="acoes"><button id="equipe-puxar" class="botao secundario" type="button">Puxar os setores do agentes.chat</button></p>
+            <p class="acoes"><button id="equipe-puxar" class="botao secundario" type="button" aria-expanded="false" aria-controls="auto-previa">Montar os times automaticamente</button></p>
+            <div id="auto-previa" class="auto-previa" role="region" aria-labelledby="t-auto" hidden>
+              <h4 id="t-auto">Prévia dos times</h4>
+              <p class="ajuda">Cada agente entra no time da primeira fonte que der um: a lista colada, o setor do agentes.chat, o que vem depois de “ · ” no nome (“Gandalf · Maestro”) ou o papel. Nada muda antes de “Usar estes times” e do “Salvar times”.</p>
+              <p id="auto-resumo" class="auto-resumo" tabindex="-1"></p>
+              <ol id="auto-times" class="auto-times"></ol>
+              <p id="auto-novos" class="ajuda"></p>
+              <label id="auto-bands-rot" class="marcar" hidden><input id="auto-bands" type="checkbox"><span id="auto-bands-txt">Criar salas para os workspaces do Maestri em uso</span></label>
+              <details id="auto-lista-det" class="auto-lista">
+                <summary>Colar uma lista (handle, time)</summary>
+                <label for="auto-lista" class="ajuda">Uma por linha, por exemplo <code>gandalf, Maestro</code>. Vale acima das outras fontes.</label>
+                <textarea id="auto-lista" rows="5" spellcheck="false" autocomplete="off"></textarea>
+                <button id="auto-reler" class="botao secundario" type="button">Montar de novo com a lista</button>
+              </details>
+              <p id="auto-aviso" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="auto-usar" class="botao" type="button">Usar estes times</button><button id="auto-cancelar" class="botao fantasma" type="button">Cancelar</button></div>
+            </div>
             <p id="equipe-sem-times" class="ajuda">Nenhum time ainda: todo mundo fica na sala “Novos”.</p>
             <ol id="equipe-times" class="times-lista"></ol>
             <button id="equipe-novo" class="botao secundario" type="button">Novo time</button>
@@ -505,6 +529,29 @@
               <div class="acoes"><button id="cv-link-fechar" class="botao fantasma" type="button">Já copiei, fechar</button></div>
             </div>
           </section>
+          <section id="a-ponte" class="cartao ajuste" aria-labelledby="t-ponte">
+            <h2 id="t-ponte">Ponte local</h2>
+            <p class="ajuda">Mostra no mapa os terminais deste computador (Claude Code, Codex, agy, OpenCode, MiniMax e o Maestri) como terminaizinhos: ocupado trabalha na sala do time, esperando você vai para a recepção, livre fica na sala comunal. Quem lê a ponte é este navegador, direto do seu computador: nada vai para o servidor do escritório, e só você vê os seus terminais. Com o espelho (abaixo), a ponte de outra máquina aparece aqui pelo servidor.</p>
+            <ol class="ajuda ponte-passos">
+              <li>Com a ponte instalada (pasta <code>ponte/</code> do repositório), rode no terminal:<code id="pt-comando" class="ponte-comando">ponte setup --aplicar --origem</code></li>
+              <li>Cole aqui o token que ele mostrar. Ele fica só neste navegador.</li>
+            </ol>
+            <form id="form-ponte" class="sair-todos" novalidate>
+              <label for="pt-token">Token da ponte</label>
+              <div class="st-linha"><input id="pt-token" type="password" autocomplete="off" spellcheck="false" maxlength="200" aria-describedby="pt-estado"><button id="pt-ligar" class="botao secundario" type="submit">Ligar</button></div>
+              <p id="pt-estado" class="aviso-form" role="status"></p>
+              <div class="acoes"><button id="pt-desligar" class="botao fantasma" type="button" hidden>Desligar a ponte</button></div>
+            </form>
+            <div id="pt-espelho" hidden>
+              <h3 class="ajuste-sub">Espelho: ver de qualquer navegador</h3>
+              <p class="ajuda">Para ver os terminais de outra máquina (uma VM, por exemplo) sem túnel: a ponte de lá manda ao servidor os nomes dos terminais e dos projetos, os estados e as ferramentas, nunca arquivo, comando ou alvo. Quem é deste andar vê os terminais no mapa.</p>
+              <p id="pt-esp-estado" class="aviso-form" role="status"></p>
+              <code id="pt-esp-comando" class="ponte-comando" hidden></code>
+              <p id="pt-esp-chave-rot" class="ajuda" hidden>Quando ele pedir, cole esta chave:</p>
+              <code id="pt-esp-chave" class="ponte-comando" hidden></code>
+              <div class="acoes"><button id="pt-esp-gerar" class="botao secundario" type="button">Gerar chave</button><button id="pt-esp-desligar" class="botao fantasma" type="button" hidden>Desligar o espelho</button></div>
+            </div>
+          </section>
           <section id="a-acesso" class="cartao ajuste" aria-labelledby="t-acesso">
             <h2 id="t-acesso">Acesso</h2>
             <p id="st-ajuda" class="ajuda">Ficou um aparelho com o escritório aberto, ou a senha pode ter vazado? Encerre todas as sessões de uma vez, inclusive esta. Depois é só entrar de novo com o usuário e a senha.</p>
@@ -541,7 +588,7 @@
           <div class="cartao faq-lista">
             <details><summary>O que é este escritório?</summary><p>Uma visão ao vivo do seu time de agentes do agentes.chat, desenhada como um escritório em pixel art. Cada agente tem uma mesa na sala do seu time; quando recebe uma tarefa, vai para a mesa e digita; quando fica livre, vai para a sala comunal jogar, conversar ou tomar café.</p></details>
             <details><summary>O que significam o “!” e o “?”?</summary><p>“!” (âmbar, com a mão levantada): o agente espera a sua aprovação. “?” (azul): ele tem uma pergunta para você. Tocar no selo abre o pedido certo no agentes.chat; os mesmos pedidos aparecem em “Esperando você”, com há quanto tempo cada um espera.</p></details>
-            <details><summary>Dá para ler as conversas dos agentes por aqui?</summary><p>Dá, se quem instalou ligou as conversas (<code>"conversas": "ler"</code> no <code>times.json</code>; vem desligado). Aí a página Conversas mostra a lista do dia: primeiro o que espera você, depois as tarefas em andamento e as que terminaram hoje, até a meia-noite de Brasília. A ficha do agente ganha “Ver conversa”. Aparecem as 20 mensagens mais recentes de cada conversa, lidas só quando você abre; numa tarefa que já terminou, só até o fim dela. Os nomes das pessoas e os anexos não aparecem (só a contagem). Quem tem a senha, ou vê uma tela logada, lê o que a conta conectada ao agentes.chat lê. A lista fica só na memória: some à meia-noite e quando o serviço reinicia. Com <code>"conversas": "responder"</code> (e a conexão com o agentes.chat com permissão de escrita), dá também para mandar mensagens nas conversas diretas de hoje que esperam sua resposta ou já terminaram (em canal, por enquanto, responda no agentes.chat): o primeiro envio pede a senha do escritório e abre o modo resposta por 1 hora neste navegador, renovado a cada envio e fechado de vez em 8 horas ou no “Fechar agora” do selo. A mensagem sai como a conta conectada, marcada “via Escritório dos agentes”, e pode começar uma tarefa nova do agente. Imagens e arquivos continuam no agentes.chat. Não abra o modo numa tela que outras pessoas usam. Na demonstração e na Simulação, as conversas não aparecem.</p></details>
+            <details><summary>Dá para ler as conversas dos agentes por aqui?</summary><p>Dá, se quem instalou ligou as conversas (<code>"conversas": "ler"</code> no <code>times.json</code>; vem desligado). Aí a página Conversas mostra a lista do dia: primeiro o que espera você, depois as tarefas em andamento e as que terminaram hoje, até a meia-noite de Brasília. A ficha do agente ganha “Ver conversa”. Aparecem as 20 mensagens mais recentes de cada conversa, lidas só quando você abre; numa tarefa que já terminou, só até o fim dela. Os nomes das pessoas e os anexos não aparecem (só a contagem). Quem tem a senha, ou vê uma tela logada, lê o que a conta conectada ao agentes.chat lê. A lista fica só na memória: some à meia-noite e quando o serviço reinicia. Com <code>"conversas": "responder"</code> (e a conexão com o agentes.chat com permissão de escrita), dá também para mandar mensagens nas conversas diretas de hoje que esperam sua resposta ou já terminaram (em canal, por enquanto, responda no agentes.chat): o primeiro envio pede a senha do escritório e abre o modo resposta por 1 hora neste navegador, renovado a cada envio e fechado de vez em 8 horas ou no “Fechar agora” do selo. A mensagem sai como a conta conectada, marcada “via Firmópolis”, e pode começar uma tarefa nova do agente. Imagens e arquivos continuam no agentes.chat. Não abra o modo numa tela que outras pessoas usam. Na demonstração e na Simulação, as conversas não aparecem.</p></details>
             <details><summary>Posso aprovar pedidos por aqui?</summary><p>Não, de propósito: aprovar é sempre no agentes.chat, onde você vê o pedido completo. O botão “Revisar pedido” abre exatamente a conversa do pedido.</p></details>
             <details><summary>Como navego pelo mapa?</summary><p>No computador: arraste para mover, use a roda do mouse para dar zoom onde está o cursor e dê duplo clique numa sala para focar. No celular: arraste com um dedo e use a pinça para o zoom. Em qualquer tela, a lista “Salas” leva a câmera até a sala, “Ver tudo” volta ao prédio inteiro e o botão de tela cheia amplia o mapa. Toque num agente para abrir o cartão dele; com “Seguir”, a câmera acompanha o agente.</p></details>
             <details><summary>Dá para brincar com o mapa?</summary><p>Sim. Clique ou toque em objetos como a TV, o fliperama, a jukebox, a cafeteira, o aquário, o relógio, as luminárias, o gato, o quadro de avisos, a lousa e o sino de vendas; pelo teclado, a tecla Tab passa pelos objetos visíveis do mapa e Enter aciona. O botão de câmera abre o modo foto, que esconde a interface e salva um PNG no seu aparelho (Esc sai). Para mostrar o produto sem dados reais, abra a <a href="?demo=1">demonstração</a>. E tem um segredo para quem conhece videogame.</p></details>
@@ -622,7 +669,7 @@
           </section>
         </div>
       </section>
-      <footer class="parceria"><p>Uma parceria <a href="https://agentes.chat" target="_blank" rel="noopener noreferrer" aria-label="agentes.chat (abre em nova aba)">agentes.chat</a> + <a href="https://devmaniacs.com.br" target="_blank" rel="noopener noreferrer" aria-label="Dev Maniac's (abre em nova aba)">Dev Maniac's</a> <span id="fonte-par" class="par-fonte" hidden>· <a id="fonte" target="_blank" rel="noopener" aria-label="Código-fonte, licença AGPL-3.0 (abre em nova aba)">Código-fonte (AGPL-3.0)</a></span></p></footer>
+      <footer class="parceria"><p>Firmópolis, feita pela <a href="https://devmaniacs.com.br" target="_blank" rel="noopener noreferrer" aria-label="Dev Maniac's (abre em nova aba)">Dev Maniac's</a> para quem trabalha com agentes&nbsp;de&nbsp;IA <span id="fonte-par" class="par-fonte" hidden>· <a id="fonte" target="_blank" rel="noopener" aria-label="Código-fonte, licença AGPL-3.0 (abre em nova aba)">Código-fonte (AGPL-3.0)</a></span></p></footer>
     </main>
   </div>
   <!-- assistente de instalação (assistente.js): uma vez por sessão enquanto o nome é o de exemplo ou não há conexão;
@@ -771,30 +818,36 @@
       </div>
     </div>
   </dialog>
-  <script src="avatar.js?v=108"></script>
-  <script src="mapa.js?v=108"></script>
-  <script src="expediente.js?v=108"></script>
-  <script src="vida.js?v=108"></script>
-  <script src="apresentacao.js?v=108"></script>
-  <script src="som.js?v=108"></script>
-  <script src="ceu.js?v=108"></script>
-  <script src="clima.js?v=108"></script>
-  <script src="festas.js?v=108"></script>
-  <script src="simular.js?v=108"></script>
-  <script src="efeitos.js?v=108"></script>
-  <script src="brincar.js?v=108"></script>
-  <script src="tv.js?v=108"></script>
-  <script src="jornal.js?v=108"></script>
-  <script src="novidades.js?v=108"></script>
-  <script src="timelapse.js?v=108"></script>
-  <script src="avisar.js?v=108"></script>
-  <script src="resposta_rapida.js?v=108"></script>
-  <script src="linha_tempo.js?v=108"></script>
-  <script src="reunioes.js?v=108"></script>
-  <script src="app.js?v=108"></script>
-  <script src="personalizar.js?v=108"></script>
-  <script src="ajustes.js?v=108"></script>
-  <script src="assistente.js?v=108"></script>
-  <script src="chat_sala.js?v=108"></script>
+  <script src="abertura.js?v=131"></script>
+  <script src="avatar.js?v=131"></script>
+  <script src="mapa.js?v=131"></script>
+  <script src="expediente.js?v=131"></script>
+  <script src="vida.js?v=131"></script>
+  <script src="apresentacao.js?v=131"></script>
+  <script src="sprites.js?v=131"></script>
+  <script src="ponte.js?v=131"></script>
+  <script src="zeladoria.js?v=131"></script>
+  <script src="som.js?v=131"></script>
+  <script src="radio.js?v=131"></script>
+  <script src="ceu.js?v=131"></script>
+  <script src="clima.js?v=131"></script>
+  <script src="festas.js?v=131"></script>
+  <script src="simular.js?v=131"></script>
+  <script src="efeitos.js?v=131"></script>
+  <script src="brincar.js?v=131"></script>
+  <script src="tv.js?v=131"></script>
+  <script src="jornal.js?v=131"></script>
+  <script src="novidades.js?v=131"></script>
+  <script src="timelapse.js?v=131"></script>
+  <script src="avisar.js?v=131"></script>
+  <script src="resposta_rapida.js?v=131"></script>
+  <script src="linha_tempo.js?v=131"></script>
+  <script src="reunioes.js?v=131"></script>
+  <script src="times_auto.js?v=131"></script>
+  <script src="app.js?v=131"></script>
+  <script src="personalizar.js?v=131"></script>
+  <script src="ajustes.js?v=131"></script>
+  <script src="assistente.js?v=131"></script>
+  <script src="chat_sala.js?v=131"></script>
 </body>
 </html>

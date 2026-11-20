@@ -15,27 +15,27 @@ const Simular = (() => {
 
   const CSS = `
 .sim-dialogo { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--borda-forte, rgba(255,255,255,.15));
-  border-radius: var(--r-cartao, 20px); background: var(--cartao, #1c1c1b); color: var(--texto, #efefec); box-shadow: 0 18px 60px rgba(0,0,0,.6); overflow: auto; }
+  border-radius: var(--r-cartao, 0); background: var(--cartao, #1c1c1b); color: var(--texto, #efefec); box-shadow: 6px 6px 0 rgba(0, 0, 0, .45); overflow: auto; }
 .sim-dialogo::backdrop { background: rgba(0,0,0,.6); }
 .sim-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 18px 16px; }
 .sim-cabeca { display: flex; align-items: flex-start; gap: 12px; }
 .sim-cabeca h2 { margin: 0; font-size: 18px; }
 .sim-cabeca p { margin: 4px 0 0; color: var(--suave, #a3a39e); font-size: 13px; line-height: 1.45; }
-.sim-x { flex: none; margin-left: auto; min-width: 44px; min-height: 44px; border-radius: var(--r-botao, 12px); border: 1px solid var(--borda, rgba(255,255,255,.10));
+.sim-x { flex: none; margin-left: auto; min-width: 44px; min-height: 44px; border-radius: var(--r-botao, 0); border: 1px solid var(--borda, rgba(255,255,255,.10));
   background: var(--cartao2, #242423); color: var(--texto, #efefec); font-size: 20px; line-height: 1; }
 .sim-grupo { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-/* Silkscreen e Figtree ficam só no canvas do mapa; a interface usa Source Sans 3, como o .faq-grupo */
-.sim-grupo legend { padding: 0; margin-bottom: 8px; font: 650 12px "Source Sans 3", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .5px;
+/* a interface usa Figtree, como o .faq-grupo; a Silkscreen fica só no canvas do mapa */
+.sim-grupo legend { padding: 0; margin-bottom: 8px; font: 650 12px Figtree, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .5px;
   color: var(--suave, #a3a39e); }
 .sim-linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sim-campo { display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; min-width: 0; font-size: 13px; color: var(--suave, #a3a39e); }
-.sim-campo select, .sim-campo input { min-height: 44px; padding: 0 10px; border-radius: var(--r-botao, 12px); border: 1px solid var(--borda-forte, rgba(255,255,255,.15));
+.sim-campo select, .sim-campo input { min-height: 44px; padding: 0 10px; border-radius: var(--r-botao, 0); border: 1px solid var(--borda-forte, rgba(255,255,255,.15));
   background: var(--cartao2, #242423); color: var(--texto, #efefec); font: inherit; font-size: 15px; color-scheme: dark; min-width: 0; width: 100%; box-sizing: border-box; }
 .sim-grupo > .sim-campo { flex: none; }   /* na coluna do grupo, a base de 200px viraria altura */
 .sim-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .sim-chip { position: relative; display: inline-flex; }
 .sim-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.sim-chip span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--r-botao, 12px); border: 1px solid var(--borda, rgba(255,255,255,.10));
+.sim-chip span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--r-botao, 0); border: 1px solid var(--borda, rgba(255,255,255,.10));
   background: var(--cartao2, #242423); color: var(--texto, #efefec); font-size: 14px; font-weight: 600; white-space: nowrap; }
 /* escolhido = "pressionado", como os filtros .estados; a cor de destaque fica só no botão principal e no foco */
 .sim-chip input:checked + span { background: var(--cartao3, #282827); color: var(--texto, #efefec); border-color: transparent;
@@ -44,16 +44,16 @@ const Simular = (() => {
 .sim-chip input:disabled + span { opacity: .45; cursor: not-allowed; }
 .sim-faixa-hora { display: flex; align-items: center; gap: 12px; }
 .sim-faixa-hora input { flex: 1; min-width: 0; min-height: 44px; accent-color: var(--texto2, #d6d6d2); }
-.sim-faixa-hora output { flex: none; min-width: 52px; font: 700 15px "Source Sans 3", system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
+.sim-faixa-hora output { flex: none; min-width: 52px; font: 700 15px Figtree, system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
 .sim-nota { margin: 0; font-size: 12px; color: var(--suave, #a3a39e); }
 .sim-acoes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding-top: 4px; border-top: 1px solid var(--borda, rgba(255,255,255,.10)); }
 .sim-acoes .botao { margin-top: 12px; }
 /* faixa neutra: o âmbar é só do "esperando você" */
 .sim-aviso { position: fixed; z-index: 30; left: 50%; transform: translateX(-50%); bottom: 16px; max-width: calc(100vw - 24px); box-sizing: border-box;
-  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: var(--r-botao, 12px); border: 1px solid var(--borda-forte, rgba(255,255,255,.15));
-  background: var(--cartao2, #242423); color: var(--texto, #efefec); box-shadow: 0 8px 28px rgba(0,0,0,.5); font-size: 13px; font-weight: 600; }
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: var(--r-botao, 0); border: 1px solid var(--borda-forte, rgba(255,255,255,.15));
+  background: var(--cartao2, #242423); color: var(--texto, #efefec); box-shadow: 4px 4px 0 rgba(0, 0, 0, .45); font-size: 13px; font-weight: 600; }
 .sim-aviso p { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sim-aviso button { flex: none; min-height: 44px; padding: 0 12px; border-radius: 9px; border: 0; font-weight: 800; font-size: 13px; }
+.sim-aviso button { flex: none; min-height: 44px; padding: 0 12px; border-radius: 0; border: 0; font-weight: 800; font-size: 13px; }
 .sim-aviso .sim-real { background: var(--destaque, #f5b83d); color: var(--destaque-texto, #1a1408); }
 .sim-aviso .sim-ajustar { background: transparent; color: var(--texto2, #d6d6d2); border: 1px solid var(--borda-forte, rgba(255,255,255,.15)); }
 .sim-aviso .sim-curto { display: none; }

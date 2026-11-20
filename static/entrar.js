@@ -13,7 +13,8 @@
 
 // Tela de login: uma mini-cena do escritório no painel azul. Uma mesa à esquerda e um sofá à direita;
 // quem trabalha digita na mesa (verde), quem espera você acena com um "!" (âmbar) e quem está livre
-// (branco) anda entre a mesa e o sofá e senta um pouco. Sem dados nem nomes reais.
+// (branco) anda entre a mesa e o sofá e senta um pouco. As outras duas espécies da Firmópolis também aparecem:
+// um terminaizinho cochila no sofá e uma pessoa acena para quem chega. Sem dados nem nomes reais.
 "use strict";
 (() => {
   const cv = document.getElementById("desfile"); if (!cv || !window.Avatar) return;
@@ -26,6 +27,8 @@
   let P = 3, W = 200, ultimo = 0;   // P: pixels de tela por pixel da cena; W: largura da cena
   const ret = (x, y, w, h, cor) => { c.fillStyle = cor; c.fillRect(Math.round(x) * P, Math.round(y) * P, w * P, h * P); };
   const sombra = (x, y, w) => ret(x - w / 2, y, w, 2, "rgba(0,0,40,.28)");
+  // sprites.js (Sprites.gente e Sprites.terminal) desenha em pixels da cena: escala P e volta
+  const sprite = (fn) => { if (!window.Sprites) return; c.save(); c.scale(P, P); fn(window.Sprites); c.restore(); };
   const avatar = (b, x, y, passo) => c.drawImage(Avatar.desenhar(b.ap, false, passo), Math.round(x - 11) * P, Math.round(y - 21) * P, 22 * P, 22 * P);
   const luz = (x, y, cor) => { ret(x - 2, y - 2, 4, 4, "rgba(0,0,40,.45)"); ret(x - 1, y - 1, 2, 2, cor); };   // status em cima da cabeça
 
@@ -54,7 +57,7 @@
     c.translate(0, Math.max(0, h - 48 * P));                                        // chão no pé do painel
     ret(0, 45, W, 1, "rgba(255,255,255,.35)");
     // quem está livre: anda até o sofá, senta, levanta e volta para perto da mesa
-    const sofaX = W - 30, perto = 94;   // perto da mesa, ao lado de quem espera
+    const sofaX = W - 14, perto = 94;   // perto da mesa, ao lado de quem espera
     if (!calmo.matches && !livre.sentado && t > livre.ate) {
       const alvo = livre.alvo ? perto : sofaX, d = alvo - livre.x;
       if (Math.abs(d) < 0.6) { if (!livre.alvo) { livre.sentado = true; livre.ate = t + 3800; } else { livre.alvo = 0; livre.ate = t + 1500; } }
@@ -70,6 +73,8 @@
     ret(74 + mao, 26, 3, 3, "#5e3a10"); ret(75 + mao, 27, 1, 1, "#f2a93b");
     ret(70, 9, 7, 7, "#ffffff"); ret(73, 10, 1, 3, "#1b1b22"); ret(73, 14, 1, 1, "#1b1b22");   // balão com "!"
     sofa();
+    sprite(S => S.terminal(c, W - 36, 41, 0, false, 2, calmo.matches ? 0 : t, "dormir"));       // terminaizinho cochilando no sofá
+    sprite(S => S.gente(c, 84, 45, 0, true, 9, "acenar", calmo.matches ? 0 : t));                  // a gente, acenando para quem chega
     if (livre.sentado) { avatar(livre, sofaX, 40, null); luz(sofaX, 15, BRANCO); }
     else { sombra(livre.x, 44, 10); avatar(livre, livre.x, 44 - (passo || 0), passo); luz(livre.x, 19 - (passo || 0), BRANCO); }
   }

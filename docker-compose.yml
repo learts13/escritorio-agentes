@@ -17,6 +17,10 @@ services:
       # Limite por origem atrás do proxy: veja docs/visitas-privadas-plano.md antes de definir.
       ESCRITORIO_VISITAS_PROXY: ${ESCRITORIO_VISITAS_PROXY:-}
       ESCRITORIO_VISITAS_CABECALHO: ${ESCRITORIO_VISITAS_CABECALHO:-X-Real-IP}
+      # Espelho da ponte (opcional): a chave (openssl rand -hex 32) que a ponte da máquina dos terminais manda. Vazia, o
+      # admin do prédio gera a chave na tela (Personalizar > Ponte local). ANDAR: no modo saguão, o id do andar que vê.
+      ESCRITORIO_PONTE_CHAVE: ${ESCRITORIO_PONTE_CHAVE:-}
+      ESCRITORIO_PONTE_ANDAR: ${ESCRITORIO_PONTE_ANDAR:-}
     volumes:
       - dados:/dados   # token, usuários e sessões: backup cifrado, nunca público
     read_only: true

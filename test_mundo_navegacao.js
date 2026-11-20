@@ -155,9 +155,10 @@ async function principal() {
 
   // só o mapa (com o atlas das miniaturas) e o clima do mundo são pedidos, sem cookie e com o corpo vazio; o clima de novo
   // a cada 15 min
-  assert.deepEqual(c.requisicoes.map(([u]) => u.split("?")[0]), ["/mundo/mundo.json", "/mundo/atlas.json", "/api/mundo/clima"]);
+  // (e a folha de arte do bairro, que o mundo_bairro.js pede ao carregar)
+  assert.deepEqual(c.requisicoes.map(([u]) => u.split("?")[0]), ["/mundo/bairro.json", "/mundo/mundo.json", "/mundo/atlas.json", "/api/mundo/clima"]);
   assert.ok(c.requisicoes.every(([, o]) => o && o.credentials === "omit"));
-  const [, op] = c.requisicoes[2];
+  const [, op] = c.requisicoes[3];
   assert.equal(op.method, "POST"); assert.equal(op.credentials, "omit"); assert.equal(op.body, "{}");
   assert.ok(c.intervalos.includes(15 * 60 * 1000));
 

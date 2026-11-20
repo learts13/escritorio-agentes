@@ -27,6 +27,7 @@ NOME_MAX = 40
 # os arquivos de cada andar extra, dentro de dados/andares/<id>/
 OAUTH, TIMES, EQUIPE, PLANTA, PLACAR, JORNAL = ("oauth.json", "times.json", "equipe.json", "planta.json",
                                                 "placar.json", "jornal.json")
+CLIMA = "clima.json"   # a cidade do clima do andar (ajustes.py); sem ele, vale a do prédio
 
 
 class AndaresIlegiveis(ValueError):

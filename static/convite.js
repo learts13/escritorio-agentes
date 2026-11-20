@@ -53,7 +53,10 @@ if (typeof window !== "undefined") window.Convite = Convite;
     try {
       const d = await pedir("/convite/ver", { convite: token });
       if (!$("cv-nome").value) $("cv-nome").value = typeof d.nome === "string" ? d.nome.slice(0, 40) : "";
-      if (!seletor) seletor = Avatar.seletor($("cv-boneco"), Avatar.padrao($("cv-nome").value), null, "cv");
+      if (!seletor) {
+        seletor = Avatar.seletor($("cv-boneco"), Avatar.padrao($("cv-nome").value), null, "cv");
+        $("cv-usuario").addEventListener("input", () => seletor.usuario($("cv-usuario").value.trim().toLowerCase()));   // a cabeça e a calça vêm do usuário
+      }
       mostrar("cv-form"); $("cv-usuario").focus();
     } catch (e) { indisponivel(e.message, e.status !== 404); }
   }

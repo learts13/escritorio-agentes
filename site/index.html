@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Firmópolis · o escritório vivo dos seus agentes de IA</title>
+  <meta name="description" content="Firmópolis é um escritório em pixel art, ao vivo, onde cada agente de IA vira um morador. Veja quem trabalha, quem joga sinuca e quem espera a sua aprovação. Código aberto e sem gastar token.">
+  <link rel="canonical" href="https://firmopolis.devmaniacs.com.br/">
+  <meta name="theme-color" content="#1c1c22">
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="img/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="img/icone-180.png">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="Firmópolis">
+  <meta property="og:title" content="Firmópolis · o escritório vivo dos seus agentes de IA">
+  <meta property="og:description" content="Um escritório em pixel art onde cada agente de IA vira um morador. Código aberto, roda no navegador e não gasta token.">
+  <meta property="og:url" content="https://firmopolis.devmaniacs.com.br/">
+  <meta property="og:image" content="https://firmopolis.devmaniacs.com.br/img/og-1200x630.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="O prédio-mascote da Firmópolis, com olhos, antena e janelas acesas, ao lado do nome.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="fontes/PixeloidSans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fontes/figtree.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="estilo.css?v=9">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Firmópolis",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Linux, navegador",
+        "description": "Escritório em pixel art, ao vivo, que mostra o estado de cada agente de IA do seu time. Código aberto (AGPL-3.0) e sem gastar token.",
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
+        "url": "https://firmopolis.devmaniacs.com.br/",
+        "codeRepository": "https://github.com/HelbertMoura/escritorio-agentes",
+        "author": { "@type": "Organization", "name": "Dev Maniac's", "url": "https://devmaniacs.com.br" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "A Firmópolis gasta tokens de IA?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Não. Ela só lê o estado dos agentes a cada 30 segundos e desenha o escritório. Nenhum modelo de IA é chamado para o escritório existir." } },
+          { "@type": "Question", "name": "Quanto custa?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Nada. O código é aberto, sob a licença AGPL-3.0, e roda na sua própria máquina." } },
+          { "@type": "Question", "name": "Com quais agentes ela funciona?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Com os agentes do agentes.chat e, pela ponte local, com os terminais da sua máquina: Maestri, Claude Code, Codex, agy, OpenCode e MiniMax." } },
+          { "@type": "Question", "name": "Vocês fazem parte do agentes.chat ou do Maestri?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Não. A Firmópolis é um projeto independente da Dev Maniac's. Usamos os dois todos os dias, admiramos o trabalho dos dois times e fizemos o escritório para conversar com eles pelos caminhos oficiais." } },
+          { "@type": "Question", "name": "Meus dados saem da minha máquina?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Não passam por nós. O escritório roda no seu servidor, fica fechado na sua rede privada (Tailscale) e é só leitura por padrão. Ele conversa com o agentes.chat, consulta o clima e, se você ligar os avisos no celular, usa o serviço de notificação do navegador." } }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+  <header class="topo">
+    <div class="faixa topo-linha">
+      <a class="marca" href="./" aria-label="Firmópolis, início">
+        <img src="img/favicon.svg" alt="" width="32" height="32">
+        <span>Firmópolis</span>
+      </a>
+      <nav class="menu" aria-label="Seções">
+        <a href="#andares">O prédio</a>
+        <a href="#tudo">O que tem</a>
+        <a href="#moradores">Moradores</a>
+        <a href="#tv">Vídeo</a>
+        <a href="#mural">Regras</a>
+        <a href="novidades.html">Novidades</a>
+        <a href="#instalar">Instalar</a>
+      </nav>
+      <a class="botao botao-pequeno" href="https://github.com/HelbertMoura/escritorio-agentes" rel="noopener">GitHub</a>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero" aria-labelledby="titulo-hero">
+      <canvas class="ceu" aria-hidden="true"></canvas>
+      <div class="faixa hero-grade">
+        <div class="hero-texto">
+          <h1 id="titulo-hero">A firma dos seus agentes, <em>ao vivo.</em></h1>
+          <p class="hero-sub">Um escritório em pixel art onde cada agente de IA vira morador. Num relance você vê quem está na mesa, quem foi jogar sinuca e quem espera a sua aprovação. Sem gastar um token.</p>
+          <div class="acoes">
+            <a class="botao" href="https://github.com/HelbertMoura/escritorio-agentes" rel="noopener">Ver o código no GitHub</a>
+            <a class="botao botao-vazado" href="#instalar">Como instalar</a>
+          </div>
+        </div>
+        <div class="hero-predio">
+          <button class="mascote-botao" type="button" aria-label="Cutucar o prédio da Firmópolis">
+            <canvas class="mascote" width="320" height="320" aria-hidden="true"></canvas>
+          </button>
+          <p class="balao" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <canvas class="rua" aria-hidden="true"></canvas>
+    </section>
+
+    <section id="moradores" class="faixa moradores" aria-labelledby="titulo-moradores">
+      <h2 id="titulo-moradores" class="titulo-secao">Quem mora aqui</h2>
+      <p class="moradores-sub">Na nova Firmópolis, cada morador tem a cara de onde veio. Num relance você sabe quem é agente do agentes.chat, quem é terminal da sua máquina e quem é gente.</p>
+      <div class="especies">
+        <article class="especie">
+          <div class="especie-palco"><canvas class="especie-sprite" data-especie="bichinho" aria-hidden="true"></canvas></div>
+          <h3>Bichinhos de feltro</h3>
+          <p>Os agentes do agentes.chat, desenhados no estilo dos avatares de lá: cada um com a sua cor, o seu olhar e o seu acessório.</p>
+          <ul class="crachas"><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>agentes.chat</strong><span class="cracha-status">trabalhando</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Ponto batido. O escritório lê o time a cada 30 s.</span></button></li></ul>
+        </article>
+        <article class="especie">
+          <div class="especie-palco"><canvas class="especie-sprite" data-especie="terminal" aria-hidden="true"></canvas></div>
+          <h3>Terminaizinhos</h3>
+          <p>Os terminais da sua máquina. Uma espécie nossa, com um monitor no lugar da cabeça e o cursor piscando como boca. A cor da moldura diz qual é o programa.</p>
+          <ul class="crachas"><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>Maestri</strong><span class="cracha-status">na ponte</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Cada terminal do canvas vira um morador.</span></button></li><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>Claude Code</strong><span class="cracha-status">na ponte</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Lido pelos hooks, sem chamar o modelo.</span></button></li><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>Codex</strong><span class="cracha-status">na ponte</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Hooks locais, só na sua máquina.</span></button></li><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>agy</strong><span class="cracha-status">na ponte</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Entra pela ponte local.</span></button></li><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>OpenCode</strong><span class="cracha-status">na ponte</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Um plugin pequeno avisa a ponte.</span></button></li></ul>
+        </article>
+        <article class="especie">
+          <div class="especie-palco"><canvas class="especie-sprite" data-especie="gente" aria-hidden="true"></canvas></div>
+          <h3>Gente</h3>
+          <p>Você e as visitas, com cabelo, roupa e tudo. Quem entra por convite chega pela recepção.</p>
+          <ul class="crachas"><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>Você</strong><span class="cracha-status">no mapa</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Escolha a blusa, o cabelo e a pele no seu perfil.</span></button></li><li><button class="cracha" type="button" aria-pressed="false"><span class="cracha-frente"><span class="cracha-furo"></span><strong>Visitas</strong><span class="cracha-status">por convite</span></span><span class="cracha-verso"><span class="cracha-furo"></span>Chegam pela recepção, já como gente.</span></button></li></ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="andares" class="predio" aria-labelledby="titulo-andares">
+      <div class="faixa">
+        <h2 id="titulo-andares" class="titulo-secao">Sobe que a gente mostra o prédio.</h2>
+      </div>
+
+      <div class="faixa andares">
+        <div class="poco" aria-hidden="true"><div class="elevador"><canvas class="elevador-mascote" width="32" height="32"></canvas><span class="elevador-visor">12</span></div></div>
+
+        <article class="andar" data-andar="12">
+          <p class="placa-andar"><span>12</span>Rádio</p>
+          <div class="andar-texto">
+            <h3>A firma tem rádio.</h3>
+            <p>Um rádio na parede da sala comunal toca a Rádio Firmópolis, composta na hora pelo próprio navegador: Lo-fi da firma, Chiptune do fliperama e Jazz da cafeteria. Nenhum arquivo de áudio e nenhum direito autoral. A música não repete em laço, e quem está livre por perto dança de vez em quando.</p>
+            <p>Cada pessoa liga o seu, com um clique. Se a empresa preferir, o admin põe uma rádio da internet como quarta estação.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/radio.webp" alt="O controle da Rádio Firmópolis aberto em cima da sala comunal, tocando Lo-fi da firma, com as estações Chiptune do fliperama e Jazz da cafeteria e o volume." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>O rádio ligado no Lo-fi da firma, no modo demonstração.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-social andar-invertido" data-andar="11">
+          <p class="placa-andar"><span>11</span>Zeladoria</p>
+          <div class="andar-texto">
+            <h3>Alguém tem que limpar isso.</h3>
+            <p>O banheiro suja a cada uso. Sujo demais, ganha moscas e fica interditado, e a fila espera ou desiste. A faxineira chega de balde e rodo, o zelador conserta a cafeteira quebrada e o porteiro cumprimenta quem entra (de noite, é o vigia com a lanterna).</p>
+            <p>Clique em alguém da equipe para ver o que está fazendo.</p>
+          </div>
+          <div class="mural-fotos">
+            <figure class="foto foto-a"><img src="img/z-banheiro.webp" alt="Dois terminaizinhos na fila do banheiro, com a placa de interditado e o balão 'Interditado' na porta WC." width="880" height="520" loading="lazy" decoding="async"><figcaption>Interditado</figcaption></figure>
+            <figure class="foto foto-b"><img src="img/z-faxina.webp" alt="A faxineira Dona Rosa limpando a porta do banheiro com balde e rodo." width="720" height="440" loading="lazy" decoding="async"><figcaption>A faxina chegou</figcaption></figure>
+            <figure class="foto foto-c"><img src="img/z-zelador.webp" alt="A zeladora Dona Neide com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'." width="720" height="440" loading="lazy" decoding="async"><figcaption>Cafeteira quebrada</figcaption></figure>
+          </div>
+        </article>
+
+        <article class="andar" data-andar="10">
+          <p class="placa-andar"><span>10</span>Terminais</p>
+          <div class="andar-texto">
+            <h3>Os terminais da sua máquina, no mapa.</h3>
+            <p>Pela ponte local, cada Claude Code, Codex, agy, OpenCode e MiniMax aberto vira um terminalzinho. Com o Maestri, cada workspace em uso ganha a sua sala sozinho, e o Maestro vai à sala de reunião de coroa. Um clique no terminalzinho mostra o programa, o estado e o dia dele.</p>
+            <p>Os terminais estão numa VM? O espelho manda para o seu escritório, sem túnel, com um comando só: <code>ponte conectar</code>.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/terminais-maestri.webp" alt="O prédio com terminaizinhos de vários programas nas salas Loja e Front, criadas sozinhas para o Maestri, e a Ada, o Maestro, na sala de reunião." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>Terminais fictícios de cinco programas, com as salas automáticas do Maestri.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-invertido" data-andar="9">
+          <p class="placa-andar"><span>9</span>Por cidade</p>
+          <div class="andar-texto">
+            <h3>Um andar em São Paulo, outro em Tóquio.</h3>
+            <p>Cada andar do prédio pode ficar numa cidade, com o tempo e a hora de lá. Enquanto o térreo trabalha de manhã, o andar do outro lado do mundo já fechou o expediente, e o vigia faz a ronda.</p>
+            <p>E os times se montam sozinhos: pelo setor do agentes.chat, pelo nome ou pelo papel de cada agente, com uma prévia para ajustar antes de salvar.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/andares-cidades.webp" alt="Dois andares do mesmo prédio: em cima, o Térreo em São Paulo às 10h30, de dia; embaixo, o 2º andar em Tóquio às 22h30, de noite e fora do expediente." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>O mesmo instante em dois andares: São Paulo de manhã, Tóquio de noite.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar" data-andar="8">
+          <p class="placa-andar"><span>8</span>Escritório</p>
+          <div class="andar-texto">
+            <h3>Cada agente na sua sala.</h3>
+            <p>Trabalhando, esperando você ou de folga: a cor do crachá e o balão na cabeça contam. A cada 30 segundos o escritório lê o time de novo, e os moradores andam até onde devem estar.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/01-escritorio-dia.webp" alt="O mapa do escritório de dia, com as salas Dev, Produto, Marketing, Vendas e Ops, agentes nas mesas e balões de fala." width="960" height="462" loading="lazy" decoding="async">
+            <figcaption>O prédio inteiro de dia, com 10 agentes fictícios do modo demonstração.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-invertido" data-andar="7">
+          <p class="placa-andar"><span>7</span>Esperando você</p>
+          <div class="andar-texto">
+            <h3>Ninguém fica esperando à toa.</h3>
+            <p>Pergunta ou aprovação pendente aparece com um sinal em cima do agente e numa lista separada. Um clique leva até ele.</p>
+          </div>
+          <figure class="janela">
+            <img src="img/z-esperando.webp" alt="A agente Hana na cozinha com o balão 'Preciso do seu OK!' e um sinal de exclamação." width="720" height="440" loading="lazy" decoding="async">
+            <figcaption>Hana pede aprovação na cozinha.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar" data-andar="6">
+          <p class="placa-andar"><span>6</span>Equipe</p>
+          <div class="andar-texto">
+            <h3>Gente de verdade conversando ali dentro.</h3>
+            <p>Quem tem conta no escritório conversa ao vivo com o resto da equipe: chat geral, uma conversa por sala e mensagem direta, com @menção, reação, anexo e busca. Cada sala tem um mural na parede, cada pessoa escolhe um status, e o boneco dela anda pelo mapa junto com os agentes.</p>
+            <p>A lista do andar mostra quem está e onde, com Ir até, Acenar, Bater na porta e Mensagem direta. Quem volta depois de mais de 1 hora vê no topo o que aconteceu enquanto esteve fora.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/equipe-conversas.webp" alt="O mapa do escritório com a conversa Geral da equipe aberta por cima: Rafa menciona @helena e recebe uma reação." width="960" height="458" loading="lazy" decoding="async">
+            <figcaption>O Geral aberto em cima do mapa, com menção e reação. Pessoas e empresa fictícias.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-invertido" data-andar="5">
+          <p class="placa-andar"><span>5</span>Reuniões</p>
+          <div class="andar-texto">
+            <h3>Reunião marcada, sala ocupada.</h3>
+            <p>A agenda do andar guarda título, sala, horário e convidados. Cada sala pode ter um link fixo de Meet, Zoom, Jitsi, Teams ou Whereby, e o botão Entrar abre a chamada em outra aba. O aviso chega 5 minutos antes, cada um baixa o .ics para a própria agenda, e a porta da sala ganha a placa EM REUNIÃO.</p>
+            <p>Na reunião geral, cada pessoa do andar recebe o chamado e o boneco dela caminha até a sala.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/equipe-reunioes.webp" alt="A página Reuniões com a semana de 16 a 22 de novembro: o Planejamento acontecendo agora, com os botões Entrar na reunião, Baixar .ics, Editar e Cancelar." width="960" height="413" loading="lazy" decoding="async">
+            <figcaption>A agenda da semana, com a reunião que está acontecendo agora.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-social" data-andar="4">
+          <p class="placa-andar"><span>4</span>Vida social</p>
+          <div class="andar-texto">
+            <h3>Quando ninguém olha, a firma vive.</h3>
+            <p>Greve com plaquinha de papelão, briga no ringue com plateia, pizza chegando de motoboy. Tudo nasce do que o time faz de verdade.</p>
+          </div>
+          <div class="mural-fotos">
+            <figure class="foto foto-a"><img src="img/z-greve.webp" alt="Greve na sala comunal com plaquinhas: 'Queremos pizza', 'Soneca livre', 'Mais café'." width="720" height="440" loading="lazy" decoding="async"><figcaption>"Queremos pizza"</figcaption></figure>
+            <figure class="foto foto-b"><img src="img/z-ringue.webp" alt="Briga no ringue com nuvem de poeira, 'BUM!' e a plateia em volta." width="880" height="520" loading="lazy" decoding="async"><figcaption>Briga no ringue</figcaption></figure>
+            <figure class="foto foto-c"><img src="img/z-pizza.webp" alt="A turma reunida em volta do ringue gritando 'Pizza!!'." width="1040" height="480" loading="lazy" decoding="async"><figcaption>A pizza chegou</figcaption></figure>
+          </div>
+        </article>
+
+        <article class="andar andar-invertido" data-andar="3">
+          <p class="placa-andar"><span>3</span>Construção</p>
+          <div class="andar-texto">
+            <h3>A planta é sua.</h3>
+            <p>Pinte as salas com 7 paredes e 10 pisos, arraste e espelhe os móveis e escolha entre 53 enfeites. Você arruma no computador e o time vê pronto no mapa.</p>
+          </div>
+          <figure class="janela">
+            <img src="img/16-modo-construcao.webp" alt="O editor do modo construção: o mapa à esquerda e, à direita, o painel com paredes, pisos e o catálogo de plantas." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>O sofá da sala comunal selecionado para espelhar.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-clima" data-andar="2">
+          <p class="placa-andar"><span>2</span>Clima</p>
+          <div class="andar-texto">
+            <h3>Chove lá fora, chove aqui.</h3>
+            <p>A hora e o tempo são os da sua cidade, lidos do Open-Meteo sem chave. Anoitece no escritório quando anoitece aí, e as salas vazias apagam a luz.</p>
+            <div class="previsao" role="group" aria-label="Escolha o clima">
+              <button type="button" aria-pressed="false" data-clima="limpo" data-legenda="Sol, as sombras andando com a hora e o céu que muda do amanhecer ao fim da tarde.">Céu limpo</button>
+              <button type="button" aria-pressed="false" data-clima="nublado" data-legenda="Nuvens passam devagar por cima do prédio e a luz fica mais baixa.">Nublado</button>
+              <button type="button" aria-pressed="false" data-clima="neblina" data-legenda="Uma neblina baixa cobre o jardim e a rua.">Neblina</button>
+              <button type="button" aria-pressed="false" data-clima="garoa" data-legenda="Garoa fina, quase de lado quando venta.">Garoa</button>
+              <button type="button" aria-pressed="true" data-clima="chuva" data-legenda="Chuva inclinada pelo vento, com respingos na calçada e o barulho da chuva, se o som estiver ligado.">Chuva</button>
+              <button type="button" aria-pressed="false" data-clima="tempestade" data-legenda="Raios que clareiam o mapa, trovão no som e rajadas que balançam as árvores e levam folhas.">Tempestade</button>
+              <button type="button" aria-pressed="false" data-clima="neve" data-legenda="Flocos caindo e o chão ficando branquinho aos poucos. Para de nevar e a neve derrete.">Neve</button>
+            </div>
+          </div>
+          <figure class="janela janela-clima">
+            <img class="clima-img" src="img/tempo/clima-chuva.webp?v=2" alt="O escritório com chuva, gravado do modo demonstração." width="944" height="448" loading="lazy" decoding="async">
+            <figcaption class="clima-legenda">Chuva inclinada pelo vento, com respingos na calçada e o barulho da chuva, se o som estiver ligado.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar andar-invertido andar-clima" data-andar="1">
+          <p class="placa-andar"><span>1</span>O mundo</p>
+          <div class="andar-texto">
+            <h3>Do globo até a porta da recepção.</h3>
+            <p>O Mundo é uma página aberta a qualquer um que desce do globo ao Brasil, à cidade e ao bairro, com o tempo de agora em 28 cidades. Cada capital tem o seu ponto turístico desenhado, praça, ruas, carros e gente na calçada, e as cidades de praia ganham orla. Lá fora, 12 cidades viram pontos dourados no globo, de Lisboa a Tóquio. Nas datas festivas, as cidades também se enfeitam.</p>
+            <p>Na cidade do escritório, o chalé com a placa leva ao bairro, e a porta leva à recepção, onde quem tem convite entra como visita.</p>
+            <div class="previsao" role="group" aria-label="Escolha um lugar do mundo">
+              <button type="button" aria-pressed="false" data-cidade="globo" data-legenda="O globo gira com a noite de agora. Clique no Brasil para descer, ou num ponto dourado para visitar uma cidade de fora.">O globo</button>
+              <button type="button" aria-pressed="false" data-cidade="brasil" data-legenda="O mapa com biomas, rios e serras, as 27 capitais e Mateus Leme, cada uma com o seu ponto turístico em miniatura.">O Brasil</button>
+              <button type="button" aria-pressed="true" data-cidade="rio-de-janeiro" data-legenda="Rio de Janeiro: o Cristo Redentor no meio da praça, o coreto, a fonte e a orla com quiosques e farol.">Rio de Janeiro</button>
+              <button type="button" aria-pressed="false" data-cidade="sao-paulo" data-legenda="São Paulo: a Avenida Paulista com o MASP, prédios altos, quadras e o vaivém de carros e ônibus.">São Paulo</button>
+              <button type="button" aria-pressed="false" data-cidade="salvador" data-legenda="Salvador: o Pelourinho, a praça e a orla.">Salvador</button>
+              <button type="button" aria-pressed="false" data-cidade="brasilia" data-legenda="Brasília: o Congresso Nacional no meio das quadras.">Brasília</button>
+              <button type="button" aria-pressed="false" data-cidade="manaus" data-legenda="Manaus: o Teatro Amazonas e as palmeiras.">Manaus</button>
+              <button type="button" aria-pressed="false" data-cidade="belo-horizonte" data-legenda="Belo Horizonte: a Igreja da Pampulha, a praça e os ipês.">Belo Horizonte</button>
+              <button type="button" aria-pressed="false" data-cidade="paris" data-legenda="Paris: a Torre Eiffel. As cidades de fora são pontos dourados no globo, e clicar desce direto nelas.">Paris</button>
+              <button type="button" aria-pressed="false" data-cidade="nova-york" data-legenda="Nova York: a Estátua da Liberdade e a orla.">Nova York</button>
+            </div>
+          </div>
+          <figure class="janela janela-mundo">
+            <img class="mundo-img" src="img/mundo/cidade-rio-de-janeiro.webp?v=2" alt="O Rio de Janeiro visto de cima, gravado da página Mundo." width="720" height="540" loading="lazy" decoding="async">
+            <figcaption class="mundo-legenda">Rio de Janeiro: o Cristo Redentor no meio da praça, o coreto, a fonte e a orla com quiosques e farol.</figcaption>
+          </figure>
+        </article>
+
+        <article class="andar" data-andar="T">
+          <p class="placa-andar placa-terreo"><span>T</span>No bolso</p>
+          <div class="andar-texto">
+            <h3>Cabe no bolso, até dobrado.</h3>
+            <p>Instale como aplicativo. Aberto, o escritório inteiro cabe na tela. Fechado, o aviso chega na telinha de fora quando um agente pede você, e um toque leva até ele. O modo TV deixa o escritório rodando num monitor da parede.</p>
+          </div>
+          <figure class="celular-flip"><img src="img/flip6.webp" alt="Um Galaxy Z Flip 6 desenhado em pixel art, aberto, com o escritório do modo demonstração na tela; ao lado, outro fechado, com o aviso 'Hana precisa do seu OK' na tela de fora." width="504" height="762" loading="lazy" decoding="async"><figcaption>O celular é desenhado; a tela é o app de verdade, no modo demonstração.</figcaption></figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="folhinha" class="faixa folhinha" aria-labelledby="titulo-folhinha">
+      <div class="folhinha-cabeca">
+        <h2 id="titulo-folhinha" class="titulo-secao">A firma tem folhinha.</h2>
+        <p>São 13 datas que vêm de fábrica, com enfeites, chapéus e falas próprias. A Páscoa e o Carnaval são calculados todo ano. No Personalizar, dá para desligar qualquer uma e criar até 24 datas da sua empresa, como o aniversário da firma ou a semana do lançamento.</p>
+      </div>
+      <div class="folhinha-grade">
+        <ol class="folhas" aria-label="Datas comemorativas">
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="carnaval" data-nome="Carnaval" data-enfeites="Bandeirinhas, confete, máscaras, serpentina e chapéu de festa." data-falas="Ô abre alas!|Bloco do commit!|Alalaô!">
+            <span class="folha-mes">fev</span><span class="folha-dia">17</span><span class="folha-nome">Carnaval</span><span class="folha-movel">muda todo ano</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="chines" data-nome="Ano Novo Chinês" data-enfeites="Lanternas vermelhas, fogos e pisca-pisca." data-falas="Ano novo lunar, código novo|Envelope vermelho?">
+            <span class="folha-mes">fev</span><span class="folha-dia">17</span><span class="folha-nome">Ano Novo Chinês</span><span class="folha-movel">muda todo ano</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="pascoa" data-nome="Páscoa" data-enfeites="Ovos escondidos, coelho, bandeirinhas e orelhas de coelho na turma." data-falas="Feliz Páscoa!|Achei um ovo escondido!|Chocolate liberado">
+            <span class="folha-mes">abr</span><span class="folha-dia">5</span><span class="folha-nome">Páscoa</span><span class="folha-movel">muda todo ano</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="trabalho" data-nome="Dia do Trabalho" data-enfeites="Bandeirinhas vermelhas e brancas." data-falas="Feriado! Até os agentes descansam|Dia do trabalho… e a gente trabalhando">
+            <span class="folha-mes">mai</span><span class="folha-dia">1</span><span class="folha-nome">Dia do Trabalho</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="namorados" data-nome="Dia dos Namorados" data-enfeites="Corações e pisca-pisca." data-falas="Amor é código sem bug|Quem vai jantar fora?">
+            <span class="folha-mes">jun</span><span class="folha-dia">12</span><span class="folha-nome">Dia dos Namorados</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="junina" data-nome="Festa Junina" data-enfeites="Bandeirinhas, fogueira e chapéu de palha em todo mundo, de junho até 10 de julho." data-falas="Arraiá da firma!|Olha a cobra! É mentira!|Pamonha ou curau?">
+            <span class="folha-mes">jun</span><span class="folha-dia">24</span><span class="folha-nome">Festa Junina</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="independencia" data-nome="Independência" data-enfeites="Bandeirinhas verde e amarelas." data-falas="Viva o Brasil!|Feriadão!">
+            <span class="folha-mes">set</span><span class="folha-dia">7</span><span class="folha-nome">Independência</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="programador" data-nome="Dia do Programador" data-enfeites="Pisca-pisca, confete e chapéu de festa no 256º dia do ano." data-falas="Feliz dia 256!|0x100 dias no ano|Hoje o deploy é por conta da casa">
+            <span class="folha-mes">set</span><span class="folha-dia">13</span><span class="folha-nome">Dia do Programador</span><span class="folha-movel">muda todo ano</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="criancas" data-nome="Dia das Crianças" data-enfeites="Balões, confete e chapéu de festa." data-falas="Bora jogar videogame!|Hoje pode doce">
+            <span class="folha-mes">out</span><span class="folha-dia">12</span><span class="folha-nome">Dia das Crianças</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="halloween" data-nome="Halloween" data-enfeites="Abóboras, morcegos, pisca-pisca e chapéu de bruxa." data-falas="Gostosuras ou travessuras?|Esse bug é assombrado|Buuu!">
+            <span class="folha-mes">out</span><span class="folha-dia">31</span><span class="folha-nome">Halloween</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="diwali" data-nome="Diwali" data-enfeites="Lamparinas, pisca-pisca e fogos." data-falas="Feliz Diwali!|Festival das luzes!">
+            <span class="folha-mes">nov</span><span class="folha-dia">8</span><span class="folha-nome">Diwali</span><span class="folha-movel">muda todo ano</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="true" data-festa="natal" data-nome="Natal" data-enfeites="Pisca-pisca, árvore, presentes, guirlanda e gorro de Papai Noel, de 1º a 29 de dezembro." data-falas="Ho ho ho!|Quem tirou quem no amigo secreto?|Panetone com ou sem fruta?">
+            <span class="folha-mes">dez</span><span class="folha-dia">25</span><span class="folha-nome">Natal</span>
+          </button></li>
+          <li><button type="button" class="folha" aria-pressed="false" data-festa="anonovo" data-nome="Ano Novo" data-enfeites="Champanhe, confete, fogos e chapéu de festa, de 30 de dezembro a 2 de janeiro." data-falas="Metas pro ano: deploy sem bug|5… 4… 3… 2… 1…">
+            <span class="folha-mes">dez</span><span class="folha-dia">31</span><span class="folha-nome">Ano Novo</span>
+          </button></li>
+          <li><span class="folha folha-sua"><span class="folha-mes">?</span><span class="folha-dia">+24</span><span class="folha-nome">As datas da sua firma</span></span></li>
+        </ol>
+        <figure class="janela janela-festa">
+          <img class="festa-img" src="img/tempo/festa-natal.webp?v=2" alt="O escritório inteiro enfeitado de Natal, gravado do modo demonstração." width="944" height="448" loading="lazy" decoding="async">
+          <p class="festa-fala" aria-live="polite">Ho ho ho!</p>
+          <figcaption class="festa-legenda"><strong>Natal.</strong> Pisca-pisca, árvore, presentes, guirlanda e gorro de Papai Noel, de 1º a 29 de dezembro.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tudo" class="faixa tudo" aria-labelledby="titulo-tudo">
+      <div class="tudo-cabeca">
+        <h2 id="titulo-tudo" class="titulo-secao">O que tem no prédio.</h2>
+        <p>A Firmópolis é um prédio em pixel art que mostra, ao vivo, o que o seu time de agentes de IA está fazendo. Ela lê o agentes.chat e, pela ponte local, também os terminais da sua máquina. Ela roda no seu servidor, não chama modelo nenhum e tem o código aberto. O quadro abaixo é o mesmo da recepção.</p>
+      </div>
+      <div class="quadro">
+        <p class="quadro-topo">Firmópolis · quadro de andares</p>
+        <div class="quadro-grade">
+        <div class="quadro-coluna">
+          <h3>No mapa</h3>
+          <ul>
+            <li><strong>Prédio montado pelo time</strong><span>Recepção com o seu logo, uma sala por time que cresce com o número de agentes, corredor, sala de reunião, sala comunal e cozinha.</span></li>
+            <li><strong>Mapa vivo</strong><span>Com tarefa, o agente vai para a mesa e digita. Livre, joga fliperama, sinuca, pebolim, xadrez ou dardos, toca violão e toma café. Chega de manhã e vai embora à noite.</span></li>
+            <li><strong>21 poses e 45 sons</strong><span>Jogos em dupla com torcida, &quot;toca aqui&quot;, robô aspirador à noite e sons sintetizados no navegador, cada categoria com o seu volume.</span></li>
+            <li><strong>Objetos clicáveis</strong><span>A TV de 5 canais, os fliperamas, a jukebox, a cafeteira, o aquário, o gato, a lousa de código e o sino das vendas, entre outros.</span></li>
+            <li><strong>Rádio da firma</strong><span>Três estações compostas na hora pelo navegador, sem arquivo de áudio, e uma rádio da internet se a empresa quiser.</span></li>
+            <li><strong>Zeladoria</strong><span>Banheiro que suja e interdita, faxineira, zelador para o que quebra e porteiro na entrada.</span></li>
+            <li><strong>Câmera</strong><span>Zoom pela roda ou pela pinça, duplo clique para focar uma sala e &quot;Ir para…&quot; um agente com Ctrl+K.</span></li>
+          </ul>
+        </div>
+        <div class="quadro-coluna">
+          <h3>Com o time</h3>
+          <ul>
+            <li><strong>Esperando você</strong><span>Um &quot;!&quot; ou &quot;?&quot; em cima de quem pede aprovação ou resposta, e uma lista com há quanto tempo cada um espera.</span></li>
+            <li><strong>Conversas</strong><span>A lista do dia das conversas dos agentes, desligada por padrão. Responder pelo mapa também é opcional.</span></li>
+            <li><strong>Equipe</strong><span>Contas por convite, chat geral, salas e DM com menções e anexos, mural, status e reuniões com agenda.</span></li>
+            <li><strong>Visitas</strong><span>Quem da equipe está com o escritório aberto aparece no mapa, e um link de 1 hora traz alguém de fora para a sala de reunião.</span></li>
+            <li><strong>Terminais da sua máquina</strong><span>Pela ponte local, ou de outra máquina pelo espelho, sem túnel. O Maestri ganha uma sala por workspace.</span></li>
+            <li><strong>Jornal da semana</strong><span>Manchete, notas e os números de cada agente nesta semana e na passada.</span></li>
+          </ul>
+        </div>
+        <div class="quadro-coluna">
+          <h3>Para mostrar</h3>
+          <ul>
+            <li><strong>Modo TV</strong><span>Tela cheia e um diretor de câmera que corre para os pedidos, as brigas e as greves, com uma faixa de notícias.</span></li>
+            <li><strong>Modo apresentação</strong><span>Troca os nomes por &quot;Agente 1&quot; e &quot;Pessoa 2&quot; e esconde o que é sensível na hora de mostrar a tela.</span></li>
+            <li><strong>Time-lapse e foto</strong><span>O dia inteiro do escritório num vídeo de uns 30 segundos, ou um PNG sem a interface.</span></li>
+            <li><strong>Mundo</strong><span>Uma página pública que desce do globo ao Brasil, à cidade e à porta da recepção, com o tempo real de 28 cidades.</span></li>
+            <li><strong>Demonstração e simulação</strong><span>Com ?demo=1 entram agentes fictícios e um dia acelerado. A simulação mostra outra data, hora ou clima sem salvar nada.</span></li>
+          </ul>
+        </div>
+        <div class="quadro-coluna">
+          <h3>Do seu jeito</h3>
+          <ul>
+            <li><strong>Personalizar</strong><span>Nome, cor, logo, cidade do clima, datas comemorativas, times e a aparência de cada agente.</span></li>
+            <li><strong>Modo construção</strong><span>Pinte as salas, arraste e espelhe os móveis e ponha enfeites, com desfazer. A planta salva vale para todos.</span></li>
+            <li><strong>Times automáticos</strong><span>Pelo setor, pelo nome ou pelo papel de cada agente, com prévia antes de salvar.</span></li>
+            <li><strong>Andares por cidade</strong><span>Cada workspace vira um andar, cada andar com a cidade, o tempo e a hora dele, e o térreo é um saguão comum.</span></li>
+            <li><strong>Vida social e modo sério</strong><span>Amizades, briga no ringue com placar, fofoca e greve. Um interruptor pausa tudo isso para apresentar.</span></li>
+            <li><strong>App e aviso no celular</strong><span>Instale na tela de início e receba um aviso quando um agente pedir você.</span></li>
+          </ul>
+        </div>
+        </div>
+        <div class="quadro-obra">
+          <h3>Em obra</h3>
+          <p><strong>As rotinas do Escritório Vivo</strong>, reescritas aqui, e <strong>o tour em vídeo</strong> da nova Firmópolis.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TODO(content): trocar a estática pelo vídeo de lançamento da nova Firmópolis quando ele existir. -->
+    <section id="tv" class="tv-sala" aria-labelledby="titulo-tv">
+      <div class="faixa tv-grade">
+        <div class="tv" data-tv>
+          <span class="tv-antena" aria-hidden="true"></span>
+          <div class="tv-tela">
+            <canvas class="tv-chiado" aria-hidden="true"></canvas>
+            <p class="tv-texto"><span>Canal 6</span>Em breve</p>
+          </div>
+          <span class="tv-botoes" aria-hidden="true"><i></i><i></i></span>
+        </div>
+        <div class="tv-legenda">
+          <h2 id="titulo-tv" class="titulo-secao">O tour completo vai passar aqui.</h2>
+          <p>Quando a nova Firmópolis estiver montada, com a ponte local e o mascote, esta TV mostra o prédio inteiro funcionando, narrado em português.</p>
+          <a class="botao botao-vazado" href="https://github.com/HelbertMoura/escritorio-agentes/releases" rel="noopener">Acompanhar as versões</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="mural" class="faixa mural" aria-labelledby="titulo-mural">
+      <h2 id="titulo-mural" class="titulo-secao">Regras da firma, pregadas no mural.</h2>
+      <ul class="avisos">
+        <li class="aviso aviso-amarelo"><h3>Zero token</h3><p>Nenhum modelo de IA é chamado para o escritório existir. Ele só lê o estado do time e desenha.</p></li>
+        <li class="aviso aviso-rosa"><h3>Só leitura</h3><p>Por padrão, o escritório olha e não mexe. Responder pelo mapa é opcional e começa desligado.</p></li>
+        <li class="aviso aviso-azul"><h3>Na sua máquina</h3><p>Roda no seu servidor, fechado na sua rede privada. Os dados do time não passam por nós.</p></li>
+        <li class="aviso aviso-verde"><h3>Código aberto</h3><p>AGPL-3.0, Python só com a biblioteca padrão e JavaScript puro. Sem build e sem caixa-preta.</p></li>
+      </ul>
+    </section>
+
+    <section id="instalar" class="instalar" aria-labelledby="titulo-instalar">
+      <div class="faixa instalar-grade">
+        <div>
+          <h2 id="titulo-instalar" class="titulo-secao">Dois comandos e a firma abre.</h2>
+          <p>Você precisa de um Linux com systemd, Python 3.10 ou mais novo e o Tailscale com HTTPS ligado. No fim, o instalador mostra o código do primeiro acesso.</p>
+          <p>Prefere contêiner? Também tem Docker e Coolify.</p>
+          <a class="botao botao-vazado" href="https://github.com/HelbertMoura/escritorio-agentes#instalar" rel="noopener">Guia completo de instalação</a>
+        </div>
+        <div class="terminal" role="group" aria-label="Comandos de instalação">
+          <div class="terminal-barra" aria-hidden="true"><i></i><i></i><i></i><span>terminal</span></div>
+          <pre><code><span class="cmt"># baixe o código</span>
+git clone https://github.com/HelbertMoura/escritorio-agentes
+cd escritorio-agentes
+
+<span class="cmt"># instale com o id da sua organização</span>
+sudo AGENTES_ORG=<span class="var">&lt;id&gt;</span> bash instalar.sh</code></pre>
+          <button class="copiar" type="button" data-copiar="git clone https://github.com/HelbertMoura/escritorio-agentes && cd escritorio-agentes && sudo AGENTES_ORG=<id> bash instalar.sh">Copiar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="perguntas" class="faixa perguntas" aria-labelledby="titulo-perguntas">
+      <h2 id="titulo-perguntas" class="titulo-secao">Perguntas de corredor.</h2>
+      <details>
+        <summary>A Firmópolis gasta tokens de IA?</summary>
+        <p>Não. Ela só lê o estado dos agentes a cada 30 segundos e desenha o escritório. Nenhum modelo de IA é chamado para o escritório existir.</p>
+      </details>
+      <details>
+        <summary>Quanto custa?</summary>
+        <p>Nada. O código é aberto, sob a licença AGPL-3.0, e roda na sua própria máquina.</p>
+      </details>
+      <details>
+        <summary>Com quais agentes ela funciona?</summary>
+        <p>Com os agentes do agentes.chat e, pela ponte local, com os terminais da sua máquina: Maestri, Claude Code, Codex, agy, OpenCode e MiniMax.</p>
+      </details>
+      <details>
+        <summary>Meus dados saem da minha máquina?</summary>
+        <p>Não passam por nós. O escritório roda no seu servidor, fica fechado na sua rede privada (Tailscale) e é só leitura por padrão. Ele conversa com o agentes.chat, consulta o clima e, se você ligar os avisos no celular, usa o serviço de notificação do navegador.</p>
+      </details>
+      <details>
+        <summary>Vocês fazem parte do agentes.chat ou do Maestri?</summary>
+        <p>Não. A Firmópolis é um projeto independente da Dev Maniac's. Usamos os dois todos os dias, admiramos o trabalho dos dois times e fizemos o escritório para conversar com eles pelos caminhos oficiais.</p>
+      </details>
+      <details>
+        <summary>Era o Escritório de agentes?</summary>
+        <p>Era. O Escritório de agentes e o Escritório Vivo viraram um projeto só, com nome novo e mascote novo. O código continua no mesmo repositório.</p>
+      </details>
+    </section>
+  </main>
+
+  <section class="faixa obrigado" aria-labelledby="titulo-obrigado">
+    <h2 id="titulo-obrigado" class="titulo-secao">Obrigado, agentes.chat e Maestri.</h2>
+    <p>A Firmópolis é um projeto independente e de código aberto da Dev Maniac's. <strong>Não fazemos parte do time do agentes.chat nem do time do Maestri</strong>, e nada aqui é oficial de nenhum dos dois. A gente usa as duas ferramentas todo dia, respeita e apoia os dois projetos, e este escritório existe porque eles são incríveis. Valeu, pessoal.</p>
+    <ul class="parceiros">
+      <li><a class="parceiro" href="https://agentes.chat" rel="noopener"><img src="img/parceiro-agentes.svg" alt="" width="64" height="64"><span><strong>agentes.chat</strong>o chat de equipe onde agentes de IA trabalham com o seu time</span></a></li>
+      <li><a class="parceiro" href="https://www.themaestri.app/pt-br" rel="noopener"><img src="img/parceiro-maestri.webp" alt="" width="64" height="64"><span><strong>Maestri</strong>o canvas infinito para orquestrar agentes de IA</span></a></li>
+    </ul>
+    <p class="obrigado-nota">As marcas e os logos do agentes.chat e do Maestri pertencem aos seus donos e aparecem aqui só para agradecer e apontar para eles.</p>
+  </section>
+
+  <footer class="rodape">
+    <section class="familia faixa" aria-labelledby="titulo-familia">
+      <h2 id="titulo-familia" class="titulo-secao">Da mesma família.</h2>
+      <p class="familia-sub">Outros projetos da Dev Maniac's, feitos com o mesmo carinho, cada um com a arte oficial dele. Escolha um cartucho.</p>
+      <ul class="cartuchos">
+        <li>
+          <a class="cartucho cartucho-eco" href="https://eco.devmaniacs.com.br" target="_blank" rel="noopener">
+            <span class="cartucho-rotulo"><img src="img/eco-universo.webp?v=2" alt="" width="480" height="480" loading="lazy" decoding="async"></span>
+            <span class="cartucho-nome">Universo ECO</span>
+            <span class="cartucho-desc">Histórias, criatividade e tecnologia para crianças e famílias.</span>
+            <span class="sr"> (abre em nova aba)</span>
+          </a>
+        </li>
+        <li>
+          <a class="cartucho cartucho-passo" href="https://passoapasso.devmaniacs.com.br" target="_blank" rel="noopener">
+            <span class="cartucho-rotulo"><img src="img/eco-passo.webp" alt="" width="480" height="355" loading="lazy" decoding="async"></span>
+            <span class="cartucho-nome">ECO Passo a Passo</span>
+            <span class="cartucho-desc">Rotinas para pessoas neurodivergentes, em passos pequenos e sem culpa.</span>
+            <span class="sr"> (abre em nova aba)</span>
+          </a>
+        </li>
+        <li>
+          <a class="cartucho cartucho-purple" href="https://purpleribbon.devmaniacs.com.br" target="_blank" rel="noopener">
+            <span class="cartucho-rotulo"><img src="img/purple-ribbon.webp" alt="" width="480" height="480" loading="lazy" decoding="async"></span>
+            <span class="cartucho-nome">Purple Ribbon</span>
+            <span class="cartucho-desc">Um lugar quieto para as madrugadas de quem vive com dor crônica.</span>
+            <span class="sr"> (abre em nova aba)</span>
+          </a>
+        </li>
+        <li>
+          <a class="cartucho cartucho-jogo" href="https://eco.devmaniacs.com.br/jogo/" target="_blank" rel="noopener">
+            <span class="cartucho-rotulo"><img src="img/eco-espectro.webp" alt="" width="600" height="300" loading="lazy" decoding="async"></span>
+            <span class="cartucho-nome">Eco do Espectro</span>
+            <span class="cartucho-desc">O jogo do ECO, sobre empatia e os jeitos de perceber o mundo.</span>
+            <span class="sr"> (abre em nova aba)</span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <div class="rodape-cena">
+      <canvas class="rua-noite" aria-hidden="true"></canvas>
+      <button class="chamar-elevador" type="button" aria-label="Voltar ao topo"><span aria-hidden="true">▲</span></button>
+    </div>
+    <div class="rodape-chao">
+      <div class="faixa rodape-base">
+        <div class="rodape-marca">
+          <a class="marca" href="./"><img src="img/favicon.svg" alt="" width="32" height="32"><span>Firmópolis</span></a>
+          <p>O escritório vivo dos seus agentes. Um projeto aberto da <a href="https://devmaniacs.com.br" rel="noopener">Dev Maniac's</a>.</p>
+        </div>
+        <nav class="rodape-col" aria-labelledby="rodape-projeto">
+          <h2 id="rodape-projeto" class="rodape-titulo">O projeto</h2>
+          <ul>
+            <li><a href="https://github.com/HelbertMoura/escritorio-agentes" rel="noopener">Código no GitHub</a></li>
+            <li><a href="novidades.html">Novidades</a></li>
+            <li><a href="https://github.com/HelbertMoura/escritorio-agentes/blob/main/LICENSE" rel="noopener">Licença AGPL-3.0</a></li>
+            <li><a href="https://github.com/HelbertMoura/escritorio-agentes/blob/main/SECURITY.md" rel="noopener">Segurança</a></li>
+          </ul>
+        </nav>
+        <nav class="rodape-col" aria-labelledby="rodape-contato">
+          <h2 id="rodape-contato" class="rodape-titulo">Fale com a gente</h2>
+          <ul>
+            <li><a href="mailto:contato@devmaniacs.com.br">contato@devmaniacs.com.br</a></li>
+            <li><a href="https://github.com/HelbertMoura/escritorio-agentes/issues" rel="noopener">Abrir uma issue</a></li>
+            <li><a href="https://agentes.chat" rel="noopener">agentes.chat</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="faixa rodape-fim">
+        <p>© <span data-ano>2026</span> Dev Maniac's. Arte do escritório gerada no PixelLab. Fontes Pixeloid Sans e Figtree, sob a OFL.</p>
+        <p class="rodape-tchau">até amanhã, firma.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="abertura.js?v=3"></script>
+  <script src="avatar.js?v=4"></script>
+  <script src="sprites.js?v=8"></script>
+  <script src="site.js?v=7"></script>
+</body>
+</html>

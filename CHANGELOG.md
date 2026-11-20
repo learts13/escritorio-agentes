@@ -4,6 +4,52 @@
 
 All notable changes to this project are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Since 1.1.0, versions follow [SemVer](https://semver.org/); older entries are dated milestones.
 
+## 2.1.0 · 2026-11-20 · The firm comes alive
+
+Release [`v2.1.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2.1.0). Commits: [`v2.0.0...v2.1.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v2.0.0...v2.1.0).
+
+### Added
+- **Office radio:** a radio on the wall of the Sala comunal (or the radio button on the camera bar) opens its controls: on/off, station and volume. Rádio Firmópolis is composed on the fly by the browser, with no audio files and no copyright, in three stations: Lo-fi da firma, Chiptune do fliperama and Jazz da cafeteria. Everyone turns on their own radio, with a click; TV mode and presentation mode play nothing. While it plays, free agents nearby dance now and then. In **Personalizar**, the admin can also add an internet radio (`https` only); the rights to play it belong to whoever configures it. See [Office radio](./README.md#office-radio).
+- **Building staff:** the bathroom gets dirtier with every use; when dirty it gets flies, stink and an "eww" bubble, and above 90 it is closed, with the queue waiting or giving up. The cleaner cleans the bathroom and the kitchen's cups and crumbs, the handyman fixes the coffee machine and the hallway light when they break, and the doorman (at night, the watchman with a flashlight) looks after the entrance and greets whoever arrives. Click a staff member to see what they are doing. Browser only. See [Building staff](./README.md#building-staff).
+- **Offices by city:** each extra floor can sit in its own city, with that city's weather and local time: sky, day and night, rain, office hours, the ring and overtime follow the floor's time zone. Whoever runs the floor picks it in **Personalizar › Clima deste andar**; without its own city, the building's applies. The elevator shows each floor's city, only to people with access to that floor; the lobby, visitors and World still only show the building's city. See [Floors](./README.md#floors-several-workspaces-in-one-building).
+- **Bridge mirror:** the terminals of another machine (a VM, for example) show up on the map from any browser, with no tunnel. The building admin generates the key in **Personalizar › Ponte local**, and a single command on the terminals' machine, `ponte conectar <address>`, tests the key, installs the hooks, turns the mirror on and, on Linux with `--servico`, creates the service. It is off by default. See [Mirror](./README.md#mirror-the-terminals-of-another-machine-with-no-tunnel).
+- **Automatic Maestri rooms:** with the bridge on, each Maestri workspace in use gets a room in the building on its own, named after the workspace ("Purple Ribbon", not the band, like "Banda #2"), with a color and icon, and its terminals work there. One room per workspace, only on this screen (never on the server or in construction mode); a new workspace gets its room within 1 minute, and one left without terminals loses it after 5.
+- **What's new page on the site:** [firmopolis.devmaniacs.com.br/novidades.html](https://firmopolis.devmaniacs.com.br/novidades.html) shows this changelog, built from the same file the app reads.
+
+### Changed
+- **Montar os times automaticamente** (build the teams automatically) replaces "Puxar os setores do agentes.chat", which no longer did anything: in **Personalizar › Times e aparência**, each agent gets the team from the first source that gives one: a pasted list (`handle, team`), the agentes.chat department, what comes after " · ", " - " or " | " in the name ("Gandalf · Maestro") or the role. A preview shows the teams and who was left without one, and lets you rename, remove an agent and merge two teams before saving; past 12, the smallest go to "Outros" (others). The preview can also turn the automatic Maestri rooms into real teams. Nothing applies before **Salvar times** (save teams).
+- **The site's identity across the whole app:** the sign-in screen, first access, invitation, visit page, World and the app itself use the brand of [firmopolis.devmaniacs.com.br](https://firmopolis.devmaniacs.com.br): Figtree for text, Pixeloid for headings, the night, graphite, cream, amber and indigo palette, and bevelled buttons. The outside screens got the night sky with the office's lit window, with a little terminal and people in the scene. The map and the pixel art did not change. The Source Sans 3 and Doto fonts are gone; Pixeloid Sans (OFL) is in `static/fontes/`.
+- **New footer:** the sign-in screen and the app carry the Firmópolis brand and the "Código aberto · AGPL" badge, and the text says Firmópolis is made for anyone who works with AI agents, not only on agentes.chat.
+
+### Fixed
+- **Missing bathroom door:** when the top corridor wall is full of team doors and plates, the WC door moves to the end of the corridor instead of disappearing.
+- **agentes.chat reads refused:** agentes.chat's Cloudflare started blocking Python's default client. The office now introduces itself with its own User-Agent (`Firmopolis/<version>`), and reads go through again.
+
+### Security
+- **Mirror:** the bridge only sends over `https`, does not follow redirects and never sends the activity target (file or command). The key never goes on the command line (`ponte conectar` asks for it), lives in files only the owner can read and never goes to the log. The server checks every upload against the app's limits and rejects unexpected types.
+- **Internet radio:** the server only accepts `https`, one host, no user or password and no IP or numeric host, and the page's CSP only allows that host in `media-src`.
+
+## 2.0.0 · 2026-11-20 · Firmópolis
+
+Release [`v2.0.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v2.0.0). Commits: [`v1.6.0...v2.0.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.6.0...v2.0.0).
+
+### Added
+- **New name: Firmópolis.** Escritório de agentes merged with Escritório Vivo. The tab, the installable app, the invitation and construction mode carry the new name and icons, and a short opening plays once per session (skippable, and not in TV mode).
+- **Local bridge:** the Go bridge from Escritório Vivo now lives in `ponte/`. The browser reads it directly on `127.0.0.1`, and the terminals on this computer (Claude Code, Codex, agy, OpenCode, MiniMax and Maestri) show up on the map as little terminals without going through the server. See [Local bridge](./README.md#local-bridge-the-terminals-on-this-computer).
+- **Three species on the map:** felt critters are the agentes.chat agents, little terminals are the local terminals, and people are you and your visitors.
+- **Coffee and chats for terminals:** when free, the little terminals go to the coffee machine or chat in the hallway, driven by needs that drop while they work.
+- **People picker:** in the profile and the invitation, you choose the shirt, hair and skin you show on the map with.
+- **Terminal life:** besides coffee and chats, the little terminals play alone or in pairs, eat, nap and go to the bathroom, each driven by whichever need is lowest. They stay in their team's room (by Maestri band), the Maestro goes to the meeting room wearing a crown, and terminals that meet gain affinity.
+- **Bathroom with a queue:** a WC door at the end of the hallway, with a queue that moves. Whoever is really desperate cuts the line and loses affinity with everyone they skipped.
+- **Terminal card:** clicking a little terminal shows its program, state, team, how long it has been open, its needs, its closest affinities and its day.
+- **Terminals in the counters:** the widgets and the panel count the bridge terminals together with the agents: working, waiting for you and free.
+- **The building from the front:** below the map, the facade with a door, windows, wall lamps that light up at night and planters, in new PixelLab art.
+- **The new Neighborhood:** the street view on the World page was redrawn with new PixelLab art (cottages, trees, lamp posts, a bench, cars and people), by day and by night.
+
+### Changed
+- **Bridge integrations:** the hook marker changed from `escritorio-vivo` to `firmopolis`. `ponte setup --aplicar` migrates Escritório Vivo users, keeping config, token and history, and only removes an old plugin after confirming the bridge installed it.
+- **Account avatar:** accepts optional `hair` and `skin`. Saved avatars keep working.
+
 ## 1.6.0 · 2026-11-16 · The team's office
 
 Release [`v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/releases/tag/v1.6.0). Commits: [`v1.5.2...v1.6.0`](https://github.com/HelbertMoura/escritorio-agentes/compare/v1.5.2...v1.6.0).

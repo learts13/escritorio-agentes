@@ -1,5 +1,6 @@
 // Personalizar > Clima e Datas comemorativas. O clima salva na hora, a cada escolha (POST /api/clima), e o céu muda
-// sem recarregar; a busca de cidade passa pelo servidor (GET /api/clima/busca), que fala com o Open-Meteo. As datas
+// sem recarregar; num andar extra, a mesma seção escolhe a cidade do andar (POST /api/clima/andar, com o fuso dela) ou
+// volta a herdar a do prédio; a busca de cidade passa pelo servidor (GET /api/clima/busca), que fala com o Open-Meteo. As datas
 // juntam as mudanças e salvam de uma vez (POST /api/festas) com a revisão (rev) que veio no /api/config: se outra aba
 // salvou antes, o 409 pede para recarregar; deu certo, a página recarrega para o mapa usar as datas novas.
 // Texto que vem do servidor ou da busca vai para a tela só por textContent.
@@ -9,7 +10,8 @@ const Ajustes = (() => {
   const CHAPEUS = { noel: "gorro de Papai Noel", festa: "chapéu de festa", palha: "chapéu de palha", bruxa: "chapéu de bruxa", coelho: "orelhas de coelho" };
   const MAX_ANDARES = 6, MAX_DATAS = 24, PENDENTE = "Há mudanças que ainda não valem: clique em Salvar datas.";
   let cfg = null;
-  let clima = null, origemClima = "nenhum";   // o que vale agora e de onde vem ("tela", "arquivo" ou "nenhum")
+  let clima = null, origemClima = "nenhum";   // o que vale agora e de onde vem ("tela", "arquivo", "nenhum" ou "andar")
+  let modoAndar = false;                       // num andar extra: a cidade é a do andar (a própria ou a herdada do prédio)
   let climaArquivo = true;                     // o times.json tem cidade? (ajustes.clima_arquivo; sem o campo, supõe que sim)
   let salvo = null, edicao = null;             // datas: { rev, proprias, desligadas } do servidor e a cópia em edição
   let editando = -1;                           // índice da data aberta no formulário (-1: nova)
@@ -40,19 +42,23 @@ const Ajustes = (() => {
     // o tempo de agora é o do estado (clima.js); só vale se já for da cidade escolhida (o servidor zera ao trocar)
     const agora = clima && window.Clima ? Clima.texto() : "";
     $("clima-tempo").textContent = !clima ? "—" : agora.endsWith(` · ${clima.cidade}`) ? agora.slice(0, -(clima.cidade.length + 3)) : "Ainda sem resposta do Open-Meteo";
-    const ORIGENS = { tela: "Escolhida nesta tela.", arquivo: "Vem do times.json do servidor." };
-    $("clima-origem").textContent = Object.hasOwn(ORIGENS, origemClima) ? ORIGENS[origemClima] : "";
-    $("clima-arquivo").hidden = origemClima !== "tela" || !climaArquivo;
-    $("clima-sem").hidden = !clima;
+    const ORIGENS = { tela: "Escolhida nesta tela.", arquivo: "Vem do times.json do servidor.", andar: "Escolhida para este andar." };
+    $("clima-origem").textContent = modoAndar && origemClima !== "andar" ? "Herdada do prédio." : Object.hasOwn(ORIGENS, origemClima) ? ORIGENS[origemClima] : "";
+    $("t-clima").textContent = modoAndar ? "Clima deste andar" : "Clima";
+    $("clima-andar-ajuda").hidden = !modoAndar;
+    $("clima-arquivo").textContent = modoAndar ? "Usar a cidade do prédio" : "Voltar ao times.json";
+    $("clima-arquivo").hidden = modoAndar ? origemClima !== "andar" : origemClima !== "tela" || !climaArquivo;
+    $("clima-sem").hidden = modoAndar || !clima;
   }
   async function salvarClima(corpo, feito) {
     const botoes = [...document.querySelectorAll("#a-clima button")];
     botoes.forEach(b => { b.disabled = true; });
     aviso("clima-aviso", "Salvando…");
     try {
-      const d = await pedir("api/clima", corpo, true);
+      const d = await (modoAndar ? pedir("api/clima/andar", corpo) : pedir("api/clima", corpo, true));
       clima = climaOk(d.clima) ? d.clima : null; origemClima = typeof d.origem === "string" ? d.origem : clima ? "tela" : "nenhum";
-      cfg.clima = clima;
+      cfg.clima = clima; cfg.ajustes = { ...(cfg.ajustes || {}), clima: origemClima };
+      if (window.Ceu) Ceu.definirFuso(clima && clima.fuso);   // a hora do mapa muda junto com a cidade
       mostrarClima(); aviso("clima-aviso", feito(clima), "ok");
     } catch (e) { aviso("clima-aviso", `Não salvou: ${e.message}`, "ruim"); }
     finally {
@@ -65,14 +71,15 @@ const Ajustes = (() => {
 
   // busca de cidade (aqui e no assistente): espera 400 ms de pausa na digitação e faz uma de cada vez (a última
   // digitada roda quando a anterior volta). "Usar esta" chama usar(resultado).
-  function ligarBusca(q, lista, status, usar) {
+  // doPredio(): a busca vai sem o andar (a do prédio e o assistente) ou com ele (a cidade de um andar extra)
+  function ligarBusca(q, lista, status, usar, doPredio = () => true) {
     let pausa = 0, buscando = false, pendente = null;
     async function buscar(texto) {
       if (buscando) { pendente = texto; return; }
       if (texto.length < 2) { lista.replaceChildren(); status.textContent = texto ? "Digite pelo menos 2 letras." : ""; return; }
       buscando = true; status.textContent = "Buscando…";
       try {
-        const d = await pedir(`api/clima/busca?q=${encodeURIComponent(texto)}`, undefined, true);
+        const d = await pedir(`api/clima/busca?q=${encodeURIComponent(texto)}`, undefined, doPredio());
         if (pendente === null) mostrar(Array.isArray(d.resultados) ? d.resultados : []);
       } catch (e) { if (pendente === null) { lista.replaceChildren(); status.textContent = e.message; } }
       finally {
@@ -96,20 +103,28 @@ const Ajustes = (() => {
     q.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); clearTimeout(pausa); buscar(q.value.trim()); } });
     return () => { clearTimeout(pausa); q.value = ""; lista.replaceChildren(); status.textContent = ""; };   // limpa a busca
   }
-  // "Usar esta" do assistente: grava a cidade pelo /api/clima e devolve o clima que passou a valer
+  // o config é de um andar extra? (a cidade, então, é a do andar)
+  const andarExtra = c => !!c && Andar.valido(c.andar) && c.andar !== Andar.PRINCIPAL;
+  // a cidade escolhida: a do andar leva também o fuso (a hora local do mapa), quando o geocoding manda
+  const escolhida = (r, doAndar) => ({ cidade: r.nome, lat: r.lat, lon: r.lon, ...(doAndar && typeof r.fuso === "string" && r.fuso ? { fuso: r.fuso } : {}) });
+  // "Usar esta" do assistente: grava a cidade (a do prédio, ou a do andar extra) e devolve o clima que passou a valer
   async function usarCidade(r, c) {
-    const d = await pedir("api/clima", { clima: { cidade: r.nome, lat: r.lat, lon: r.lon } }, true);
+    const doAndar = andarExtra(c);
+    const d = await (doAndar ? pedir("api/clima/andar", { clima: escolhida(r, true) }) : pedir("api/clima", { clima: escolhida(r, false) }, true));
     clima = climaOk(d.clima) ? d.clima : null; origemClima = typeof d.origem === "string" ? d.origem : "tela";
     for (const x of new Set([c, cfg])) if (x) { x.clima = clima; x.ajustes = { ...(x.ajustes || {}), clima: origemClima }; }   // o Personalizar abre já com a cidade nova
+    if (window.Ceu) Ceu.definirFuso(clima && clima.fuso);
     if (cfg) mostrarClima();
     return clima;
   }
-  const limparBusca = ligarBusca($("clima-q"), $("clima-lista"), $("clima-status"), r => salvarClima({ clima: { cidade: r.nome, lat: r.lat, lon: r.lon } }, c => {
+  const limparBusca = ligarBusca($("clima-q"), $("clima-lista"), $("clima-status"), r => salvarClima({ clima: escolhida(r, modoAndar) }, c => {
     limparBusca(); $("clima-q").focus();
     return `Pronto: o tempo agora é o de ${c ? c.cidade : r.nome}. O céu muda em até 1 minuto.`;
-  }));
+  }), () => !modoAndar);
   $("clima-sem").addEventListener("click", () => salvarClima({ clima: null }, () => "Pronto: sem clima, o céu fica sempre limpo."));
-  $("clima-arquivo").addEventListener("click", () => salvarClima({ limpar: true }, c => (c ? `Pronto: vale de novo a cidade do times.json (${c.cidade}).` : "Pronto: o times.json não tem cidade, então fica sem clima.")));
+  $("clima-arquivo").addEventListener("click", () => salvarClima({ limpar: true }, c => (modoAndar
+    ? (c ? `Pronto: o andar volta a usar a cidade do prédio (${c.cidade}).` : "Pronto: o andar volta a usar o clima do prédio, que está sem cidade.")
+    : c ? `Pronto: vale de novo a cidade do times.json (${c.cidade}).` : "Pronto: o times.json não tem cidade, então fica sem clima.")));
   setInterval(() => { if (cfg && !$("v-personalizar").hidden) mostrarClima(); }, 10000);   // o tempo chega com o /api/estado
 
   // ---------- datas comemorativas -----------------------------------------------------------
@@ -387,45 +402,111 @@ const Ajustes = (() => {
     mostrarTimes(`eq-t${eq.times.length - 1}-nome`); mostrarAgentes(); estadoEq();
   });
   $("equipe-desfazer").addEventListener("click", () => { eq = copiaEq(eqSalvo); renomeOk = false; mostrarTimes("equipe-novo"); mostrarAgentes(); estadoEq("Mudanças desfeitas."); });
-  // ---------- puxar os setores do agentes.chat ----------------------------------------------
-  // copia para esta tela os setores (nome, cor, ícone) e a aparência de cada agente, da última leitura; nada vale antes do Salvar
+  // ---------- montar os times automaticamente (lógica pura: times_auto.js) ------------------
+  // fontes, na ordem: a lista colada, o setor do agentes.chat, o fim do nome ("Gandalf · Maestro") e o papel. Primeiro a
+  // prévia, que deixa renomear, tirar um agente e juntar dois times; "Usar estes times" põe na tela, e o Salvar times grava.
   const ICONE_SETOR = { shield: "coroa", code: "codigo", pullRequest: "codigo", wallet: "grafico", chart: "grafico", mail: "megafone",
     globe: "megafone", message: "pessoas", person: "pessoas", bolt: "servidor", plug: "servidor", eye: "servidor", flag: "estrela",
     bulb: "estrela", book: "pincel", calendar: "sino" };
-  // o nome do setor no formato dos times (letras, números, espaço e . ' & -, até 40)
-  const nomeDoSetor = n => n.replace(/[^\p{L}\p{N}_ .'&\-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 40).trim();
-  function puxarSetores() {
+  const doSetor = s => ({ cor: Object.hasOwn(Avatar.CORES, s.cor || "") ? Avatar.CORES[s.cor].base : /^#[0-9a-f]{6}$/i.test(s.cor || "") ? s.cor.toLowerCase() : null,
+    icone: Object.hasOwn(ICONE_SETOR, s.icone || "") ? ICONE_SETOR[s.icone] : null });
+  const ORIGEM = { lista: "pela lista", "agentes.chat": "pelo setor do agentes.chat", nome: "pelo nome", papel: "pelo papel", juntado: "os menores juntos", band: "sala do workspace, sem agentes" };
+  const NOME_TIPO = Object.fromEntries(TIPOS), NOME_ICONE = Object.fromEntries(ICONES);
+  let auto = null;   // { times, novos, avisos } da prévia aberta
+  const bandsDaPonte = () => (window.Ponte && typeof window.Ponte.bands === "function" ? window.Ponte.bands() : []);
+  // os times da prévia como vão ficar: os dos agentes e, com a caixa marcada, as salas das bands com terminal vivo agora
+  const timesDaPrevia = () => ($("auto-bands").checked ? TimesAuto.comBands(auto.times, bandsDaPonte()) : { times: auto.times, fora: [] });
+  function montarPrevia() {
     const ag = lidos();
-    if (!ag) { aviso("equipe-aviso", "Esperando a primeira leitura do agentes.chat. Tente de novo em alguns segundos.", "ruim"); return; }
-    if (!ag.some(a => Object.hasOwn(a, "setor"))) {
-      aviso("equipe-aviso", "O seu agentes.chat ainda não manda os setores. Atualize-o para a versão em que o list_agents traz o setor de cada agente.", "ruim");
-      return;
-    }
-    const setores = new Map();   // nome -> {setor, handles}, na ordem dos setores do agentes.chat
-    for (const a of [...ag].filter(x => x.setor && typeof x.handle === "string").sort((x, y) => x.setor.ordem - y.setor.ordem)) {
-      const nome = nomeDoSetor(a.setor.nome) || `Setor ${a.setor.ordem + 1}`, chave = semCaixa(nome);
-      if (!setores.has(chave)) setores.set(chave, { nome, setor: a.setor, handles: [] });
-      setores.get(chave).handles.push(a.handle);
-    }
-    if (!setores.size) { aviso("equipe-aviso", "Nenhum agente está em um setor no agentes.chat. Crie os setores lá e tente de novo.", "ruim"); return; }
-    const antes = new Map(eq.times.map(t => [semCaixa(t.nome), t]));   // time de mesmo nome guarda o tipo, a cor sem setor, a parede e o piso
-    const cabem = [...setores.values()].slice(0, MAX_TIMES);
-    const semVaga = cabem.reduce((n, s) => n + Math.max(0, s.handles.length - MAX_POR_TIME), 0);
-    eq.times = cabem.map(({ nome, setor, handles }, i) => {
-      const t = antes.get(semCaixa(nome));
-      return { nome, tipo: t ? t.tipo : "mesas", cor: setor.cor ? Avatar.CORES[setor.cor].base : t ? t.cor : CORES_TIME[i % CORES_TIME.length],
-        icone: ICONE_SETOR[setor.icone] || "pessoas", parede: t ? t.parede : i % 6, piso: t ? t.piso : i % 10,
-        agentes: handles.slice(0, MAX_POR_TIME), de: t ? t.de : undefined };
-    });
-    let looks = 0;
-    for (const a of ag) if (a.aparencia && typeof a.handle === "string") { eq.aparencia[a.handle] = { ...a.aparencia }; looks++; }
-    renomeOk = false; mostrarTimes(); mostrarAgentes();
-    const fora = (setores.size > MAX_TIMES ? ` Só cabem ${MAX_TIMES} times: os setores depois do ${MAX_TIMES}º ficaram de fora.` : "") +
-      (semVaga ? ` Cada time leva até ${MAX_POR_TIME} agentes: ${semVaga} ${semVaga === 1 ? "ficou" : "ficaram"} de fora, na sala “Novos”.` : "");
-    estadoEq(`${eq.times.length} ${eq.times.length === 1 ? "time copiado" : "times copiados"} dos setores` +
-      (looks ? `, com a aparência de ${looks} ${looks === 1 ? "agente" : "agentes"}` : "") + `. Confira e clique em Salvar times.${fora}`, "ok");
+    if (!ag) { aviso("equipe-aviso", "Esperando a primeira leitura do agentes.chat. Tente de novo em alguns segundos.", "ruim"); return false; }
+    const r = TimesAuto.agrupar(ag, $("auto-lista").value), avisos = [];
+    if (r.juntados.length) avisos.push(`Passou de ${TimesAuto.MAX_TIMES} times: ${r.juntados.join(", ")} ${r.juntados.length === 1 ? "foi" : "foram"} para “${TimesAuto.OUTROS}”.`);
+    if (r.foraDaLeitura.length) avisos.push(`A lista cita ${r.foraDaLeitura.map(h => "@" + h).join(", ")}, fora da última leitura: ficou de fora.`);
+    if (r.errosLista.length) avisos.push(`Linhas da lista sem “handle, time” válido: ${r.errosLista.join(", ")}.`);
+    const f = r.fontes, partes = [[f.lista, "pela lista"], [f["agentes.chat"], "pelo setor do agentes.chat"], [f.nome, "pelo nome"], [f.papel, "pelo papel"]]
+      .filter(([n]) => n).map(([n, t]) => `${n} ${t}`);
+    auto = { times: r.times, novos: r.novos, avisos, fontes: partes };
+    return true;
   }
-  $("equipe-puxar").addEventListener("click", puxarSetores);
+  function mostrarPrevia(focoEm, feito) {   // feito: o que a última edição fez, antes dos avisos
+    const nomes = new Map((lidos() || []).map(a => [a.handle, typeof a.nome === "string" && a.nome ? a.nome : a.handle]));
+    const bands = bandsDaPonte(), { times, fora } = timesDaPrevia();
+    $("auto-bands-rot").hidden = !bands.length;
+    $("auto-bands-txt").textContent = `Criar salas para os workspaces do Maestri em uso agora (${bands.join(", ")})`;
+    const comAgente = auto.times.reduce((n, t) => n + t.agentes.length, 0);
+    $("auto-resumo").textContent = times.length
+      ? `Vou criar ${times.length === 1 ? "este time" : `estes ${times.length} times`} com ${comAgente} ${comAgente === 1 ? "agente" : "agentes"}` +
+        (auto.fontes.length ? ` (${auto.fontes.join(", ")})` : "") + "."
+      : "";
+    const atuais = new Map(eq.times.map(t => [TimesAuto.chave(t.nome), t]));
+    $("auto-times").replaceChildren(...times.map((t, i) => {
+      const li = el("li", "auto-time"), topo = el("div", "auto-topo"), band = t.origem === "band";
+      const antes = atuais.get(TimesAuto.chave(t.nome)), tipo = antes ? antes.tipo : TimesAuto.tipoSugerido(t.nome);
+      const icone = (t.setor && doSetor(t.setor).icone) || TimesAuto.iconeSugerido(t.nome);
+      const nome = el("input"); nome.maxLength = 40; nome.autocomplete = "off"; nome.value = t.nome; nome.disabled = band;
+      nome.addEventListener("change", () => { t.nome = nome.value.trim(); mostrarPrevia(); });
+      topo.append(campo("Nome do time", nome, `auto-t${i}-nome`),
+        el("span", "suave", `${NOME_TIPO[tipo]} · ícone ${NOME_ICONE[icone]} · ${ORIGEM[t.origem] || ""}${antes ? " · já existe" : ""}`));
+      if (!band && auto.times.length > 1) {
+        const jt = el("select");
+        opcoes(jt, [["", "Juntar com…"], ...auto.times.map((o, j) => [String(j), o.nome]).filter(([j]) => +j !== i)], "");
+        jt.addEventListener("change", () => {
+          if (jt.value === "") return;
+          const j = +jt.value, alvo = auto.times[j].nome;
+          auto.times = TimesAuto.juntar(auto.times, i, j); mostrarPrevia(`auto-t${j > i ? j - 1 : j}-nome`, `${t.nome} entrou em ${alvo}.`);
+        });
+        topo.append(campo("Juntar", jt, `auto-t${i}-juntar`));
+      }
+      const pessoas = el("ul", "auto-agentes");
+      pessoas.append(...t.agentes.map(h => {
+        const p = el("li", "auto-agente"), x = el("button", "auto-tirar", "×");
+        x.type = "button"; x.setAttribute("aria-label", `Tirar ${nomes.get(h) || h} de ${t.nome}`);
+        x.addEventListener("click", () => {
+          auto.times = TimesAuto.tirar(auto.times, h); auto.novos.push(h); mostrarPrevia(`auto-t${i}-nome`, `${nomes.get(h) || h} vai para “Novos”.`);
+        });
+        p.append(el("span", null, nomes.get(h) || h), x); return p;
+      }));
+      if (!t.agentes.length) pessoas.append(el("li", "suave", band ? "Os terminais deste workspace vêm para cá." : "Sem agentes: a sala fica vazia."));
+      li.append(topo, pessoas); return li;
+    }));
+    $("auto-novos").textContent = auto.novos.length
+      ? `Sem time (vão para “Novos”): ${auto.novos.map(h => nomes.get(h) || h).join(", ")}.` : "";
+    const avisos = [feito, ...auto.avisos].filter(Boolean);
+    if (fora.length) avisos.push(`Só cabem ${TimesAuto.MAX_TIMES} times: os workspaces ${fora.join(", ")} ficaram sem sala.`);
+    if (!times.length) avisos.push("Nenhuma fonte deu um time: o agentes.chat não mandou setor, os nomes não têm “ · Setor” e os papéis estão vazios ou longos. " +
+      "Renomeie os agentes no agentes.chat com “ · Setor” (por exemplo “Gandalf · Maestro”), cole uma lista “handle, time” aqui embaixo ou atualize o agentes.chat para a versão que manda o setor de cada agente.");
+    aviso("auto-aviso", avisos.join(" "), times.length ? "" : "ruim");
+    if (!times.length) $("auto-lista-det").open = true;
+    $("auto-usar").disabled = !times.length;
+    if (focoEm && $(focoEm)) $(focoEm).focus();
+  }
+  function fecharPrevia(foco) { $("auto-previa").hidden = true; $("equipe-puxar").setAttribute("aria-expanded", "false"); auto = null; if (foco) $("equipe-puxar").focus(); }
+  $("equipe-puxar").addEventListener("click", () => {
+    if (!$("auto-previa").hidden) { fecharPrevia(); return; }
+    if (!montarPrevia()) return;
+    $("auto-previa").hidden = false; $("equipe-puxar").setAttribute("aria-expanded", "true");
+    mostrarPrevia("auto-resumo");
+  });
+  $("auto-reler").addEventListener("click", () => { if (montarPrevia()) mostrarPrevia(); });
+  $("auto-bands").addEventListener("change", () => mostrarPrevia());
+  $("auto-cancelar").addEventListener("click", () => { fecharPrevia(true); estadoEq("Nada mudou."); });
+  $("auto-usar").addEventListener("click", () => {
+    const { times } = timesDaPrevia(), erro = TimesAuto.erroPrevia(times);
+    if (erro) { aviso("auto-aviso", erro, "ruim"); return; }
+    const r = TimesAuto.montar(times, eq.times, doSetor, CORES_TIME);
+    eq.times = r.times;
+    // a aparência do agentes.chat (só o que está nas listas; o que faltar vem do boneco automático)
+    let looks = 0;
+    for (const a of lidos() || []) if (a.aparencia && typeof a.aparencia === "object" && typeof a.handle === "string") {
+      const ap = { ...Avatar.padrao(a.handle), ...a.aparencia };
+      eq.aparencia[a.handle] = { color: ap.color, eyes: ap.eyes, accessory: ap.accessory }; looks++;
+    }
+    fecharPrevia(); renomeOk = false; mostrarTimes(); mostrarAgentes();
+    estadoEq(`${eq.times.length} ${eq.times.length === 1 ? "time montado" : "times montados"}` +
+      (looks ? `, com a aparência de ${looks} ${looks === 1 ? "agente" : "agentes"} do agentes.chat` : "") + ". Confira e clique em Salvar times." +
+      (r.semVaga ? ` Cada time leva até ${TimesAuto.MAX_POR_TIME} agentes: ${r.semVaga} ${r.semVaga === 1 ? "ficou" : "ficaram"} na sala “Novos”.` : ""), "ok");
+    $("equipe-salvar").focus();
+  });
   async function salvarEq(corpo, botao) {
     botao.disabled = true; aviso("equipe-aviso", "Salvando…");
     try {
@@ -467,7 +548,8 @@ const Ajustes = (() => {
   function linhaAndar(a) {
     const li = el("li", "andar-linha"), topo = el("div", "andar-topo"), info = el("div", "andar-info");
     info.append(el("strong", null, a.nome), el("span", "andar-org", a.org || ""),
-      Object.assign(el("span", "andar-conexao", Andar.rotuloConexao(a.conexao)), { title: "Estado da conexão deste andar" }));
+      Object.assign(el("span", "andar-conexao", Andar.rotuloConexao(a.conexao)), { title: "Estado da conexão deste andar" }),
+      Object.assign(el("span", "andar-org", a.cidade ? `Clima: ${a.cidade}` : "Clima do prédio"), { title: "A cidade do clima e da hora deste andar" }));
     const conectar = el("a", "botao secundario", a.conexao === "conectado" ? "Reconectar" : "Conectar");
     conectar.href = `/oauth/conectar?andar=${encodeURIComponent(a.id)}`;
     conectar.setAttribute("aria-label", `${conectar.textContent} o andar ${a.nome} ao agentes.chat`);
@@ -542,7 +624,7 @@ const Ajustes = (() => {
     try {
       const d = await pedirAndares();
       andaresExtras = (Array.isArray(d.andares) ? d.andares : []).filter(a => a && Andar.valido(a.id) && a.id !== Andar.PRINCIPAL && typeof a.nome === "string")
-        .map(a => ({ id: a.id, nome: a.nome, org: typeof a.org === "string" ? a.org : "", conexao: typeof a.conexao === "string" ? a.conexao : "" }));
+        .map(a => ({ id: a.id, nome: a.nome, org: typeof a.org === "string" ? a.org : "", conexao: typeof a.conexao === "string" ? a.conexao : "", cidade: Andar.cidadeOk(a.cidade) }));
       $("a-andares").hidden = false;
       mostrarAndares();
     } catch (e) { if (e.status === 401) return; $("a-andares").hidden = true; }
@@ -798,12 +880,15 @@ const Ajustes = (() => {
     const primeira = !cfg; cfg = c;
     const aj = c.ajustes && typeof c.ajustes === "object" ? c.ajustes : {};
     clima = climaOk(c.clima) ? c.clima : null;
-    origemClima = ["tela", "arquivo", "nenhum"].includes(aj.clima) ? aj.clima : clima ? "arquivo" : "nenhum";
+    origemClima = ["tela", "arquivo", "nenhum", "andar"].includes(aj.clima) ? aj.clima : clima ? "arquivo" : "nenhum";
     climaArquivo = aj.clima_arquivo !== false;
+    modoAndar = andarExtra(c);
     mostrarClima();
-    // o que cada perfil vê: clima, datas e andares são do prédio (só o admin do prédio); no saguão não há times nem conexão
+    // o que cada perfil vê: datas e andares são do prédio (só o admin do prédio), e o clima também, menos num andar
+    // extra, onde quem administra o andar escolhe a cidade dele; no saguão não há times nem conexão
     const p = Andar.perfil(c);
-    $("a-clima").hidden = $("a-datas").hidden = !p.predio;
+    $("a-datas").hidden = !p.predio;
+    $("a-clima").hidden = modoAndar ? !p.admin : !p.predio;
     $("a-equipe").hidden = p.noSaguao;
     if (p.admin) { if (p.predio) lerAndares(); else $("a-andares").hidden = true; lerMembros(); }   // membro e pessoa não têm estas abas (o servidor também barra)
     mostrarConexaoAndar();
@@ -833,6 +918,6 @@ const Ajustes = (() => {
   setInterval(() => { if (eq && !agentesVistos && !$("v-personalizar").hidden && lidos()) mostrarAgentes(); }, 2000);
   // trocou de andar: os times e a aparência em edição eram do outro; a próxima abertura refaz a partir do config novo
   function esquecerAndar() { eqSalvo = eq = null; agentesVistos = false; cfg = null; }
-  return { abrir, ligarBusca, usarCidade, pedir, esquecerAndar };
+  return { abrir, ligarBusca, usarCidade, andarExtra, pedir, esquecerAndar };
 })();
 window.Ajustes = Ajustes;
