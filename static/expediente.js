@@ -59,6 +59,11 @@ const Andar = (() => {
   const CONEXAO = { conectado: "conectado", sem_conexao: "sem conexão", outra_org: "conectado no workspace errado, reconecte", recusada: "conexão recusada",
     pausa: "em pausa", falha: "sem resposta", carregando: "conectando…", conferindo: "conectado, conferindo o workspace" };
   const rotuloConexao = c => (typeof c === "string" && Object.hasOwn(CONEXAO, c) ? CONEXAO[c] : "sem leitura");
+  // a cidade do clima de cada andar no /api/config (só o nome; null sem clima): texto de até 60, numa linha, ou ""
+  const cidadeOk = c => (typeof c === "string" && c.length <= 60 && !/[\u0000-\u001f\u007f]/.test(c) ? c.trim() : "");
+  // a opção do elevador: "Dev Maniac's · Mateus Leme", e a conexão quando não está conectado
+  const rotuloAndar = a => [a.nome, cidadeOk(a.cidade), a.conexao && a.conexao !== "conectado" ? rotuloConexao(a.conexao) : ""]
+    .filter(Boolean).join(" · ");
   // o perfil da conta no andar do /api/config: papel neste andar, admin do prédio (admin_predio) e o modo do térreo.
   // Sem o campo papel (servidor antigo) vale admin do prédio, a tela de sempre; papel desconhecido vira o mais fechado.
   function perfil(c) {
@@ -79,6 +84,6 @@ const Andar = (() => {
   // o andar que o /api/config respondeu (conta sem acesso ao principal recebe o primeiro andar dela): passa a valer daqui em diante
   const seguir = c => !!c && valido(c.andar) && definir(c.andar);
   ler();
-  return { PRINCIPAL, valido, rotuloConexao, estadoDoAndar, perfil, telaLiberada, seguir, doHash, doAviso, ler, definir, com, limpar: () => definir(PRINCIPAL), get atual() { return atual; } };
+  return { PRINCIPAL, valido, rotuloConexao, cidadeOk, rotuloAndar, estadoDoAndar, perfil, telaLiberada, seguir, doHash, doAviso, ler, definir, com, limpar: () => definir(PRINCIPAL), get atual() { return atual; } };
 })();
 window.Andar = Andar;

@@ -60,6 +60,11 @@ ESCOLHA = {
     "arvore_ipe": "arvore_ipe_2", "arvore_jacaranda": "arvore_jacaranda_1", "palmeira": "palmeira_1",
     "banca_jornal": "banca_jornal_2", "orelhao": "orelhao_2", "ponto_onibus": "ponto_onibus_2", "mesa_piquenique": "mesa_piquenique_2",
     "jukebox": "jukebox_2", "pipoqueira": "pipoqueira_2", "rede_descanso": "rede_descanso_2", "mesa_xadrez": "mesa_xadrez_2",
+    # a fachada de frente, embaixo do prédio (Firmópolis): peças soltas, a parede é desenhada no mapa.js
+    "fachada_porta": "fachada/porta", "fachada_janela": "fachada/janela", "fachada_arandela": "fachada/arandela",
+    "fachada_floreira": "fachada/floreira",
+    # a porta do banheiro no fim do corredor (Firmópolis): a fila dos terminais
+    "banheiro_porta": "banheiro/porta_1",
 }
 
 T = 16

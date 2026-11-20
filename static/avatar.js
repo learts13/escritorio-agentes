@@ -292,28 +292,54 @@ const Avatar = (() => {
     cores: [["sky", "Céu"], ["indigo", "Anil"], ["violet", "Violeta"], ["rose", "Rosa"], ["amber", "Âmbar"], ["green", "Verde"], ["teal", "Turquesa"], ["graphite", "Grafite"]],
     olhos: [["happy", "Felizes"], ["sleepy", "Sonolentos"], ["round", "Redondos"], ["wide", "Arregalados"], ["dots", "Pontinhos"]],
     acessorios: [["", "Nenhum"], ["crown", "Coroa"], ["hat", "Chapéu"], ["headphones", "Fones"], ["headset", "Headset"], ["flower", "Flor"], ["antenna", "Antena"], ["cap", "Boné"], ["bow", "Laço"]],
+    // a gente do mapa (sprites.js): na mesma ordem dos CABELOS e das PELES de lá
+    cabelos: [["castanho", "Castanho"], ["preto", "Preto"], ["dourado", "Dourado"], ["ruivo", "Ruivo"], ["platinado", "Platinado"], ["roxo", "Roxo"], ["azul", "Azul"]],
+    peles: [["clara", "Clara"], ["media", "Média"], ["morena", "Morena"], ["escura", "Escura"]],
   };
-  function seletor(raiz, inicial, aoMudar, prefixo) {
+  // a semente da gente no mapa (a mesma do vida.js): sem escolha no perfil, ela decide cabelo, pele, cabeça e calça
+  const semente = txt => { let h = 7; for (const ch of txt || "") h = (h * 31 + ch.charCodeAt(0)) % 997; return h; };
+  // a aparência da conta como a gente do mapa a desenha: a blusa é a cor; cabelo e pele, o índice (sem escolha, -1: a semente decide)
+  const indice = (lista, v) => lista.findIndex(([k]) => k === v);
+  const visualGente = ap => (ap && typeof ap === "object" ? { blusa: (CORES[ap.color] || {}).base || (/^#[0-9a-f]{6}$/i.test(ap.color) ? ap.color : ""),
+    cabelo: indice(OPCOES.cabelos, ap.hair), pele: indice(OPCOES.peles, ap.skin) } : {});
+  // Firmópolis, onda 5: a pessoa escolhe a gente do mapa (blusa, cabelo e pele). Olhos e acessório, do bichinho do
+  // agentes.chat, seguem como estavam (o servidor ainda pede os dois)
+  // usuario: quem já tem conta (o perfil). Sem cabelo e pele gravados, o seletor parte do que a semente dele já mostra
+  // no mapa, e salvar sem mexer não muda nada. No convite ainda não há usuário: usuario(u) redesenha quando ele é digitado
+  function seletor(raiz, inicial, aoMudar, prefixo, usuario) {
     const noLista = (lista, v, reserva) => (lista.some(([k]) => k === v) ? v : reserva);
+    let v = semente(usuario);
+    const doUsuario = { hair: () => OPCOES.cabelos[v % 7][0], skin: () => OPCOES.peles[(v >> 2) % 4][0] }, mexeu = new Set();
     const ap = { color: noLista(OPCOES.cores, inicial && inicial.color, "amber"), eyes: noLista(OPCOES.olhos, inicial && inicial.eyes, "happy"),
-      accessory: noLista(OPCOES.acessorios, inicial && inicial.accessory, "") };
+      accessory: noLista(OPCOES.acessorios, inicial && inicial.accessory, ""),
+      hair: noLista(OPCOES.cabelos, inicial && inicial.hair, doUsuario.hair()), skin: noLista(OPCOES.peles, inicial && inicial.skin, doUsuario.skin()) };
     const cv = document.createElement("canvas"), campos = document.createElement("div"), c = cv.getContext("2d");
-    cv.width = cv.height = TAM * 4; cv.className = "boneco-previa"; cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "Prévia do seu boneco");
+    cv.width = cv.height = TAM * 4; cv.className = "boneco-previa"; cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "Prévia de como você aparece no mapa");
     campos.className = "boneco-campos";
-    const desenhar = () => { c.clearRect(0, 0, cv.width, cv.height); c.imageSmoothingEnabled = false; c.drawImage(desenharAvatar({ ...ap }), 0, 0, cv.width, cv.height); };   // cópia nova a cada vez: o cache guarda por objeto
-    for (const [chave, rotulo, lista] of [["color", "Cor", OPCOES.cores], ["eyes", "Olhos", OPCOES.olhos], ["accessory", "Acessório", OPCOES.acessorios]]) {
+    const desenhar = () => {
+      c.clearRect(0, 0, cv.width, cv.height); c.imageSmoothingEnabled = false;
+      if (!window.Sprites) { c.drawImage(desenharAvatar({ ...ap }), 0, 0, cv.width, cv.height); return; }   // cópia nova a cada vez: o cache guarda por objeto
+      c.save(); c.scale(4, 4); Sprites.gente(c, 5, 20, 0, false, v, "parar", 0, visualGente(ap)); c.restore();
+    };
+    for (const [chave, rotulo, lista] of [["color", "Blusa", OPCOES.cores], ["hair", "Cabelo", OPCOES.cabelos], ["skin", "Pele", OPCOES.peles]]) {
       const campo = document.createElement("div"), l = document.createElement("label"), s = document.createElement("select");
       s.id = `${prefixo}-${chave}`; l.htmlFor = s.id; l.textContent = rotulo;
       for (const [k, nome] of lista) { const o = document.createElement("option"); o.value = k; o.textContent = nome; s.append(o); }
       s.value = ap[chave];
-      s.addEventListener("change", () => { ap[chave] = s.value; desenhar(); if (aoMudar) aoMudar({ ...ap }); });
+      s.addEventListener("change", () => { ap[chave] = s.value; mexeu.add(chave); desenhar(); if (aoMudar) aoMudar({ ...ap }); });
       campo.append(l, s); campos.append(campo);
     }
     raiz.replaceChildren(cv, campos); desenhar();
-    return { valor: () => ({ ...ap }) };
+    // no convite: cabelo e pele que a pessoa não escolheu acompanham o usuário digitado, como a semente dele mostra no mapa
+    const usuarioNovo = u => {
+      v = semente(u);
+      for (const k of ["hair", "skin"]) if (!(inicial && inicial[k]) && !mexeu.has(k)) { ap[k] = doUsuario[k](); campos.querySelector(`#${prefixo}-${k}`).value = ap[k]; }
+      desenhar();
+    };
+    return { valor: () => ({ ...ap }), usuario: usuarioNovo };
   }
 
-  return { desenhar: desenharAvatar, boneco, chapeu, padrao: aparenciaPadrao, OPCOES, seletor, TAM, CORES, POSES };
+  return { desenhar: desenharAvatar, boneco, chapeu, padrao: aparenciaPadrao, OPCOES, seletor, visualGente, semente, TAM, CORES, POSES };
 })();
 
 window.Avatar = Avatar;

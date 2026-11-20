@@ -100,7 +100,7 @@ const Personalizar = (() => {
   function mostrarLogo(src) { $("m-previa").src = $("p-logo").src = src; }
   function alterado() {
     return !!salvo && ($("m-empresa").value.trim() !== salvo.empresa || $("m-cor").value.toLowerCase() !== salvo.cor.toLowerCase() || !!logoNovo || tirarLogo ||
-      $("m-abre").value !== salvo.abre || $("m-fecha").value !== salvo.fecha || (temSocial() && $("m-serio").checked !== salvo.serio));
+      $("m-abre").value !== salvo.abre || $("m-fecha").value !== salvo.fecha || $("m-radio").value.trim() !== salvo.radio || (temSocial() && $("m-serio").checked !== salvo.serio));
   }
 
   // expediente: abre == fecha não vale (o servidor recusa também); abre > fecha é o turno que vira a meia-noite
@@ -164,10 +164,11 @@ const Personalizar = (() => {
     $("m-salvar").textContent = "Salvar";
     $("m-logo-ajuda").textContent = "PNG, JPEG ou WEBP, até 600 KB. Também dá para arrastar a imagem para cá. O logo novo aparece na prévia e só vale ao clicar em Salvar, junto com o nome e a cor.";
     esquecerLogo(); configApp = cfg;
-    salvo = { empresa: cfg.empresa || "", cor: cfg.cor || "#f5b83d", logo: cfg.logo || LOGO_PADRAO, abre: Expediente.abre, fecha: Expediente.fecha, serio: cfg.serio === true };
+    salvo = { empresa: cfg.empresa || "", cor: cfg.cor || "#f5b83d", logo: cfg.logo || LOGO_PADRAO, abre: Expediente.abre, fecha: Expediente.fecha, serio: cfg.serio === true,
+      radio: typeof cfg.radio === "string" ? cfg.radio : "" };
     $("m-social").hidden = !temSocial();   // servidor sem a vida social (ou a demonstração): a caixa nem aparece
     montarConstrucao(); $("m-construcao").querySelector("a").href = window.Brincar && Brincar.demo ? "construir.html?demo=1" : "construir.html" + (Andar.atual === Andar.PRINCIPAL ? "" : `#andar=${Andar.atual}`);   // o editor abre no andar de agora
-    $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio;
+    $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio; $("m-radio").value = salvo.radio;
     mostrarLogo(salvo.logo);
     aviso(""); mudou();
     mostrarRetencao(cfg);
@@ -182,8 +183,9 @@ const Personalizar = (() => {
   $("m-abre").addEventListener("input", mudou);
   $("m-fecha").addEventListener("input", mudou);
   $("m-serio").addEventListener("change", mudou);
+  $("m-radio").addEventListener("input", mudou);
   $("m-desfazer").addEventListener("click", () => {
-    $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio;
+    $("m-empresa").value = salvo.empresa; $("m-cor").value = salvo.cor; $("m-abre").value = salvo.abre; $("m-fecha").value = salvo.fecha; $("m-serio").checked = salvo.serio; $("m-radio").value = salvo.radio;
     esquecerLogo(); mostrarLogo(salvo.logo);
     mudou(); aviso("Voltou ao que estava salvo.");
   });
@@ -191,6 +193,7 @@ const Personalizar = (() => {
     ev.preventDefault();
     if (window.Brincar && Brincar.demo) { aviso("Na demonstração nada é salvo.", "ruim"); return; }   // dados fictícios: nenhum POST
     if (!$("m-empresa").reportValidity()) return;
+    if (!$("m-radio").reportValidity()) return;
     if (!conferirExpediente()) { aviso("Não salvou: o expediente precisa abrir e fechar em horários diferentes.", "ruim"); $("m-fecha").focus(); return; }
     const bt = $("m-salvar"); bt.disabled = true; bt.textContent = "Salvando…";
     let logoFoi = false;
@@ -200,7 +203,7 @@ const Personalizar = (() => {
         logoFoi = true; salvo.logo = configApp.logo = d.logo || LOGO_PADRAO;   // endereço do servidor, não o blob local
       }
       await enviar("/api/marca", JSON.stringify({ empresa: $("m-empresa").value.trim(), cor: $("m-cor").value,
-        expediente: { abre: $("m-abre").value, fecha: $("m-fecha").value }, ...(temSocial() ? { serio: $("m-serio").checked } : {}) }), "application/json");
+        expediente: { abre: $("m-abre").value, fecha: $("m-fecha").value }, radio: $("m-radio").value.trim(), ...(temSocial() ? { serio: $("m-serio").checked } : {}) }), "application/json");
       esquecerLogo();
       Expediente.definir({ abre: $("m-abre").value, fecha: $("m-fecha").value }); pintarAvisos();   // o "Só no expediente (…)" já com o novo
       aviso("Salvo. Recarregando para aplicar no mapa…", "ok"); setTimeout(() => location.reload(), 700);
@@ -328,7 +331,7 @@ const Personalizar = (() => {
     if (typeof d.usuario === "string") $("pf-conta").textContent = `Conta: ${d.usuario}${d.papel === "membro" ? " (membro)" : d.papel === "admin" ? " (admin)" : ""}`;
     // "aparencia": o boneco efetivo, decidido pelo servidor (o salvo ou o padrão da conta), o mesmo que os outros veem no mapa
     const ap = d.aparencia && typeof d.aparencia === "object" ? d.aparencia : d.avatar && typeof d.avatar === "object" ? d.avatar : Avatar.padrao(d.usuario || "");
-    perfilBoneco = Avatar.seletor($("pf-boneco"), ap, null, "pf");
+    perfilBoneco = Avatar.seletor($("pf-boneco"), ap, null, "pf", d.usuario || "");
     mostrarAvisos(d.avisos);
     $("a-perfil").hidden = false;
   }

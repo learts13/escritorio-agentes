@@ -7,21 +7,39 @@
 "use strict";
 const MundoBairro = (() => {
   const W = 320, H = 180, RUA = 150, CALCADA = 138;
+  // arte: o PixelLab (static/mundo/bairro.png, montado por ferramentas/montar_bairro.py); até carregar (ou sem ela), o desenho
+  // em código de antes, com as mesmas posições
   const CHALES = [
-    { x: 34, w: 64, h: 40, parede: "#b9784a", telhado: "#7a2f2a", vizinho: true },
-    { x: 128, w: 72, h: 46, parede: "#e4c48e", telhado: "#2f5a8a", vizinho: false },
-    { x: 226, w: 62, h: 38, parede: "#8fae7a", telhado: "#5a3a6a", vizinho: true },
+    { x: 22, w: 72, h: 40, parede: "#b9784a", telhado: "#7a2f2a", vizinho: true, arte: "vizinho_cafe" },
+    { x: 124, w: 72, h: 46, parede: "#e4c48e", telhado: "#2f5a8a", vizinho: false, arte: "escritorio" },
+    { x: 226, w: 72, h: 38, parede: "#8fae7a", telhado: "#5a3a6a", vizinho: true, arte: "vizinho_casa" },
   ];
-  const ARVORES = [12, 108, 214, 302];
-  function porta(c) { return { x: c.x + c.w / 2 - 6, y: CALCADA - 18, w: 12, h: 18 }; }
+  const ARVORES = [10, 110, 212, 308], POSTES = [104, 216], BANCO = 268;
+  // a porta de vidro da arte fica à esquerda do meio do prédio (x 16 a 34 do desenho de 72 px), com 24 px de altura
+  function porta(c) { return c.vizinho ? { x: c.x + c.w / 2 - 8, y: CALCADA - 20, w: 16, h: 20 } : { x: c.x + 16, y: CALCADA - 24, w: 18, h: 24 }; }
+  const arte = { img: null, mapa: null };
+  if (typeof Image !== "undefined" && typeof fetch === "function") {
+    fetch("/mundo/bairro.json", { credentials: "omit" }).then(r => (r.ok ? r.json() : null)).then(m => {
+      if (!m) return;
+      const img = new Image(); img.onload = () => { arte.img = img; arte.mapa = m; }; img.src = "/mundo/bairro.png?v=1";
+    }).catch(() => {});
+  }
+  // desenha a peça com a base em "base" e centrada em cx (espelho: virada para a esquerda)
+  function peca(ctx, n, cx, base, espelho) {
+    const s = arte.mapa && arte.mapa[n]; if (!s) return false;
+    const x = Math.round(cx - s[2] / 2), y = Math.round(base - s[3]);
+    if (espelho) { ctx.save(); ctx.translate(x + s[2], y); ctx.scale(-1, 1); ctx.drawImage(arte.img, s[0], s[1], s[2], s[3], 0, 0, s[2], s[3]); ctx.restore(); }
+    else ctx.drawImage(arte.img, s[0], s[1], s[2], s[3], x, y, s[2], s[3]);
+    return true;
+  }
   function dentro(p, x, y) { return x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h; }
 
   // reduzido (prefers-reduced-motion): sem as partículas de chuva e neve e sem o clarão do raio; o céu fechado fica
   function cena(destino, { reduzido = false } = {}) {
     let ctx = null;
     const estado = {
-      carro: { x: -30, v: 34 }, pessoas: [{ x: 60, v: 9, cor: "#d0453b" }, { x: 250, v: -7, cor: "#3b7bd0" }],
-      cao: { x: 170, pulo: 0 }, aviao: { x: -40, espera: 2 }, passaros: [], nuvens: [{ x: 40, y: 24 }, { x: 190, y: 14 }, { x: 280, y: 34 }],
+      carro: { x: -30, v: 34 }, pessoas: [{ x: 60, v: 9, cor: "#d0453b", n: 3 }, { x: 250, v: -7, cor: "#3b7bd0", n: 10 }],
+      cao: { x: 200, pulo: 0 }, aviao: { x: -40, espera: 2 }, passaros: [], nuvens: [{ x: 40, y: 24 }, { x: 190, y: 14 }, { x: 280, y: 34 }],
     };
     const principal = CHALES.find(c => !c.vizinho), alvo = porta(principal);
 
@@ -82,27 +100,41 @@ const MundoBairro = (() => {
       }
       ctx.fillStyle = neve ? "#e9eef5" : "#5c9a4a"; ctx.fillRect(0, 96, W, CALCADA - 96);           // colina e grama
       ctx.fillStyle = neve ? "#d8e0ea" : "#4b8a3e"; ctx.beginPath(); ctx.ellipse(250, 100, 120, 18, 0, Math.PI, 0); ctx.fill();
-      for (const x of ARVORES) arvore(x, neve);
-      for (const c of CHALES) chale(c, noite, neve);
+      const pronta = !!arte.img;
+      ARVORES.forEach((x, i) => { if (!pronta || !peca(ctx, i % 2 ? "arvore2" : "arvore1", x, CALCADA + 1)) arvore(x, neve); });
       ctx.fillStyle = "#b9b4a6"; ctx.fillRect(0, CALCADA, W, RUA - CALCADA);                     // calçada
+      ctx.fillStyle = "#a59f90"; for (let x = 0; x < W; x += 10) ctx.fillRect(x, CALCADA, 1, RUA - CALCADA);
+      for (const c of CHALES) if (!pronta || !peca(ctx, c.arte, c.x + c.w / 2, CALCADA + 3)) chale(c, noite, neve);
+      if (pronta) { for (const x of POSTES) peca(ctx, "poste", x, CALCADA + 9); peca(ctx, "banco", BANCO, CALCADA + 8); }
       ctx.fillStyle = "#3a3a42"; ctx.fillRect(0, RUA, W, H - RUA);                               // rua
       ctx.fillStyle = "#e9e3c9"; for (let x = 4; x < W; x += 24) ctx.fillRect(x, RUA + 14, 12, 2);
-      for (const p of estado.pessoas) { p.x += p.v * dt; if (p.x > W + 6) p.x = -6; if (p.x < -6) p.x = W + 6; pessoa(p.x, p.cor, t); }
+      for (const p of estado.pessoas) {
+        p.x += p.v * dt; p.f = (p.f || 0) + Math.abs(p.v) * dt; if (p.x > W + 6) p.x = -6; if (p.x < -6) p.x = W + 6;
+        if (pronta && window.Sprites) Sprites.gente(ctx, Math.round(p.x - 6), CALCADA + 9, Math.floor(p.f / 2.6) % 4, p.v < 0, p.n, "andar", t); else pessoa(p.x, p.cor, t);
+      }
       const cao = estado.cao; cao.pulo = Math.max(0, cao.pulo - dt * 3);                         // cachorro: clique e ele pula
       const cy = CALCADA - 4 - Math.round(Math.sin(cao.pulo * Math.PI) * 8);
+      if (pronta && peca(ctx, "cachorro", cao.x + 5, cy + 6)) { /* a arte */ } else {
       ctx.fillStyle = "#8a5a32"; ctx.fillRect(cao.x, cy, 8, 4); ctx.fillRect(cao.x + 7, cy - 3, 4, 4); ctx.fillRect(cao.x, cy + 4, 1, 2); ctx.fillRect(cao.x + 6, cy + 4, 1, 2);
-      ctx.fillRect(cao.x - 2, cy - 1 - (Math.floor(t / 150) % 2), 2, 1);
+      ctx.fillRect(cao.x - 2, cy - 1 - (Math.floor(t / 150) % 2), 2, 1); }
       const car = estado.carro; car.x += car.v * dt; if (car.x > W + 30) car.x = -40;
+      if (pronta) peca(ctx, "carro", car.x + 13, RUA + 15); else {
       ctx.fillStyle = "#d94a3a"; ctx.fillRect(car.x, RUA + 4, 26, 7); ctx.fillRect(car.x + 5, RUA, 14, 5);
       ctx.fillStyle = "#9fc4e0"; ctx.fillRect(car.x + 7, RUA + 1, 4, 3); ctx.fillRect(car.x + 13, RUA + 1, 4, 3);
-      ctx.fillStyle = "#1c1c22"; ctx.fillRect(car.x + 3, RUA + 10, 5, 3); ctx.fillRect(car.x + 18, RUA + 10, 5, 3);
-      if (noite) { ctx.fillStyle = "rgba(255,240,170,.35)"; ctx.beginPath(); ctx.moveTo(car.x + 26, RUA + 6); ctx.lineTo(car.x + 56, RUA + 1); ctx.lineTo(car.x + 56, RUA + 13); ctx.fill(); }
+      ctx.fillStyle = "#1c1c22"; ctx.fillRect(car.x + 3, RUA + 10, 5, 3); ctx.fillRect(car.x + 18, RUA + 10, 5, 3); }
+      if (noite) { const f = pronta ? 7 : 0; ctx.fillStyle = "rgba(255,240,170,.35)"; ctx.beginPath(); ctx.moveTo(car.x + 26 + f, RUA + 6); ctx.lineTo(car.x + 56 + f, RUA + 1); ctx.lineTo(car.x + 56 + f, RUA + 13); ctx.fill(); }
       for (const p of estado.passaros) { p.x += p.vx * dt; p.y += p.vy * dt; ctx.fillStyle = "#2a2a30"; ctx.fillRect(p.x, p.y, 2, 1); ctx.fillRect(p.x + 2, p.y - (Math.floor(t / 120) % 2), 1, 1); }
       estado.passaros = estado.passaros.filter(p => p.y > -5 && p.x < W + 5);
       if (ceu.escuro > 0) { ctx.fillStyle = `rgba(10,14,40,${ceu.escuro * 0.45})`; ctx.fillRect(0, 0, W, H); }
       if (noite) { // luzes acesas por cima do escuro
         ctx.fillStyle = "rgba(255,217,119,.55)";
-        for (const c of CHALES) { const topo = CALCADA - c.h; ctx.fillRect(c.x + 7, topo + 10, 8, 7); if (!c.vizinho) ctx.fillRect(c.x + c.w - 15, topo + 10, 8, 7); }
+        if (!pronta) for (const c of CHALES) { const topo = CALCADA - c.h; ctx.fillRect(c.x + 7, topo + 10, 8, 7); if (!c.vizinho) ctx.fillRect(c.x + c.w - 15, topo + 10, 8, 7); }
+        else { // com a arte: a luz da porta do escritório e os lampiões dos postes
+          ctx.fillStyle = "rgba(255,217,119,.28)"; ctx.beginPath(); ctx.arc(alvo.x + 8, alvo.y + 4, 18, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(255,217,119,.5)"; ctx.fillRect(142, 94, 12, 15); ctx.fillRect(166, 94, 12, 15);   // as janelas de cima do escritório
+          ctx.fillStyle = "rgba(255,217,119,.28)";
+          for (const x of POSTES) { ctx.beginPath(); ctx.arc(x, CALCADA - 41, 10, 0, Math.PI * 2); ctx.fill(); }
+        }
       }
       // o bairro tem céu (o raio aparece nele); som só se a pessoa já ligou o som no escritório (mesma config)
       const som = window.Som && Som.ligado ? Som : null;

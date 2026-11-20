@@ -1,6 +1,6 @@
 # Copyright (C) 2026 Dev Maniac's
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Escritório dos agentes: página que mostra quem do time do agentes.chat está trabalhando.
+"""Firmópolis: página que mostra quem do time do agentes.chat está trabalhando.
 
 Lê o agentes.chat pelo conector MCP de apps externos (OAuth, escopo "read"; "read write" só com
 "conversas": "responder"), a cada ESCRITORIO_INTERVALO segundos, e guarda um resumo em memória.
@@ -10,7 +10,7 @@ Na frente de tudo há login com usuário e senha (acesso.py).
 
 Rotas: /entrar /primeiro-acesso /sair /logo  /  /<estático>  /api/estado /api/config /api/conversa /api/marca
        /api/logo /api/conversa/modo /api/conversa/modo/fechar /api/conversa/responder /api/social /api/social/briga
-       /api/social/greve/atender /api/social/placar /api/planta /api/clima /api/clima/busca /api/festas
+       /api/social/greve/atender /api/social/placar /api/planta /api/clima /api/clima/andar /api/clima/busca /api/festas
        /api/equipe /api/sair-todos /api/jornal /api/novidades /api/push/chave /api/push/assinar /api/push/sair /api/avisos
        /oauth/conectar /oauth/retorno
        (as quatro primeiras e os estáticos do login sem sessão)
@@ -62,8 +62,9 @@ from planta import PLANTA_BYTES, Planta, validar_planta  # noqa: E402
 from social import PLACAR_BYTES, PLACAR_MAX, PLACAR_TETO, Social  # noqa: E402
 from visitas_sala import Salas, LimiteRequisicoes  # noqa: E402
 from presenca import Limite as LimitePresenca, Presenca  # noqa: E402
+import ponte_espelho  # noqa: E402
 
-VERSAO = "1.6.0"
+VERSAO = "2.1.0"
 AGENTES_PADRAO = "https://app.agentes.chat"
 # a nuvem ou a sua instalação self-host (o PUBLIC_URL dela): o main() confere (erro_agentes)
 AGENTES = os.environ.get("AGENTES_URL", "").strip().rstrip("/") or AGENTES_PADRAO
@@ -95,6 +96,12 @@ LIGADO, DESLIGADO = ("1", "true", "sim", "yes", "on"), ("", "0", "false", "nao",
 TELA_VISITAS_BRUTA = os.environ.get("ESCRITORIO_VISITAS_TELA", "").strip().lower()
 TELA_VISITAS = TELA_VISITAS_BRUTA in LIGADO
 MAX_TEXTO_VISITA = 1000
+# espelho da ponte local (ponte_espelho.py), opt-in: a chave (hex de 64) que a ponte manda no Bearer do POST
+# /api/ponte/espelho. Vazia, vale a que o admin do prédio gera na tela (ARQ_PONTE_CHAVE); sem nenhuma, a rota dá 404. O
+# espelho aparece só no andar ESCRITORIO_PONTE_ANDAR (vazio: o principal do modo clássico; no saguão, nunca, porque o
+# saguão é de todo o prédio)
+PONTE_CHAVE_BRUTA = os.environ.get("ESCRITORIO_PONTE_CHAVE", "").strip()
+PONTE_ANDAR = os.environ.get("ESCRITORIO_PONTE_ANDAR", "").strip()
 ROTAS_ADMIN_VISITAS = ("/api/visitas/criar", "/api/visitas/revogar", "/api/visitas/anfitrioes",
                        "/api/visitas/recepcionista")
 ORG = os.environ.get("AGENTES_ORG", "").strip().lower()  # id da organização no agentes.chat; obrigatório no main()
@@ -158,14 +165,17 @@ ARQUIVOS = {  # estáticos servidos (lista fechada)
     "mundo_cidade_chao.js": "text/javascript; charset=utf-8", "mundo_cidade_letreiro.js": "text/javascript; charset=utf-8",
     "index.html": "text/html; charset=utf-8", "app.js": "text/javascript; charset=utf-8",
     "avatar.js": "text/javascript; charset=utf-8", "mapa.js": "text/javascript; charset=utf-8",
-    "vida.js": "text/javascript; charset=utf-8", "som.js": "text/javascript; charset=utf-8",
+    "vida.js": "text/javascript; charset=utf-8", "zeladoria.js": "text/javascript; charset=utf-8", "som.js": "text/javascript; charset=utf-8",
+    "radio.js": "text/javascript; charset=utf-8",
+    "sprites.js": "text/javascript; charset=utf-8", "ponte.js": "text/javascript; charset=utf-8",
     "ceu.js": "text/javascript; charset=utf-8", "clima.js": "text/javascript; charset=utf-8",
     "festas.js": "text/javascript; charset=utf-8", "efeitos.js": "text/javascript; charset=utf-8",
     "estilo.css": "text/css; charset=utf-8", "tema/atlas.png": "image/png", "tema/atlas.json": "application/json",
     "mundo/terra.png": "image/png", "mundo/brasil.png": "image/png", "mundo/mundo.json": "application/json",
     "mundo/atlas.png": "image/png", "mundo/atlas.json": "application/json",
+    "mundo/bairro.png": "image/png", "mundo/bairro.json": "application/json",
     "logo.png": "image/png", "fontes/figtree.ttf": "font/ttf", "fontes/silkscreen.ttf": "font/ttf",
-    "fontes/source-sans-3.woff2": "font/woff2", "fontes/doto.woff2": "font/woff2",
+    "fontes/PixeloidSans.woff2": "font/woff2",
     "entrar.css": "text/css; charset=utf-8", "entrar.js": "text/javascript; charset=utf-8",
     "convite.html": "text/html; charset=utf-8", "convite.js": "text/javascript; charset=utf-8",
     "convite.css": "text/css; charset=utf-8", "chat_sala.js": "text/javascript; charset=utf-8",
@@ -182,6 +192,7 @@ ARQUIVOS = {  # estáticos servidos (lista fechada)
     "reunioes.js": "text/javascript; charset=utf-8", "reunioes.css": "text/css; charset=utf-8",
     "linha_tempo.js": "text/javascript; charset=utf-8", "linha_tempo.css": "text/css; charset=utf-8",
     "apresentacao.js": "text/javascript; charset=utf-8",
+    "abertura.js": "text/javascript; charset=utf-8", "times_auto.js": "text/javascript; charset=utf-8",
     "manifest.webmanifest": "application/manifest+json", "icone-180.png": "image/png", "icone-192.png": "image/png",
     "icone-512.png": "image/png", "icone-mascara-512.png": "image/png",
 }
@@ -280,7 +291,7 @@ class Credenciais:
         for p in self.pendentes.values():
             if agora - p["em"] < self.VALIDADE and p["escopo"] == escopo and p["redirect_uri"] == self.redirect_uri():
                 return p["client_id"]
-        nome = "Escritório dos agentes" if "write" in escopo.split() else "Escritório dos agentes (leitura)"
+        nome = "Firmópolis" if "write" in escopo.split() else "Firmópolis (leitura)"
         corpo = {"client_name": nome, "redirect_uris": [self.redirect_uri()],
                  "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"],
                  "token_endpoint_auth_method": "none", "scope": escopo}
@@ -424,7 +435,13 @@ class Credenciais:
             return self.dados["access_token"]
 
 
+# um User-Agent próprio: o padrão do Python (Python-urllib) é barrado pela Cloudflare (erro 1010) na frente de self-hosts
+AGENTE_HTTP = f"Firmopolis/{VERSAO} (+https://github.com/HelbertMoura/escritorio-agentes)"
+
+
 def _abrir(req):
+    if not req.has_header("User-agent"):
+        req.add_header("User-Agent", AGENTE_HTTP)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             return r.status, dict(r.headers), r.read(2_000_000)
@@ -617,28 +634,58 @@ def limpa_rotulo(txt, nomes=None):
 
 
 # o setor (department) e a aparência que o list_agents do agentes.chat manda desde a versão que os expõe:
-# só valores das listas fechadas dele, para a tela Configurações copiar os setores como times
+# só valores das listas do escritório, para a tela Configurações montar os times (Montar os times automaticamente)
 CORES_SETOR = {"indigo", "violet", "rose", "amber", "green", "teal", "graphite"}
 ICONES_SETOR = {"shield", "code", "wallet", "mail", "bolt", "flag", "book", "chart", "bulb", "globe", "pullRequest",
                 "calendar", "message", "eye", "plug", "person"}
+# a cor base de cada cor do boneco (a mesma do static/avatar.js), para a cor #hex do agentes.chat virar a mais próxima
+BASE_CORES = {"amber": "#f2a93b", "teal": "#33b3a0", "rose": "#e8587a", "green": "#3fb35c", "indigo": "#5b62e8",
+              "sky": "#3a92e6", "violet": "#9566e6", "graphite": "#64646e"}
+HEX_COR = re.compile(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})")
+
+
+def _so_str(v, reserva=""):
+    return v if isinstance(v, str) else reserva
+
+
+def _rgb(h):
+    h = h[1:] if len(h) == 7 else "".join(c * 2 for c in h[1:])
+    return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+
+
+def cor_da_lista(c):
+    """A cor do boneco: o nome, se for da lista; #rgb ou #rrggbb vira a cor da lista mais próxima; o resto, None."""
+    if isinstance(c, str) and c in ajustes.CORES:
+        return c
+    if not isinstance(c, str) or not HEX_COR.fullmatch(c):
+        return None
+    rgb = _rgb(c)
+    return min(sorted(BASE_CORES), key=lambda k: sum((a - b) ** 2 for a, b in zip(rgb, _rgb(BASE_CORES[k]))))
 
 
 def setor_do_agente(d):
-    """{"nome", "cor", "icone", "ordem"} do department do list_agents, ou None (sem setor ou fora do formato)."""
+    """{"nome", "cor", "icone", "ordem"} do department do list_agents, ou None (sem setor ou fora do formato).
+    O department pode ser só o nome do grupo (texto) ou {name, color, icon, position}; a cor #rrggbb vale como cor do time."""
+    if isinstance(d, str):
+        d = {"name": d}
     if not isinstance(d, dict) or not isinstance(d.get("name"), str) or not d["name"].strip():
         return None
-    ordem = d.get("position")
-    return {"nome": d["name"].strip()[:80], "cor": d.get("color") if d.get("color") in CORES_SETOR else None,
-            "icone": d.get("icon") if d.get("icon") in ICONES_SETOR else None,
+    ordem, cor, icone = d.get("position"), _so_str(d.get("color")), _so_str(d.get("icon"))
+    cor = cor if cor in CORES_SETOR else cor.lower() if re.fullmatch(r"#[0-9a-fA-F]{6}", cor) else None
+    return {"nome": d["name"].strip()[:80], "cor": cor, "icone": icone if icone in ICONES_SETOR else None,
             "ordem": ordem if type(ordem) is int and 0 <= ordem < 1000 else 999}
 
 
 def aparencia_do_agente(a):
-    """A aparência do agentes.chat que o escritório sabe desenhar, ou None. Acessório que ele não tem vira nenhum."""
-    if not isinstance(a, dict) or a.get("color") not in ajustes.CORES or a.get("eyes") not in ajustes.OLHOS:
+    """Só o que o escritório sabe desenhar, campo a campo: cor (#hex vira a mais próxima), olhos e acessório da lista.
+    Campo fora da lista some (a tela completa com o boneco automático); nada aproveitável: None."""
+    if not isinstance(a, dict):
         return None
-    acessorio = a.get("accessory")
-    return {"color": a["color"], "eyes": a["eyes"], "accessory": acessorio if acessorio in ajustes.ACESSORIOS else ""}
+    olhos, acessorio = _so_str(a.get("eyes")), _so_str(a.get("accessory"), None)
+    ap = {"color": cor_da_lista(a.get("color")), "eyes": olhos if olhos in ajustes.OLHOS else None,
+          "accessory": acessorio if acessorio in ajustes.ACESSORIOS else None}
+    ap = {k: v for k, v in ap.items() if v is not None}
+    return ap or None
 
 
 def normalizar(agentes, tarefas, url_app=None):
@@ -1829,16 +1876,18 @@ def tipo_do_clima(codigo, nuvens):
 
 
 class Clima(threading.Thread):
-    """O tempo de agora no lugar que vale (fonte(): o da tela, senão o do times.json, ou None). Relê o lugar a cada
-    volta: trocar a cidade não pede reinício. Ao trocar, zera o estado antes de consultar (nunca o tempo da cidade velha
-    com o nome novo); sem lugar, espera sem consultar; no máximo 1 consulta por minuto, e uma a cada 900 s no mesmo
-    lugar. Na falha, fica o que havia (ou o céu limpo)."""
+    """O tempo de agora nos lugares que valem: fonte() é o do prédio (o da tela, senão o do times.json, ou None) e
+    extras() as cidades próprias dos andares. Relê os lugares a cada volta: trocar a cidade não pede reinício. O cache é
+    por coordenada: andares com a mesma cidade (ou a do prédio) dividem uma consulta só. O lugar que sai da lista perde o
+    estado na hora (nunca o tempo da cidade velha com o nome novo); sem lugar, espera sem consultar; no máximo 1 consulta
+    por minuto no total, e uma a cada 900 s em cada lugar. Na falha, fica o que havia (ou o céu limpo)."""
     A_CADA, MINIMO = 900, 60
 
-    def __init__(self, fonte):
+    def __init__(self, fonte, extras=None):
         super().__init__(daemon=True)
-        self.fonte, self.estado, self.trava = fonte, None, threading.Lock()
-        self.consultado, self.ultima = None, None   # o lugar da última consulta e quando (relógio monotônico)
+        self.fonte, self.extras, self.trava = fonte, extras or (lambda: []), threading.Lock()
+        self.estados, self.ultimas = {}, {}   # por (lat, lon): o tempo e quando foi consultado (relógio monotônico)
+        self.ultima = None   # a última consulta de todas, para o mínimo de 1 por minuto
         self.acordado = threading.Event()   # acordar(): o POST /api/clima não espera os 15 min
         self.relogio = time.monotonic
 
@@ -1850,33 +1899,42 @@ class Clima(threading.Thread):
     def acordar(self):
         self.acordado.set()
 
+    @staticmethod
+    def chave(lugar):
+        return (lugar["lat"], lugar["lon"]) if lugar else None
+
     def ciclo(self):
-        """Uma volta. Devolve quantos segundos esperar até a próxima."""
-        lugar = self.fonte()
-        chave = (lugar["cidade"], lugar["lat"], lugar["lon"]) if lugar else None
-        if chave != self.consultado:   # lugar novo (ou nenhum): o estado da cidade velha sai já
-            with self.trava:
-                self.estado = None
-        if chave is None:
-            self.consultado = None
+        """Uma volta: consulta no máximo um lugar, o mais atrasado. Devolve quantos segundos esperar até a próxima."""
+        lugares = {}
+        for lugar in [self.fonte(), *self.extras()]:
+            if lugar:
+                lugares.setdefault(self.chave(lugar), lugar)
+        with self.trava:   # lugar que saiu (ou trocou): o estado dele sai já
+            self.estados = {k: v for k, v in self.estados.items() if k in lugares}
+        self.ultimas = {k: v for k, v in self.ultimas.items() if k in lugares}
+        if not lugares:
             return self.A_CADA
         agora = self.relogio()
+        falta = {k: self.A_CADA - (agora - self.ultimas[k]) if k in self.ultimas else 0 for k in lugares}
+        k = min(falta, key=lambda c: falta[c])   # o mais atrasado; empate, o primeiro (o do prédio)
+        if falta[k] > 0:
+            return falta[k]
         desde = agora - self.ultima if self.ultima is not None else None
-        if chave == self.consultado and desde < self.A_CADA:
-            return self.A_CADA - desde
         if desde is not None and desde < self.MINIMO:
             return self.MINIMO - desde
-        self.consultado, self.ultima = chave, agora
+        self.ultima = self.ultimas[k] = agora
+        lugar = lugares[k]
         try:
             atual = self._consultar(lugar["lat"], lugar["lon"])
             codigo = int(atual.get("weather_code", 0))
             with self.trava:
-                self.estado = {"tipo": tipo_do_clima(codigo, atual.get("cloud_cover")), "codigo": codigo,
-                               "temperatura": atual.get("temperature_2m"), "vento": atual.get("wind_speed_10m"),
-                               "nuvens": atual.get("cloud_cover"), "cidade": lugar["cidade"]}
+                self.estados[k] = {"tipo": tipo_do_clima(codigo, atual.get("cloud_cover")), "codigo": codigo,
+                                   "temperatura": atual.get("temperature_2m"), "vento": atual.get("wind_speed_10m"),
+                                   "nuvens": atual.get("cloud_cover"), "cidade": lugar["cidade"]}
         except Exception as e:  # sem clima: o escritório segue com céu limpo
             log(evento="clima", resultado="erro", detalhe=f"{type(e).__name__}: {str(e)[:120]}")
-        return self.A_CADA
+        falta[k] = self.A_CADA
+        return self.MINIMO if min(falta.values()) <= 0 else min(falta.values())
 
     def _consultar(self, lat, lon):
         q = urllib.parse.urlencode({"latitude": lat, "longitude": lon, "timezone": "auto",
@@ -1885,9 +1943,12 @@ class Clima(threading.Thread):
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             return json.loads(r.read(200_000)).get("current", {})
 
-    def foto(self):
+    def foto(self, lugar=None):
+        """O tempo de agora no lugar (sem ele, o do prédio), com o nome que o lugar dá à cidade; sem dado, None."""
+        lugar = lugar or self.fonte()
         with self.trava:
-            return self.estado
+            estado = self.estados.get(self.chave(lugar)) if lugar else None
+        return {**estado, "cidade": lugar["cidade"]} if estado else None
 
 
 ARQ_MUNDO = os.path.join(ESTATICO, "mundo", "mundo.json")
@@ -2051,8 +2112,9 @@ class BuscaCidades:
                 c = ajustes.validar_clima({"cidade": r["name"], "lat": r["latitude"], "lon": r["longitude"]})
             except (ValueError, KeyError, TypeError):
                 continue
+            fuso = ajustes.validar_fuso(r.get("timezone"))   # a hora local da cidade de um andar; fora do formato, sai
             resultados.append({"nome": c["cidade"], "regiao": _opcional(r.get("admin1")), "pais": _opcional(r.get("country")),
-                               "lat": c["lat"], "lon": c["lon"]})
+                               "lat": c["lat"], "lon": c["lon"], **({"fuso": fuso} if fuso else {})})
         return 200, {"resultados": resultados}
 
 
@@ -2090,6 +2152,50 @@ def validar_expediente(valor):
     if horas[0] == horas[1]:
         raise ValueError("o expediente precisa abrir e fechar em horários diferentes")
     return {"abre": horas[0], "fecha": horas[1]}
+
+
+RADIO_MAX = 300
+RADIO_HOST = re.compile(r"(?=.{4,253}\Z)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+")
+MSG_RADIO = "rádio: cole um endereço https de stream de áudio (até 300 caracteres, sem usuário e senha)"
+
+
+def validar_radio(valor):
+    """A rádio da internet do andar (Personalizar): "" desliga; senão, um endereço https de um host só, normalizado. O
+    host vai para o CSP da página (media-src), por isso só letras, números, ponto e hífen (nome internacional, em
+    punycode); sem usuário e senha, sem fragmento, sem espaço nem caractere de controle."""
+    if valor is None or valor == "":
+        return ""
+    if not isinstance(valor, str) or len(valor) > RADIO_MAX or not valor.isascii() \
+            or any(c.isspace() or not c.isprintable() for c in valor):
+        raise ValueError(MSG_RADIO)
+    try:
+        u = urllib.parse.urlsplit(valor)
+        porta = u.port
+    except ValueError:   # porta fora de 0-65535, colchetes quebrados
+        raise ValueError(MSG_RADIO) from None
+    host = u.hostname or ""
+    if u.scheme.lower() != "https" or "@" in u.netloc or u.fragment or not RADIO_HOST.fullmatch(host) or porta == 0 \
+            or len(host) > 100 or host.rsplit(".", 1)[-1].isdigit() or host.startswith("0x") or ".0x" in host:
+        raise ValueError(MSG_RADIO)   # IP e host numérico ("10.0.0.1", "0x7f.1") ficam de fora: seria a rede interna
+    return urllib.parse.urlunsplit(("https", host + (f":{porta}" if porta else ""), u.path or "/", u.query, ""))
+
+
+def origem_radio(valor):
+    """A origem (https://host[:porta]) de uma rádio salva, para o media-src; valor que não passa na validação dá ""."""
+    try:
+        url = validar_radio(valor)
+    except ValueError:
+        return ""
+    return "https://" + urllib.parse.urlsplit(url).netloc if url else ""
+
+
+def politica_seguranca(moldura=False, midia=()):
+    """O CSP de toda resposta. midia: as origens extras de áudio (as rádios da internet que a sessão pode ouvir); sem
+    elas, o media-src fica no default-src 'self'."""
+    extra = "; media-src 'self' " + " ".join(sorted(set(midia))) if midia else ""
+    return ("default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
+            "connect-src 'self' ws://127.0.0.1:47820" + extra + "; frame-ancestors " + ("'self'" if moldura else "'none'") +
+            "; base-uri 'none'; form-action 'self'")
 
 
 def carregar_times(caminho=None, org=None):
@@ -2226,6 +2332,7 @@ ID_PLACAR = re.compile(r"[A-Za-z0-9_-]{1,100}")
 ARQ_PLANTA = os.path.join(DADOS, "planta.json")   # modo construção; só o POST /api/planta grava, sob a trava da Planta
 ARQ_PUSH = os.path.join(DADOS, "push.json")   # assinaturas do aviso no celular (avisos.py); gravadas sob a trava dele
 ARQ_VAPID = os.path.join(DADOS, "vapid.json")   # a chave privada VAPID (vapid.py), 0600; nunca sai do servidor
+ARQ_PONTE_CHAVE = os.path.join(DADOS, "ponte-espelho.chave")   # a chave do espelho da ponte gerada pela tela, 0600
 ARQ_SEGREDO_PESSOA = os.path.join(DADOS, "pessoa.chave")   # o segredo do id opaco do saguão (IdPessoa), 0600; nunca sai
 ARQ_JORNAL = os.path.join(DADOS, "jornal.json")   # jornal da semana (jornal.py); só a leitura grava, no máximo 1 vez por minuto
 
@@ -2280,7 +2387,8 @@ def config_publica(andar=None):
     """times.json + o que a pessoa personalizou (nome, cor, expediente, modo sério, logo). Num andar extra, os times, a
     aparência, o modo das conversas, o link do app e a marca (nome, cor, logo, expediente e modo sério) são os dele;
     sem marca salva, o nome do andar, a cor e o logo padrão, nunca a marca do prédio nem a de outro andar. Clima e datas
-    são do prédio. No saguão, sem times."""
+    são do prédio, menos a cidade do clima que o andar extra escolheu (dados/andares/<id>/clima.json). No saguão, sem
+    times."""
     extra = andar is not None and andar.id != ANDAR_PRINCIPAL
     cfg = carregar_times()
     if extra:   # nada do times.json do principal vale num andar extra
@@ -2297,6 +2405,7 @@ def config_publica(andar=None):
             cfg["expediente"] = validar_expediente(m["expediente"])
         except ValueError:
             log(evento="marca", resultado="expediente_invalido")
+    cfg["radio"] = validar_radio(m["radio"]) if origem_radio(m.get("radio")) else ""   # a rádio da internet do andar
     # hash do conteúdo: muda a cada logo novo, até dois no mesmo segundo (o mtime não garante isso). Sem logo enviado,
     # vale o do logo padrão (static/logo.png, com cache público de 1 h): trocar a arte também fura o cache
     versao = _versao_logo(andar.arq_logo if extra else ARQ_LOGO) or _versao_logo(os.path.join(ESTATICO, "logo.png")) or 0
@@ -2306,7 +2415,8 @@ def config_publica(andar=None):
     cfg["fonte"] = FONTE   # link "Código-fonte" do rodapé (AGPL §13)
     # Configurações > times.json > padrão, com a origem de cada um para a tela dizer de onde vem o que vale
     clima_arquivo = cfg["clima"]
-    cfg["clima"], origem = clima_vigente(clima_arquivo)
+    proprio = clima_proprio(andar) if extra else None
+    cfg["clima"], origem = (proprio, "andar") if proprio else clima_vigente(clima_arquivo)
     festas = festas_salvas()
     cfg["festas"] = {"proprias": festas["proprias"], "desligadas": festas["desligadas"]}
     saguao = getattr(andar, "saguao", False)
@@ -2339,6 +2449,28 @@ def clima_vigente(do_arquivo=None):
     if do_arquivo is None:
         do_arquivo = carregar_times()["clima"]
     return do_arquivo, "arquivo" if do_arquivo else "nenhum"
+
+
+def clima_proprio(andar):
+    """A cidade que o andar extra escolheu ({"cidade", "lat", "lon"[, "fuso"]}), ou None: herda a do prédio. O principal
+    (e o saguão) não tem arquivo próprio; a dele é a do prédio."""
+    arq = getattr(andar, "arq_clima", None)
+    tela = ajustes.ler(arq, CLIMA_BYTES, lambda d: ajustes.validar_arquivo_clima(d, fuso=True), log, "clima") if arq else None
+    return tela["clima"] if tela else None
+
+
+def fuso_do_andar(andar):
+    """O fuso do relógio do andar (vida social, jornal e expediente): o da cidade própria, senão o de Brasília. É o mesmo
+    que a tela usa no Ceu, para o ringue e a hora extra valerem igual na tela e no servidor."""
+    return ajustes.zona((clima_proprio(andar) or {}).get("fuso")) or FUSO
+
+
+def foto_clima(clima, andar):
+    """O tempo de agora no andar, do Clima do servidor: o da cidade própria, senão o do prédio (como sempre foi)."""
+    if not clima:
+        return None
+    proprio = clima_proprio(andar)
+    return clima.foto(proprio) if proprio else clima.foto()
 
 
 ARQ_RECEPCAO = os.path.join(DADOS, "recepcao.json")
@@ -2545,7 +2677,8 @@ def config_v(andar=None):
     h = hashlib.sha256()
     proprios = (TIMES, ARQ_PLANTA, ARQ_EQUIPE, ARQ_MARCA, ARQ_LOGO) if andar is None else \
         (andar.times, andar.arq_planta, andar.arq_equipe, andar.arq_marca, andar.arq_logo)
-    for arq in (proprios[0], proprios[3], proprios[4], proprios[1], ARQ_CLIMA, ARQ_FESTAS, proprios[2]):
+    clima_andar = (andar.arq_clima,) if getattr(andar, "arq_clima", None) else ()   # a cidade própria do andar extra
+    for arq in (proprios[0], proprios[3], proprios[4], proprios[1], ARQ_CLIMA, ARQ_FESTAS, proprios[2], *clima_andar):
         try:
             st = os.stat(arq)
             h.update(f"{st.st_mtime_ns}:{st.st_size};".encode())
@@ -2620,6 +2753,37 @@ def salvar_clima(dados, usuario):
     return 200, {"clima": vigente, "origem": origem}
 
 
+def salvar_clima_andar(dados, usuario, andar):
+    """POST /api/clima/andar?andar=<id>: {"clima": {...}} (a cidade própria do andar extra, com o fuso opcional) ou
+    {"limpar": true} (volta a herdar a do prédio). Devolve (status, corpo) com o clima que passou a valer no andar."""
+    if not isinstance(dados, dict) or set(dados) not in ({"clima"}, {"limpar"}) or dados.get("limpar", True) is not True \
+            or ("clima" in dados and not isinstance(dados["clima"], dict)):
+        return erro(400, "pedido", 'Envie {"clima": {...}} ou {"limpar": true}.')
+    try:
+        clima = ajustes.validar_clima(dados["clima"], fuso=True) if "clima" in dados else None
+    except ValueError as x:   # a mensagem é nossa, com o campo, sem repetir o valor
+        return erro(400, "pedido", str(x))
+    with TRAVA_AJUSTES:
+        try:
+            if "limpar" in dados:
+                if os.path.exists(andar.arq_clima):
+                    os.unlink(andar.arq_clima)
+            else:
+                gravar(andar.arq_clima, ajustes.bytes_do_clima(clima))
+        except OSError as x:
+            log(evento="clima", resultado="nao_gravou", andar=andar.id, detalhe=type(x).__name__)
+            return erro(500, "gravar", "Não deu para salvar o clima agora.")
+        proprio = clima_proprio(andar)
+        if hasattr(andar, "acertar_fuso"):   # a vida social e o jornal do andar passam ao relógio da cidade nova
+            andar.acertar_fuso()
+    # sem a cidade nem as coordenadas no log
+    log(evento="clima", resultado="salvo", usuario=usuario, andar=andar.id, origem="andar" if proprio else "predio")
+    if proprio:
+        return 200, {"clima": proprio, "origem": "andar"}
+    vigente, origem = clima_vigente()
+    return 200, {"clima": vigente, "origem": origem}
+
+
 def salvar_festas(dados, usuario):
     """POST /api/festas: {rev, proprias, desligadas}, com o rev atual (outro: 409). Devolve (status, corpo)."""
     try:
@@ -2644,8 +2808,8 @@ def salvar_festas(dados, usuario):
     return 200, {"rev": nova["rev"], "festas": {"proprias": nova["proprias"], "desligadas": nova["desligadas"]}}
 
 
-def salvar_marca(empresa, cor, expediente=None, serio=None, caminho=None):
-    """expediente e serio None mantêm o que já estava salvo (a tela antiga e as boas-vindas não mandam os campos).
+def salvar_marca(empresa, cor, expediente=None, serio=None, caminho=None, radio=None):
+    """expediente, serio e radio None mantêm o que já estava salvo (a tela antiga e as boas-vindas não mandam os campos).
     caminho: o marca.json do andar (None: o do prédio)."""
     if not ROTULO_OK.fullmatch(empresa or ""):
         raise ValueError("nome da empresa: até 40 letras, números e . ' & -")
@@ -2662,6 +2826,11 @@ def salvar_marca(empresa, cor, expediente=None, serio=None, caminho=None):
         novo["serio"] = serio
     elif isinstance(anterior.get("serio"), bool):
         novo["serio"] = anterior["serio"]
+    if radio is not None:
+        if validar_radio(radio):   # "" tira a rádio
+            novo["radio"] = validar_radio(radio)
+    elif origem_radio(anterior.get("radio")):
+        novo["radio"] = anterior["radio"]
     gravar(caminho or ARQ_MARCA, json.dumps(novo).encode("utf-8"))
 
 
@@ -2719,15 +2888,15 @@ def geometria_visita(config, foto, planta):
     return {"grupos": grupos, "planta": {"rev": 0, "salas": pinturas, "moveis": moveis, "novos": novos}}
 
 
-PUBLICOS = {"entrar.css", "entrar.js", "avatar.js", "convite.html", "convite.js", "convite.css", "fontes/figtree.ttf", "fontes/silkscreen.ttf", "fontes/source-sans-3.woff2",
+PUBLICOS = {"entrar.css", "entrar.js", "avatar.js", "sprites.js", "convite.html", "convite.js", "convite.css", "fontes/figtree.ttf", "fontes/silkscreen.ttf",
             "visita.html", "visita.js", "visita.css", "mapa.js", "tema/atlas.png", "tema/atlas.json",
             "mundo.html", "mundo.js", "ceu.js", "clima.js", "som.js",  # bairro público: só código de desenho e som, sem dados
             # mapa do mundo: imagens, cidades e código de desenho, sem dados do escritório
-            "mundo/terra.png", "mundo/brasil.png", "mundo/mundo.json", "mundo/atlas.png", "mundo/atlas.json",
+            "mundo/terra.png", "mundo/brasil.png", "mundo/mundo.json", "mundo/atlas.png", "mundo/atlas.json", "mundo/bairro.png", "mundo/bairro.json",
             "mundo_globo.js", "mundo_mapa.js", "mundo_mapa_arte.js", "mundo_cidade.js", "mundo_cidade_planta.js", "mundo_bairro.js",
             "mundo_festa.js", "mundo_cidade_chao.js", "mundo_cidade_letreiro.js", "mundo_mapa_perto.js", *AZULEJOS_PERTO, "mundo/perto/ufs.json",
             "festas.js",  # o calendário embutido; as datas próprias só chegam pelo /api/config
-            "fontes/doto.woff2", "logo.png",  # liberados na tela de login
+            "fontes/PixeloidSans.woff2", "logo.png",  # liberados na tela de login
             # PWA: o navegador busca o manifesto sem cookie; nenhum deles tem segredo. O sw.js fica na raiz (escopo /)
             "manifest.webmanifest", "sw.js", "icone-180.png", "icone-192.png", "icone-512.png", "icone-mascara-512.png"}
 
@@ -2746,7 +2915,8 @@ REUNIAO_POST = frozenset({"/api/reunioes/marcar", "/api/reunioes/editar", "/api/
 REUNIAO_ADMIN_POST = frozenset({"/api/reunioes/link", "/api/reunioes/convocar"})
 EQUIPE_GET, EQUIPE_POST = EQUIPE_GET | REUNIAO_GET, EQUIPE_POST | REUNIAO_POST
 MEMBRO_GET = frozenset({"/", "", "/api/estado", "/api/config", "/api/social", "/api/social/placar", "/api/jornal",
-                        "/api/linha", "/api/fora", "/api/novidades", "/api/avisos", "/api/push/chave", "/api/perfil", "/api/ao-vivo"}) | EQUIPE_GET
+                        "/api/linha", "/api/fora", "/api/novidades", "/api/avisos", "/api/push/chave", "/api/perfil", "/api/ao-vivo",
+                        "/api/ponte"}) | EQUIPE_GET
 MEMBRO_POST = frozenset({"/sair", "/api/sair-todos", "/api/push/assinar", "/api/push/sair", "/api/perfil",
                          "/api/presenca", "/api/sala/enviar"}) | EQUIPE_POST
 # 1.6: a guarda decide pelo papel NO ANDAR do pedido (?andar=). Do prédio, para toda conta com pelo menos 1 andar: a
@@ -2755,11 +2925,11 @@ MEMBRO_POST = frozenset({"/sair", "/api/sair-todos", "/api/push/assinar", "/api/
 # saguão. Nada do prédio (andares, clima, datas, visitas) passa para quem não administra o prédio.
 PREDIO_GET = frozenset({"/", "", "/api/novidades", "/api/avisos", "/api/push/chave", "/api/perfil"})
 PREDIO_POST = frozenset({"/sair", "/api/sair-todos", "/api/push/assinar", "/api/push/sair", "/api/perfil"})
-ADMIN_EMPRESA_GET = MEMBRO_GET | {"/api/membros", "/api/conversa", "/oauth/conectar"} | AUDITORIA_GET
+ADMIN_EMPRESA_GET = MEMBRO_GET | {"/api/membros", "/api/conversa", "/oauth/conectar", "/api/clima/busca"} | AUDITORIA_GET
 ADMIN_EMPRESA_POST = MEMBRO_POST | {"/api/membros", "/api/planta", "/api/equipe", "/api/marca", "/api/logo",
                                     "/api/logo/remover", "/api/social/briga", "/api/social/greve/atender",
                                     "/api/conversa/modo", "/api/conversa/modo/fechar", "/api/conversa/responder",
-                                    "/oauth/desconectar", "/api/canal/retencao"} | REUNIAO_ADMIN_POST
+                                    "/oauth/desconectar", "/api/canal/retencao", "/api/clima/andar"} | REUNIAO_ADMIN_POST
 # no saguão: o geral do prédio, o mural, o status e o aceno; sem DM, anexo, pessoas nem auditoria (os GET dão 404)
 SAGUAO_GET = PREDIO_GET | {"/api/estado", "/api/config", "/api/ao-vivo", "/api/canal/historico", "/api/canal/busca",
                            "/api/mural"}
@@ -2768,7 +2938,7 @@ SAGUAO_POST = PREDIO_POST | {"/api/presenca", "/api/sala/enviar", "/api/canal/en
                              "/api/status", "/api/aceno"}
 SAGUAO_NAO_TEM = frozenset({"/api/social", "/api/social/placar", "/api/jornal", "/api/linha", "/api/fora",
                             "/api/conversa", "/oauth/conectar",
-                            "/api/dm", "/api/pessoas", "/api/anexo"}) | AUDITORIA_GET | REUNIAO_GET   # 404
+                            "/api/dm", "/api/pessoas", "/api/anexo", "/api/ponte"}) | AUDITORIA_GET | REUNIAO_GET   # 404
 SALAS_FIXAS = frozenset({"", "recepcao", "reuniao", "cozinha", "lounge"})   # "": o corredor (mapa.js: chave de cada sala)
 
 
@@ -2789,7 +2959,7 @@ def aparencia_da_conta(usuario, perfil):
 # POST sem sessão (cada um confere o que precisa): login, convite e as visitas de fora
 POST_PUBLICOS = frozenset({"/entrar", "/primeiro-acesso", "/convite/ver", "/convite/aceitar", "/api/visitas/entrar",
                            "/api/visitas/enviar", "/api/visitas/receber", "/api/visitas/sair", "/api/visitas/mapa",
-                           "/api/visitas/recepcao", "/api/mundo/clima"})
+                           "/api/visitas/recepcao", "/api/mundo/clima", "/api/ponte/espelho"})
 
 
 def pagina_login(erro="", primeiro=False):
@@ -2906,6 +3076,7 @@ class AndarPrincipal:
     arq_planta = property(lambda self: ARQ_PLANTA)
     arq_marca = property(lambda self: ARQ_MARCA)   # a marca do prédio (a da tela de entrar)
     arq_logo = property(lambda self: ARQ_LOGO)
+    arq_clima = None   # a cidade do principal (e do saguão) é a do prédio
     pasta = property(lambda self: getattr(self.srv, "dados", DADOS))   # o equipe.db do principal (ou do saguão)
     cred = property(lambda self: getattr(self.srv, "cred", None))
     leitor = property(lambda self: getattr(self.srv, "leitor", None))
@@ -2930,12 +3101,13 @@ class Andar:
         self.times, self.arq_equipe, self.arq_planta = (caminho(mod_andares.TIMES), caminho(mod_andares.EQUIPE),
                                                         caminho(mod_andares.PLANTA))
         self.arq_marca, self.arq_logo = caminho("marca.json"), caminho("logo.img")   # os nomes da raiz
+        self.arq_clima = caminho(mod_andares.CLIMA)   # a cidade própria; sem ela, a do prédio
         arq_placar, arq_jornal = caminho(mod_andares.PLACAR), caminho(mod_andares.JORNAL)
         self.cred = Credenciais(caminho(mod_andares.OAUTH), self.times)
         self.leitor = Leitor(self.cred, url_app(AGENTES, self.org), self.times, atraso, self.org)
         self.leitor.avisos = avisos.do_andar(self.id) if avisos else None
         self.jornal = self.leitor.jornal = Jornal(log, FUSO, lambda dados: gravar(arq_jornal, dados), ler_jornal(arq_jornal),
-                                                  lambda: ((clima.foto() if clima else None) or {}).get("tipo"),
+                                                  lambda: (foto_clima(clima, self) or {}).get("tipo"),
                                                   lambda: config_publica(self)["expediente"])
         self.linha = self.leitor.linha = Linha(pasta, FUSO, log)
         self.conversas = Conversas(self.leitor)
@@ -2943,6 +3115,11 @@ class Andar:
         self.social = Social(self.leitor, lambda: config_publica(self), log, FUSO, guardar=lambda dados: gravar(arq_placar, dados),
                              placar=ler_placar(arq_placar), contar_jornal=self.jornal.contar)
         self.planta = Planta(self.arq_planta, log, lambda dados: gravar(self.arq_planta, dados))
+        self.acertar_fuso()
+
+    def acertar_fuso(self):
+        """A vida social e o jornal leem self.fuso a cada uso: trocam para o fuso da cidade do andar na hora."""
+        self.social.fuso = self.jornal.fuso = fuso_do_andar(self)
 
     def iniciar(self):
         self.leitor.start()
@@ -2954,11 +3131,14 @@ class Andar:
 
 
 def andares_publicos(srv, pode):
-    """[{id, nome, conexao}] dos andares que a pessoa pode ver, o principal primeiro (o "elevador" da tela). O saguão
-    não tem conexão (null)."""
-    lista = [AndarPrincipal(srv), *getattr(srv, "andares", {}).values()]
+    """[{id, nome, conexao, cidade}] dos andares que a pessoa pode ver, o principal primeiro (o "elevador" da tela). O
+    saguão não tem conexão (null). A cidade do clima vai só pelo nome (a própria, senão a do prédio; sem clima, null), e
+    só a dos andares que a pessoa vê."""
+    lista = [a for a in (AndarPrincipal(srv), *getattr(srv, "andares", {}).values()) if pode(a.id)]
     conexao = lambda a: None if a.saguao else (a.leitor.foto().get("conexao") if a.leitor else None) or "carregando"
-    return [{"id": a.id, "nome": a.nome, "conexao": conexao(a)} for a in lista if pode(a.id)]
+    do_predio = clima_vigente()[0]
+    cidade = lambda a: (clima_proprio(a) or do_predio or {}).get("cidade")
+    return [{"id": a.id, "nome": a.nome, "conexao": conexao(a), "cidade": cidade(a)} for a in lista]
 
 
 VISITANTES_MAX = 50
@@ -2999,24 +3179,23 @@ class Pagina(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _cabecalhos_seguranca(self, moldura=False):
-        """moldura: a página pode abrir dentro de outra do próprio escritório (o mundo no Modo TV); de fora, nunca."""
+    def _cabecalhos_seguranca(self, moldura=False, midia=()):
+        """moldura: a página pode abrir dentro de outra do próprio escritório (o mundo no Modo TV); de fora, nunca.
+        midia: as origens das rádios da internet (só na página do app)."""
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN" if moldura else "DENY")
         self.send_header("Referrer-Policy", "same-origin")  # com no-referrer o POST de formulário sai com Origin: null
         if BASE.startswith("https://"):
             self.send_header("Strict-Transport-Security", "max-age=31536000")
-        self.send_header("Content-Security-Policy",
-                         "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
-                         "connect-src 'self'; frame-ancestors " + ("'self'" if moldura else "'none'") +
-                         "; base-uri 'none'; form-action 'self'")
+        self.send_header("Content-Security-Policy", politica_seguranca(moldura, midia))
 
-    def _envia(self, status, corpo=b"", tipo="text/plain; charset=utf-8", extra=None, cache="no-store", moldura=False):
+    def _envia(self, status, corpo=b"", tipo="text/plain; charset=utf-8", extra=None, cache="no-store", moldura=False,
+               midia=()):
         self.send_response(status)
         self.send_header("Content-Type", tipo)
         self.send_header("Content-Length", str(len(corpo)))
         self.send_header("Cache-Control", cache)
-        self._cabecalhos_seguranca(moldura)
+        self._cabecalhos_seguranca(moldura, midia)
         for k, v in (extra or {}).items():
             if isinstance(v, list):
                 for item in v:
@@ -3495,6 +3674,8 @@ class Pagina(BaseHTTPRequestHandler):
             return barrado
         if rota in EQUIPE_GET or rota in AUDITORIA_GET:   # as conversas da equipe e a auditoria de DM (Onda 2)
             return self._get_equipe(rota, caminho, usuario)
+        if rota == "/api/ponte":
+            return self._get_ponte()
         por_andar =("/api/estado", "/api/config", "/api/social", "/api/social/placar", "/api/jornal", "/api/conversa",
                      "/oauth/conectar", "/api/ao-vivo", "/api/membros", "/api/linha", "/api/fora")
         andar = self._andar() if rota in por_andar else None
@@ -3513,7 +3694,7 @@ class Pagina(BaseHTTPRequestHandler):
                 and carregar_times(andar.times)["conversas"] in MODOS_CONVERSA else []
             modo = self._modo_resposta(andar) if pode else None   # só o da própria sessão, neste navegador
             foto = leitor.foto() if leitor else dict(SAGUAO_VAZIO)   # o saguão não tem agentes
-            estado = {**foto, "conversas": conversas, "clima": clima.foto() if clima else None,
+            estado = {**foto, "conversas": conversas, "clima": foto_clima(clima, andar),
                       "usuario": usuario, "modo_resposta": {"resta_s": modo[0], "teto_s": modo[1]} if modo else None,
                       "config_v": config_v(andar)}
             if andar.id == ANDAR_PRINCIPAL and not andar.saguao:
@@ -3577,7 +3758,8 @@ class Pagina(BaseHTTPRequestHandler):
             if not self._admin_do_predio():
                 return self._json(*erro(403, "papel", "Só quem administra o escritório mexe nos andares."))
             return self._json(200, {"andares": [{"id": a.id, "nome": a.nome, "org": a.org,
-                                                 "conexao": a.leitor.foto().get("conexao") or "carregando"}
+                                                 "conexao": a.leitor.foto().get("conexao") or "carregando",
+                                                 "cidade": (clima_proprio(a) or {}).get("cidade")}   # null: a do prédio
                                                 for a in getattr(self.server, "andares", {}).values()]})
         if rota == "/api/clima/busca":   # o q não vai ao log; quem limita e limpa é a BuscaCidades
             return self._json(*BUSCA.buscar(urllib.parse.parse_qs(caminho.query, keep_blank_values=True).get("q", [""])[0]))
@@ -3709,7 +3891,19 @@ class Pagina(BaseHTTPRequestHandler):
             return self._envia(404, b"")
         cache = ("no-store" if nome in ("visita.html", "visitas-admin.html", "recepcionista.html", "mundo.html") else
                  "public, max-age=3600" if nome.endswith((".png", ".ttf", ".woff2")) else "no-cache")
-        return self._envia(200, corpo, ARQUIVOS[nome], cache=cache, moldura=nome == "mundo.html")
+        midia = self._radios() if nome == "index.html" else ()
+        return self._envia(200, corpo, ARQUIVOS[nome], cache=cache, moldura=nome == "mundo.html", midia=midia)
+
+    def _radios(self):
+        """As origens das rádios da internet dos andares que esta sessão vê: a página é uma só e troca de andar sem
+        recarregar. Cada origem passou pela validar_radio (só host e porta); nenhuma rádio, nenhum media-src extra."""
+        if not self._usuario():
+            return ()
+        origens = set()
+        for id_andar, andar in ((ANDAR_PRINCIPAL, None), *getattr(self.server, "andares", {}).items()):
+            if self._pode_andar(id_andar):
+                origens.add(origem_radio(_ler_marca(andar.arq_marca if andar else None).get("radio")))
+        return tuple(sorted(o for o in origens if o))[:12]   # teto: o cabeçalho CSP não cresce sem limite
 
     def _post_resposta(self, rota):
         """Fase R (R2 e R2a): Origin obrigatório e igual à BASE (sem a volta para o Referer), sessão e JSON exato."""
@@ -3841,7 +4035,8 @@ class Pagina(BaseHTTPRequestHandler):
             return self._json(401, {"erro": "entre de novo"})
         if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
             return self._json(*erro(415, "formato", "Envie JSON (application/json)."))
-        teto = {"/api/clima": CLIMA_BYTES, "/api/festas": FESTAS_BYTES, "/api/equipe": EQUIPE_BYTES}[rota]
+        teto = {"/api/clima": CLIMA_BYTES, "/api/clima/andar": CLIMA_BYTES, "/api/festas": FESTAS_BYTES,
+                "/api/equipe": EQUIPE_BYTES}[rota]
         try:
             dados = ajustes.json_estrito(self._corpo(teto))
         except (ValueError, RecursionError):   # tamanho, UTF-8, JSON inválido, NaN ou Infinity
@@ -3853,7 +4048,15 @@ class Pagina(BaseHTTPRequestHandler):
             if andar is None or andar.saguao:
                 return self._sem_andar()
             return self._json(*salvar_equipe(dados, usuario, andar.arq_equipe))
-        st, corpo = salvar_clima(dados, usuario)
+        if rota == "/api/clima/andar":   # a cidade de um andar extra; a do principal (e do saguão) é a do prédio
+            andar = self._andar()
+            if andar is None or getattr(andar, "arq_clima", None) is None:
+                return self._sem_andar()
+            if not self._admin_do_andar(andar.id):
+                return self._proibido(rota)
+            st, corpo = salvar_clima_andar(dados, usuario, andar)
+        else:
+            st, corpo = salvar_clima(dados, usuario)
         clima = getattr(self.server, "clima", None)
         if st == 200 and clima:   # o clima novo vale sem reiniciar
             clima.acordar()
@@ -3964,6 +4167,84 @@ class Pagina(BaseHTTPRequestHandler):
         except (ValueError, RecursionError):
             return None
         return dados if isinstance(dados, dict) else None
+
+    def _get_ponte(self):
+        """O espelho da ponte para quem é do andar dele (a guarda já barrou o saguão e quem não tem papel): fresco (até
+        90 s), ou {"ativo": false}. Sem cache (o _envia manda no-store)."""
+        andar = self._andar()
+        if andar is None:
+            return self._sem_andar()
+        espelho = getattr(self.server, "espelho_ponte", None)
+        resposta = {"ativo": False}
+        if espelho is not None and not andar.saguao and andar.id == (PONTE_ANDAR or ANDAR_PRINCIPAL):
+            resposta = espelho.ler()
+        if self._admin_do_predio():   # a tela mostra o gerar/desligar só a quem pode; a chave nunca volta aqui
+            resposta["espelho"] = espelho.origem() if espelho is not None else ""
+        return self._json(200, resposta)
+
+    def _post_chave_ponte(self, rota):
+        """Personalizar > Ponte local, só o admin do prédio (a guarda nega o resto): {"acao": "gerar"} cria uma chave
+        nova (a antiga para de valer) e devolve, só nesta resposta, o comando pronto para a máquina dos terminais;
+        {"acao": "desligar"} apaga a chave. Com a ESCRITORIO_PONTE_CHAVE definida, 409: quem manda é a variável."""
+        if not self._mesma_origem():
+            log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if self._previa():
+            return self._json(*erro(403, "previa", "Na prévia não há espelho da ponte."))
+        if not self._usuario():
+            return self._json(401, {"erro": "entre de novo"})
+        if not self._admin_do_predio():
+            return self._proibido(rota)
+        dados = self._json_pedido(1024)
+        if not dados or dados.get("acao") not in ("gerar", "desligar") or len(dados) != 1:
+            return self._json(*erro(400, "pedido", "Pedido inválido."))
+        espelho = self.server.espelho_ponte
+        try:
+            if dados["acao"] == "desligar":
+                espelho.desligar()
+                log(evento="ponte_espelho", resultado="desligado", usuario=self._usuario())
+                return self._json(200, {"espelho": ""})
+            chave = espelho.gerar()
+        except ValueError:
+            return self._json(*erro(409, "variavel", "A chave vem da variável ESCRITORIO_PONTE_CHAVE do servidor."))
+        except OSError as x:
+            log(evento="ponte_espelho", resultado="nao_gravou", detalhe=type(x).__name__)
+            return self._json(*erro(500, "gravar", "Não deu para salvar a chave agora."))
+        log(evento="ponte_espelho", resultado="chave_gerada", usuario=self._usuario())   # a chave nunca vai ao log
+        return self._json(200, {"espelho": "tela", "comando": f"ponte conectar {BASE}", "chave": chave})
+
+    def _post_espelho_ponte(self, rota):
+        """A ponte local manda o espelho (Bearer com a ESCRITORIO_PONTE_CHAVE). Sem a chave no servidor, 404; chave
+        errada, 401. Limite por origem (o das visitas) e um envio aceito por segundo. Nada do corpo nem do cabeçalho vai
+        ao log."""
+        espelho = getattr(self.server, "espelho_ponte", None)
+        if espelho is None or not espelho.ligado():
+            return self._json(404, {"erro": "nao_encontrado"})
+        try:
+            origem = origem_visita(self.client_address[0], self.headers, self.server.proxy_visitas,
+                                   getattr(self.server, "cabecalho_visitas", "X-Real-IP"))
+            self.server.salas_visitas.limitar_origem(origem, publica=True)
+        except LimiteRequisicoes:
+            return self._json(*erro(429, "limite", "Envios demais; espere um pouco."))
+        except ValueError:
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if not espelho.autorizado(self.headers.get("Authorization")):
+            log(evento="ponte_espelho", resultado="chave_recusada")
+            return self._json(*erro(401, "chave", "Chave da ponte recusada."))
+        tam = self.headers.get("Content-Length", "")
+        if not re.fullmatch(r"[0-9]{1,7}", tam) or int(tam) > ponte_espelho.CORPO_MAX:
+            self.close_connection = True   # o corpo fica por ler
+            return self._json(*erro(413, "tamanho", "O espelho passou do tamanho."))
+        dados = self._json_pedido(ponte_espelho.CORPO_MAX)
+        if dados is False:
+            return self._json(*erro(415, "tipo", "Mande JSON."))
+        try:
+            espelho.receber(dados)
+        except ponte_espelho.Limite:
+            return self._json(*erro(429, "limite", "Envios demais; espere um pouco."))
+        except ValueError:
+            return self._json(*erro(400, "pedido", "Espelho inválido."))
+        return self._envia(204)
 
     def _post_convite(self, rota):
         """Página pública do convite: ver o nome sugerido e aceitar (cria a conta de membro e já entra). Origin igual à
@@ -4092,7 +4373,7 @@ class Pagina(BaseHTTPRequestHandler):
             try:
                 dados = json.loads(self._corpo(2048))
                 salvar_marca(str(dados.get("empresa", "")), str(dados.get("cor", "")), dados.get("expediente"),
-                             dados.get("serio"), andar.arq_marca)
+                             dados.get("serio"), andar.arq_marca, dados.get("radio"))
             except (ValueError, AttributeError) as e:
                 return self._json(400, {"erro": str(e)[:120]})
             cfg = config_publica(andar)
@@ -4962,6 +5243,10 @@ class Pagina(BaseHTTPRequestHandler):
             barrado = self._barrado("POST", rota)
             if barrado is not None:
                 return barrado
+        if rota == "/api/ponte/espelho":
+            return self._post_espelho_ponte(rota)
+        if rota == "/api/ponte/chave":
+            return self._post_chave_ponte(rota)
         if rota in ("/convite/ver", "/convite/aceitar"):
             return self._post_convite(rota)
         if rota == "/api/perfil":
@@ -4984,7 +5269,7 @@ class Pagina(BaseHTTPRequestHandler):
             return self._post_social(rota)
         if rota == "/api/planta":
             return self._post_planta(rota)
-        if rota in ("/api/clima", "/api/festas", "/api/equipe"):
+        if rota in ("/api/clima", "/api/clima/andar", "/api/festas", "/api/equipe"):
             return self._post_ajustes(rota)
         if rota == "/api/sair-todos":
             return self._post_sair_todos(rota)
@@ -5067,6 +5352,9 @@ class Servidor(ThreadingHTTPServer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.salas_visitas = Salas()
+        # o espelho da ponte: a chave da variável ou a que a tela gera (dados/ponte-espelho.chave, 0600); sem as duas,
+        # desligado
+        self.espelho_ponte = ponte_espelho.Espelho(PONTE_CHAVE_BRUTA, ARQ_PONTE_CHAVE)
         self.presenca = Presenca()   # as pessoas da equipe no mapa e o chat das salas (só na memória)
         self.id_pessoa = IdPessoa(ARQ_SEGREDO_PESSOA)   # o id opaco das pessoas no saguão (M2)
         self.andares, self.registro_andares = {}, None   # o main() põe os andares extras (andares.py)
@@ -5247,6 +5535,8 @@ def main():
         sys.exit("ESCRITORIO_VISITAS_CANAL precisa ser o id (uuid) de um canal do agentes.chat só para visitas")
     if bool(ANFITRIOES_VISITAS) != bool(CANAL_VISITAS):
         sys.exit("agente na sala de visitas: defina ESCRITORIO_VISITAS_ANFITRIOES e ESCRITORIO_VISITAS_CANAL juntas")
+    if PONTE_CHAVE_BRUTA and not ponte_espelho.chave_valida(PONTE_CHAVE_BRUTA):
+        sys.exit("ESCRITORIO_PONTE_CHAVE precisa ter 64 letras hexadecimais (0 a 9, a a f); gere com: openssl rand -hex 32")
     # o docker stop (e o systemctl stop) mandam SIGTERM; como PID 1 num container, o Python o ignoraria até o SIGKILL.
     # Toda gravação é atômica, então sair na hora não deixa arquivo pela metade
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -5269,7 +5559,9 @@ def main():
         sys.exit(motivo)
     srv = Servidor((BIND, PORTA), Pagina)  # 127.0.0.1: a Tailscale (serve) publica só na rede privada
     srv.trava_servico, srv.acesso, srv.registro_andares = trava, contas, registro
-    clima = Clima(lambda: clima_vigente()[0])   # nasce sempre: a cidade pode chegar pela tela depois
+    # nasce sempre: a cidade pode chegar pela tela depois. As cidades próprias dos andares entram no mesmo Clima
+    clima = Clima(lambda: clima_vigente()[0],
+                  lambda: [c for c in map(clima_proprio, list(getattr(srv, "andares", {}).values())) if c])
     # aviso no celular: um só no prédio (a fila e a VAPID), e a thread dele fala com os serviços de push, nunca com o
     # agentes.chat. Cada andar põe os pedidos dele; o aviso vai só para quem tem papel no andar, conferido no envio
     avisos = srv.avisos = criar_avisos()
@@ -5326,7 +5618,8 @@ def main():
     srv.ponte_visitas.start()
     if BIND == "0.0.0.0":
         log(evento="inicio", aviso="use só em container, atrás de um proxy HTTPS")
-    log(evento="inicio", versao=VERSAO, onde=f"{BIND}:{PORTA}", base=BASE, terreo="saguao" if registro.saguao else "classico")
+    log(evento="inicio", versao=VERSAO, onde=f"{BIND}:{PORTA}", base=BASE, terreo="saguao" if registro.saguao else "classico",
+        espelho_ponte=srv.espelho_ponte.origem() or "desligado")   # a chave nunca vai ao log
     srv.serve_forever()
 
 

@@ -46,9 +46,9 @@ body.construir { overflow: hidden; }
 .pondo .peca { cursor: crosshair; }
 .ed-carregando { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; color: var(--suave); }
 
-.zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 2px; padding: 3px; border-radius: var(--r-botao); background: rgba(15, 15, 14, .82); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
+.zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 2px; padding: 3px; border-radius: var(--r-botao); background: rgba(15, 15, 14, .82); border: 1px solid rgba(255, 255, 255, .12); }
 .zoom .ed-ic { border: 0; background: transparent; }
-.dica-por { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 999px; background: rgba(15, 15, 14, .9);
+.dica-por { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 0; background: rgba(15, 15, 14, .9);
   border: 1px solid color-mix(in srgb, var(--destaque) 55%, transparent); font-size: 13.5px; white-space: nowrap; pointer-events: none; }
 
 /* ---------------- painel lateral */
@@ -77,13 +77,13 @@ body.construir { overflow: hidden; }
 .amostras legend { padding: 0; margin-bottom: 6px; font-size: 13px; color: var(--texto2); display: flex; gap: 8px; align-items: baseline; width: 100%; }
 .amostras legend .link-botao { min-height: 0; padding: 0; margin-left: auto; font-size: 12.5px; }
 .grade-amostras { display: flex; flex-wrap: wrap; gap: 6px; }
-.amostra { position: relative; width: 36px; height: 36px; padding: 0; border-radius: 8px; border: 1px solid var(--borda-forte); background: var(--campo); overflow: hidden; cursor: pointer; }
+.amostra { position: relative; width: 36px; height: 36px; padding: 0; border-radius: 0; border: 1px solid var(--borda-forte); background: var(--campo); overflow: hidden; cursor: pointer; }
 .amostra canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
 .amostra input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .amostra:has(input:checked) { border-color: var(--destaque); box-shadow: 0 0 0 2px var(--destaque); }
 .amostra:has(input:focus-visible) { outline: 2px solid var(--destaque); outline-offset: 2px; }
 
-.selo-enfeite { font: 600 11px "Source Sans 3", system-ui, sans-serif; letter-spacing: 0; text-transform: none; padding: 1px 8px; border-radius: 999px; background: var(--cartao2); color: var(--texto2); }
+.selo-enfeite { font: 600 11px Figtree, system-ui, sans-serif; letter-spacing: 0; text-transform: none; padding: 1px 8px; border-radius: 0; background: var(--cartao2); color: var(--texto2); }
 .catalogo { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
 .item-cat { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 76px; padding: 6px 4px; border-radius: var(--r-item); border: 1px solid var(--borda);
   background: var(--cartao); color: var(--texto2); font-size: 11.5px; line-height: 1.15; text-align: center; }
@@ -110,7 +110,7 @@ body.construir { overflow: hidden; }
 .motivo.neutro { background: var(--cartao); border-color: var(--borda); color: var(--texto2); }
 
 /* ---------------- diálogo de confirmação (no próprio app, sem confirm nativo) */
-.dlg-ed { max-width: 420px; padding: 20px; border-radius: var(--r-cartao); border: 1px solid var(--borda-forte); background: var(--cartao); color: var(--texto); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.dlg-ed { max-width: 420px; padding: 20px; border-radius: var(--r-cartao); border: 1px solid var(--borda-forte); background: var(--cartao); color: var(--texto); box-shadow: 6px 6px 0 rgba(0, 0, 0, .45); }
 .dlg-ed::backdrop { background: rgba(0, 0, 0, .55); }
 .dlg-ed h2 { margin: 0 0 8px; font-size: 17px; }
 .dlg-ed p { margin: 0 0 12px; color: var(--texto2); }

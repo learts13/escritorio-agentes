@@ -489,8 +489,11 @@ class EmpresasNoSaguao(unittest.TestCase):
     # ------------------------------------------------------------------ a matriz
     def test_listas_da_guarda(self):
         """O admin da empresa nunca alcança o que é do prédio, e o saguão é um pedaço do que o membro já via."""
-        do_predio = {"/api/andares", "/api/clima", "/api/festas", "/api/clima/busca", *e.ROTAS_ADMIN_VISITAS}
+        do_predio = {"/api/andares", "/api/clima", "/api/festas", *e.ROTAS_ADMIN_VISITAS}
         self.assertFalse(do_predio & (e.ADMIN_EMPRESA_GET | e.ADMIN_EMPRESA_POST))
+        # a busca de cidade (com o limite global) também serve à cidade do andar, que é do admin da empresa
+        self.assertIn("/api/clima/busca", e.ADMIN_EMPRESA_GET)
+        self.assertIn("/api/clima/andar", e.ADMIN_EMPRESA_POST)
         self.assertTrue(e.SAGUAO_GET <= e.MEMBRO_GET and e.SAGUAO_POST <= e.MEMBRO_POST)
         self.assertTrue(e.MEMBRO_GET <= e.ADMIN_EMPRESA_GET and e.MEMBRO_POST <= e.ADMIN_EMPRESA_POST)
         self.assertNotIn("/api/conversa", e.SAGUAO_GET)
@@ -545,8 +548,8 @@ class EmpresasNoSaguao(unittest.TestCase):
         self.assertEqual((cfg["terreo"], cfg["andar"], cfg["papel"], cfg["admin_predio"]), ("saguao", "principal", "pessoa", False))
         self.assertEqual((cfg["times"], cfg["aparencia"]), ([], {}))
         self.assertNotIn("Time secreto", json.dumps(cfg))
-        self.assertEqual(cfg["andares"], [{"id": "principal", "nome": "Saguão", "conexao": None},
-                                          {"id": self.B, "nome": "Empresa B", "conexao": "conectado"}])
+        self.assertEqual(cfg["andares"], [{"id": "principal", "nome": "Saguão", "conexao": None, "cidade": None},
+                                          {"id": self.B, "nome": "Empresa B", "conexao": "conectado", "cidade": None}])
         for rota in ("/api/estado", "/api/config", "/api/jornal", "/api/ao-vivo", "/api/membros", "/logo"):
             with self.subTest(rota=rota):
                 self.assertEqual(self.get(f"{rota}?andar={self.A}", b)[0], 404)

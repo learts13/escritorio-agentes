@@ -9,7 +9,7 @@ const Brincar = (() => {
   const agora = () => performance.now();
   const el = (tag, classe, texto) => { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; };
   const som = nome => { if (window.Som) Som.evento(nome); };
-  let P = null, itens = [], hover = null, focado = null, camada = null, aviso = null, ultimaCam = null, faixa = 0, recadosDe = null;
+  let P = null, itens = [], hover = null, focado = null, camada = null, aviso = null, ultimaCam = null, faixa = 0, recadosDe = null, proxDanca = 0;
   const reacoes = [];   // { it, tipo, inicio, dur, texto }
 
   // ---------------- objetos interativos
@@ -21,7 +21,8 @@ const Brincar = (() => {
     [/^placa_expediente$/, "expediente", "Placa do expediente", demo ? "ver o horário" : "ver e mudar o horário"],
   ];
   const DO_QUADRO = { relogio: ["relogio", "Relógio", "ver a hora e o tempo"], assinatura_dev: ["lousa", "Lousa de código", "ler a lousa"],
-    assinatura_vendas: ["sino", "Sino das vendas", "tocar o sino"], assinatura_produto: ["lousa", "Kanban", "ver o kanban"], assinatura_marketing: ["lousa", "Moodboard", "ver o moodboard"] };
+    assinatura_vendas: ["sino", "Sino das vendas", "tocar o sino"], assinatura_produto: ["lousa", "Kanban", "ver o kanban"], assinatura_marketing: ["lousa", "Moodboard", "ver o moodboard"],
+    radio: ["radio", "Rádio", "ligar, trocar de estação e mudar o volume"] };
   const salaEm = (x, y) => [...P.salas, ...P.baixo].find(s => x >= s.px && x <= s.px + s.pw && y >= s.py && y <= s.py + s.ph + 2) || null;
 
   function montar(predio) {
@@ -125,6 +126,7 @@ const Brincar = (() => {
     lousa: it => { const t = it.rotulo === "Lousa de código" ? PIADAS[Math.floor(Math.random() * PIADAS.length)] : it.rotulo === "Kanban" ? "3 FEITOS HOJE" : "INSPIRAÇÃO DO DIA"; reagir(it, "bolha", 3000, t.toUpperCase()); return `${it.rotulo}: ${t}`; },
     placar: () => { abrirPlacar(); return "Placar do ringue aberto"; },   // diálogo do ranking (app.js)
     greve: () => { atenderGreve(); return ""; },   // o app.js atende e anuncia
+    radio: it => { if (!window.Radio) return ""; Radio.abrir(it.botao); return "Controle do rádio aberto"; },   // radio.js
     sino: it => { som("sino"); reagir(it, "ding", 1800, "DING!"); return "Sino tocado: venda fechada!"; },
     planta: it => { it.ref.agita = agora(); return "A planta balançou"; },
     expediente: it => { // fora da demonstração, abre o Personalizar no "Abre às" (app.js); na demonstração, só mostra o horário
@@ -143,6 +145,18 @@ const Brincar = (() => {
   function reagir(it, tipo, dur, texto) {
     for (let i = reacoes.length - 1; i >= 0; i--) if (reacoes[i].it === it) reacoes.splice(i, 1);
     reacoes.push({ it, tipo, inicio: agora(), dur, texto });
+  }
+
+  // rádio ligado (só para quem ligou, neste navegador): notinhas saindo dele e, de vez em quando, quem está livre e de
+  // pé por perto dança (sem dança com movimento reduzido); no modo TV e no modo apresentação ele se desliga
+  function radioTocando(t) {
+    if (!window.Radio || !Radio.tocando) return;
+    if (Radio.bloqueado()) { Radio.desligar(); return; }
+    const it = itens.find(x => x.tipo === "radio"); if (!it) return;
+    if (!reacoes.some(r => r.it === it)) reagir(it, "notas", 2600);
+    if (t < proxDanca || calmo.matches) return;
+    proxDanca = t + 7000 + Math.random() * 8000;
+    if (window.Vida && Vida.dancarPerto && typeof mundo !== "undefined" && mundo) Vida.dancarPerto(mundo, it.x + it.w / 2, it.y + it.h + 30, 150, 5);
   }
 
   // quadro de avisos: recados genéricos (nada de dado real), num painel pequeno que fecha com Esc
@@ -185,6 +199,7 @@ const Brincar = (() => {
       px(c, marca.x - 2, marca.y - 2, 1, marca.h + 4, k); px(c, marca.x + marca.w + 1, marca.y - 2, 1, marca.h + 4, k);
     }
     const t = agora();
+    radioTocando(t);
     for (let i = reacoes.length - 1; i >= 0; i--) {
       const r = reacoes[i], f = (t - r.inicio) / r.dur; if (f >= 1) { reacoes.splice(i, 1); continue; }
       const it = r.it, cx = it.x + it.w / 2, g = calmo.matches ? 0.4 : f;   // com menos movimento: um quadro parado
@@ -389,7 +404,7 @@ const Brincar = (() => {
     }
     document.getElementById("modo-foto")?.addEventListener("click", () => modoFoto(!foto));
     document.addEventListener("keydown", ev => {
-      if (ev.key === "Escape" && (foto || fecharRecados(true))) { if (foto) modoFoto(false); ev.stopImmediatePropagation(); return; }
+      if (ev.key === "Escape" && (foto || fecharRecados(true) || (window.Radio && Radio.fechar(true)))) { if (foto) modoFoto(false); ev.stopImmediatePropagation(); return; }
       if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
       const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
       pos = k === CODIGO[pos] ? pos + 1 : k === CODIGO[0] ? 1 : 0;

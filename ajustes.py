@@ -5,6 +5,8 @@ comemorativas e os times com a aparência dos agentes. Validação tudo ou nada,
 
 dados/clima.json, até 512 B:
   {"v": 1, "clima": {"cidade": "Belo Horizonte", "lat": -19.92, "lon": -43.94}}   ou {"v": 1, "clima": null} (sem clima)
+dados/andares/<id>/clima.json (a cidade própria de um andar extra; sem ele, o andar herda a do prédio), até 512 B:
+  {"v": 1, "clima": {"cidade": "Lisboa", "lat": 38.72, "lon": -9.14, "fuso": "Europe/Lisbon"}}   (o "fuso" é opcional)
 dados/festas.json, até 16 KB:
   {"v": 1, "rev": 2,
    "proprias": [{"nome": "Aniversário da empresa", "data": "03-15", "dias": 1, "tema": "generico", "falas": ["Parabéns!"]}],
@@ -34,6 +36,9 @@ COR_OK = re.compile(r"#[0-9a-fA-F]{6}")
 CORES = {"sky", "indigo", "violet", "rose", "amber", "green", "teal", "graphite"}
 OLHOS = {"happy", "sleepy", "round", "wide", "dots"}
 ACESSORIOS = {"crown", "hat", "headphones", "headset", "flower", "antenna", "cap", "bow", ""}
+# a gente do mapa (Firmópolis, onda 5): cabelo e pele de quem tem conta; a blusa é a "color". Opcionais no avatar
+CABELOS = {"castanho", "preto", "dourado", "ruivo", "platinado", "roxo", "azul"}
+PELES = {"clara", "media", "morena", "escura"}
 ICONES_OK = {"codigo", "megafone", "servidor", "coroa", "sino", "controle", "xicara", "pessoas", "grafico", "pincel", "estrela"}
 TIPOS = ("mesas", "ops", "gabinete")
 CAMPOS_TIME = {"nome", "tipo", "cor", "icone", "parede", "piso", "agentes"}
@@ -91,22 +96,49 @@ def inteiro(x, minimo, maximo, msg):
 
 # ---------------------------------------------------------------- clima
 
-def validar_clima(c):
-    """{"cidade", "lat", "lon"} exatos, ou None (sem clima). As coordenadas ficam com 2 casas: cerca de 1 km."""
+FUSO_OK = re.compile(r"(?:[A-Z][A-Za-z_-]*)(?:/[A-Za-z0-9_+-]+){1,2}|UTC")   # IANA, como "America/Sao_Paulo"
+
+
+def zona(f):
+    """O ZoneInfo do fuso IANA, ou None: fora do formato, desconhecido no tzdata da máquina, ou sem zoneinfo."""
+    if not isinstance(f, str) or len(f) > 40 or not FUSO_OK.fullmatch(f):
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(f)
+    except Exception:   # ZoneInfoNotFoundError, ImportError, ValueError: o fuso não vale aqui
+        return None
+
+
+def validar_fuso(f):
+    """O fuso IANA (até 40 caracteres) que o geocoding devolve, ou None quando não vem, vem fora do formato ou não existe
+    no tzdata (o relógio do servidor precisa conhecer o fuso que a tela usa)."""
+    return f if zona(f) is not None else None
+
+
+def validar_clima(c, fuso=False):
+    """{"cidade", "lat", "lon"} exatos, ou None (sem clima). As coordenadas ficam com 2 casas: cerca de 1 km. Com
+    fuso=True (a cidade de um andar), aceita também o "fuso" IANA opcional."""
     if c is None:
         return None
-    if not isinstance(c, dict) or set(c) != {"cidade", "lat", "lon"}:
+    chaves = {"cidade", "lat", "lon"}
+    if not isinstance(c, dict) or not (set(c) == chaves or (fuso and set(c) == chaves | {"fuso"})):
         raise ValueError("Clima: envie cidade, latitude e longitude.")
-    return {"cidade": texto(c["cidade"], 60, "Cidade: de 1 a 60 caracteres, numa linha só."),
-            "lat": round(numero(c["lat"], -90, 90, "Latitude: um número de -90 a 90."), 2),
-            "lon": round(numero(c["lon"], -180, 180, "Longitude: um número de -180 a 180."), 2)}
+    limpo = {"cidade": texto(c["cidade"], 60, "Cidade: de 1 a 60 caracteres, numa linha só."),
+             "lat": round(numero(c["lat"], -90, 90, "Latitude: um número de -90 a 90."), 2),
+             "lon": round(numero(c["lon"], -180, 180, "Longitude: um número de -180 a 180."), 2)}
+    if "fuso" in c:
+        if validar_fuso(c["fuso"]) is None:
+            raise ValueError("Fuso: um nome como America/Sao_Paulo.")
+        limpo["fuso"] = c["fuso"]
+    return limpo
 
 
-def validar_arquivo_clima(d):
+def validar_arquivo_clima(d, fuso=False):
     """O clima.json: {"v": 1, "clima": {...} ou null}. Devolve {"clima": ...}, para separar "sem clima" de ausente."""
     if not isinstance(d, dict) or set(d) != {"v", "clima"} or type(d["v"]) is not int or d["v"] != 1:
         raise ValueError("formato")
-    return {"clima": validar_clima(d["clima"])}
+    return {"clima": validar_clima(d["clima"], fuso)}
 
 
 def bytes_do_clima(clima):

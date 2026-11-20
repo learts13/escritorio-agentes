@@ -86,7 +86,7 @@ const Assistente = (() => {
         aviso("as-cidade-aviso", `Pronto: o tempo lá fora é o de ${c ? c.cidade : r.nome}.`, "ok");
         seguir(secao("cidade"), true).focus();
       } catch (e) { aviso("as-cidade-aviso", `Não salvou: ${e.message}`, "ruim"); }
-    });
+    }, () => !Ajustes.andarExtra(cfg));   // num andar extra, a busca e a cidade são as do andar
     Personalizar.montarPaleta($("bv-paleta"), "bv-paleta", c => { corEscolhida = c; aplicarCor(c); });   // a página mostra a cor na hora
     $("bv-logo").addEventListener("change", () => {
       const f = $("bv-logo").files[0], erro = f ? Personalizar.erroDoLogo(f) : "";

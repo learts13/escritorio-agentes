@@ -236,6 +236,8 @@ class ContasUnidade(unittest.TestCase):
 
         # Limite exato de 40 caracteres passa; 41, vazio ou controle falham
         self.a.salvar_perfil("dono", "a" * 40, {"color": "sky", "eyes": "dots", "accessory": ""})
+        gente = {"color": "rose", "eyes": "happy", "accessory": "", "hair": "ruivo", "skin": "morena"}   # cabelo e pele: opcionais
+        self.assertEqual(self.a.salvar_perfil("dono", "Ana", gente)["avatar"], gente)
         for ruim in ("", "   ", "a" * 41, "ana\x00", "ana\n", "ana\r", "ana\u200b", 123, None):
             with self.subTest(nome=ruim):
                 with self.assertRaises(ValueError):
@@ -249,6 +251,8 @@ class ContasUnidade(unittest.TestCase):
             {"color": "teal", "eyes": "happy", "accessory": "espada"},
             {"color": "teal", "eyes": "happy"},
             {"color": "teal", "eyes": "happy", "accessory": "", "extra": 1},
+            {"color": "teal", "eyes": "happy", "accessory": "", "hair": "verde"},
+            {"color": "teal", "eyes": "happy", "accessory": "", "skin": 2},
         ):
             with self.subTest(avatar=av_ruim):
                 with self.assertRaises(ValueError):

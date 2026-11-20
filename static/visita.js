@@ -98,12 +98,13 @@
   }
   async function carregarMapa(publico = false) {
     try {
-      const [dados, resposta, img] = await Promise.all([
-        pedir(publico ? "recepcao" : "mapa", publico ? {} : { sessao }), fetch("/tema/atlas.json", { credentials: "omit" }),
-        new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = "/tema/atlas.png"; })
-      ]);
+      // o PNG vem com o ?v= do atlas.json: os PNG ficam 1 h em cache, e um atlas novo com o PNG velho embaralha os sprites
+      const [dados, resposta] = await Promise.all([
+        pedir(publico ? "recepcao" : "mapa", publico ? {} : { sessao }), fetch("/tema/atlas.json", { credentials: "omit" })]);
       if (!resposta.ok || !ativa) throw new Error("Mapa indisponível");
-      atlasDados = await resposta.json(); if (!ativa) return; imagem = img;
+      const atlas = await resposta.json(); if (!ativa) return;
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = "/tema/atlas.png?v=" + encodeURIComponent(atlas.versao || ""); });
+      if (!ativa) return; atlasDados = atlas; imagem = img;
       predio = Mapa.montarPredio({ img, json: atlasDados }, { empresa: "escritorio", planta: dados.planta }, dados.grupos);
       desenhar(publico ? "publico" : false);
       verSala.disabled = verEscritorio.disabled = publico;

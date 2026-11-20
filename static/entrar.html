@@ -6,15 +6,15 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Entrar · {{empresa}}</title>
   <link rel="icon" href="{{logo}}">
-  <link rel="stylesheet" href="entrar.css?v=16">
+  <link rel="stylesheet" href="entrar.css?v=22">
 </head>
 <body>
   <main class="tela">
     <section class="hero" aria-hidden="true">
       <div class="marca"><img src="{{logo}}" alt="" width="36" height="36"><strong>{{empresa}}</strong><span class="exemplo" {{oculto_exemplo}}>Nome e logo de exemplo · troque no Personalizar</span></div>
       <div class="chamada">
-        <span class="etiqueta">ESCRITÓRIO DE AGENTES</span>
-        <h1>Seu time de agentes trabalhando à vista.</h1>
+        <span class="etiqueta">Firmópolis</span>
+        <h1>Seu time de agentes trabalhando <em>à vista.</em></h1>
         <p>Veja quem está na mesa, quem está na sala comunal e quem espera a sua aprovação, sem abrir dez abas.</p>
       </div>
       <canvas id="desfile" class="desfile" aria-hidden="true"></canvas>
@@ -61,13 +61,14 @@
         <p class="rodape suave">Só entra quem tem usuário e senha deste escritório.</p>
       </form>
       <footer class="parceria">
-        <p>Uma parceria <a href="https://agentes.chat" target="_blank" rel="noopener noreferrer" aria-label="agentes.chat (abre em nova aba)">agentes.chat</a>
-          + <a href="https://devmaniacs.com.br" target="_blank" rel="noopener noreferrer" aria-label="Dev Maniac's (abre em nova aba)">Dev Maniac's</a>
-          <span class="par-fonte">· <a href="{{fonte}}" target="_blank" rel="noopener" aria-label="Código-fonte, licença AGPL-3.0 (abre em nova aba)">Código-fonte (AGPL-3.0)</a></span></p>
+        <p class="par-marca"><img src="icone-192.png?v=22" alt="" width="20" height="20"><span>Firmópolis</span><a class="par-selo" href="{{fonte}}" target="_blank" rel="noopener" aria-label="Código-fonte, licença AGPL-3.0 (abre em nova aba)">Código aberto · AGPL</a></p>
+        <p>Feita pela <a href="https://devmaniacs.com.br" target="_blank" rel="noopener noreferrer" aria-label="Dev Maniac's (abre em nova aba)">Dev Maniac's</a>
+          para quem trabalha com agentes&nbsp;de&nbsp;IA</p>
       </footer>
     </section>
   </main>
-  <script src="avatar.js?v=16"></script>
-  <script src="entrar.js?v=16"></script>
+  <script src="avatar.js?v=22"></script>
+  <script src="sprites.js?v=22"></script>
+  <script src="entrar.js?v=22"></script>
 </body>
 </html>

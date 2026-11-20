@@ -8,7 +8,7 @@ RUN groupadd --system --gid 10001 escritorio \
 
 WORKDIR /app
 COPY escritorio.py acesso.py andares.py presenca.py social.py planta.py ajustes.py jornal.py avisos.py vapid.py novidades.py visitas_sala.py ./
-COPY conversas_equipe.py migracao_saguao.py anexos.py linha.py ./
+COPY conversas_equipe.py migracao_saguao.py anexos.py linha.py ponte_espelho.py ./
 COPY CHANGELOG.pt-BR.md ./
 COPY static/ static/
 

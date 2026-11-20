@@ -595,13 +595,16 @@ def _validar_nome(nome):
 
 
 def _validar_avatar(avatar):
-    if not isinstance(avatar, dict) or set(avatar) != {"color", "eyes", "accessory"} \
+    """Cor, olhos e acessório (o bichinho do agentes.chat) e, opcionais, cabelo e pele (a gente do mapa)."""
+    if not isinstance(avatar, dict) or not {"color", "eyes", "accessory"} <= set(avatar) <= {"color", "eyes", "accessory", "hair", "skin"} \
             or not all(isinstance(v, str) for v in avatar.values()) \
             or avatar["color"] not in ajustes.CORES \
             or avatar["eyes"] not in ajustes.OLHOS \
-            or avatar["accessory"] not in ajustes.ACESSORIOS:
-        raise ValueError("avatar: escolha cor, olhos e acessório da lista")
-    return {"color": avatar["color"], "eyes": avatar["eyes"], "accessory": avatar["accessory"]}
+            or avatar["accessory"] not in ajustes.ACESSORIOS \
+            or avatar.get("hair", "castanho") not in ajustes.CABELOS \
+            or avatar.get("skin", "clara") not in ajustes.PELES:
+        raise ValueError("avatar: escolha as opções da lista")
+    return {k: avatar[k] for k in ("color", "eyes", "accessory", "hair", "skin") if k in avatar}
 
 
 def _avatar_se_valido(avatar):

@@ -79,13 +79,15 @@ const caixas = $ => $("cv-andares").filhos.map(l => l.filhos[0].value);
     assert.ok(!m.pedidos.some(u => /api\/(andares|membros)/.test(u)));
   }
 
-  // admin da empresa no andar dele: nada do prédio (clima, datas, andares, org); membros e convite só do andar
+  // admin da empresa no andar dele: nada do prédio (datas, andares, org); o clima é o do andar; membros e convite só do andar
   {
     const { Ajustes, $, pedidos, envios } = carregar({ hash: `#andar=${ID}`, respostas: LISTAS });
     Ajustes.abrir({ papel: "admin", admin_predio: false, terreo: "saguao", andar: ID, times: [],
       andares: [{ id: "principal", nome: "Saguão", conexao: null }, { id: ID, nome: "Empresa B", conexao: "conferindo" }] });
     await espera(); await espera();
-    assert.equal($("a-clima").hidden, true);
+    assert.equal($("a-clima").hidden, false, "a cidade do clima deste andar");
+    assert.equal($("t-clima").textContent, "Clima deste andar");
+    assert.equal($("clima-sem").hidden, true, "no andar não há 'sem clima': sem cidade própria, vale a do prédio");
     assert.equal($("a-datas").hidden, true);
     assert.equal($("a-andares").hidden, true);
     assert.ok(!pedidos.some(u => u.startsWith("api/andares")), "não pede a lista de andares (org de todos)");
@@ -138,6 +140,51 @@ const caixas = $ => $("cv-andares").filhos.map(l => l.filhos[0].value);
     Ajustes.abrir({ papel: "pessoa", admin_predio: false, terreo: "saguao", andar: "principal", times: [] });
     await espera();
     assert.ok(!pedidos.some(u => /api\/(andares|membros)/.test(u)));
+  }
+
+  // a cidade do clima do andar: a busca e o salvar levam o andar; a escolhida leva o fuso; "Usar a cidade do prédio" limpa
+  {
+    const BH = { cidade: "Belo Horizonte", lat: -19.92, lon: -43.94 }, LIS = { cidade: "Lisboa", lat: 38.72, lon: -9.14, fuso: "Europe/Lisbon" };
+    const respostas = { ...LISTAS, "api/clima/busca": { status: 200, corpo: { resultados: [{ nome: "Lisboa", regiao: "Lisboa", pais: "Portugal", lat: 38.72, lon: -9.14, fuso: "Europe/Lisbon" }] } },
+      "api/clima/andar": { status: 200, corpo: { clima: LIS, origem: "andar" } } };
+    const { Ajustes, $, envios } = carregar({ hash: `#andar=${ID}`, respostas });
+    Ajustes.abrir({ papel: "admin", admin_predio: false, terreo: "classico", andar: ID, times: [], clima: BH, ajustes: { clima: "tela" } });
+    await espera();
+    assert.equal($("clima-origem").textContent, "Herdada do prédio.");
+    assert.equal($("clima-arquivo").hidden, true, "herdando, não há o que limpar");
+    $("clima-q").value = "Lisboa";
+    for (const f of $("clima-q").ouvintes.keydown) f({ key: "Enter", preventDefault() {} });
+    await espera(); await espera();
+    assert.ok(envios.some(x => x.url === `api/clima/busca?q=Lisboa&andar=${ID}`), "a busca leva o andar (a guarda é a do andar)");
+    const usar = $("clima-lista").filhos[0].filhos[1];
+    for (const f of usar.ouvintes.click) await f();
+    await espera();
+    const salvo = envios.find(x => x.metodo === "POST");
+    assert.deepEqual([salvo.url, salvo.corpo], [`api/clima/andar?andar=${ID}`, { clima: LIS }]);
+    assert.equal($("clima-origem").textContent, "Escolhida para este andar.");
+    assert.equal($("clima-arquivo").hidden, false);
+    assert.equal($("clima-arquivo").textContent, "Usar a cidade do prédio");
+    respostas["api/clima/andar"] = { status: 200, corpo: { clima: BH, origem: "tela" } };
+    for (const f of $("clima-arquivo").ouvintes.click) await f();
+    await espera();
+    assert.deepEqual(envios.filter(x => x.metodo === "POST").at(-1).corpo, { limpar: true });
+    assert.equal($("clima-origem").textContent, "Herdada do prédio.");
+  }
+
+  // no principal, o admin do prédio segue com a cidade do prédio: sem o andar e sem o fuso, como sempre
+  {
+    const respostas = { ...LISTAS, "api/clima": { status: 200, corpo: { clima: { cidade: "Recife", lat: -8.05, lon: -34.88 }, origem: "tela" } },
+      "api/clima/busca": { status: 200, corpo: { resultados: [{ nome: "Recife", lat: -8.05, lon: -34.88, fuso: "America/Recife" }] } } };
+    const { Ajustes, $, envios } = carregar({ respostas });
+    Ajustes.abrir({ papel: "admin", times: [], clima: null, ajustes: { clima: "nenhum" } });
+    $("clima-q").value = "Recife";
+    for (const f of $("clima-q").ouvintes.keydown) f({ key: "Enter", preventDefault() {} });
+    await espera(); await espera();
+    for (const f of $("clima-lista").filhos[0].filhos[1].ouvintes.click) await f();
+    await espera();
+    assert.equal($("t-clima").textContent, "Clima");
+    const salvo = envios.find(x => x.metodo === "POST");
+    assert.deepEqual([salvo.url, salvo.corpo], ["api/clima", { clima: { cidade: "Recife", lat: -8.05, lon: -34.88 } }]);
   }
 
   console.log("test_ajustes_empresas.js: ok");
