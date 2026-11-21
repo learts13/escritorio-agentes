@@ -142,7 +142,7 @@ class Membros(unittest.TestCase):
         """Toda rota do código, GET e POST, como membro: fora do MEMBRO_GET/MEMBRO_POST, a guarda responde 403 antes
         de qualquer outra conferência; dentro, nunca."""
         ana = self.membro("ana")
-        publicos_get = {"/entrar", "/primeiro-acesso", "/logo", "/convite"}
+        publicos_get = {"/entrar", "/primeiro-acesso", "/logo", "/convite", "/api/ponte/decisoes"}   # a ponte, com Bearer
         rotas = rotas_do_codigo()
         self.assertIn("/api/membros", rotas)   # a descoberta acha as rotas novas
         with contextlib.redirect_stdout(io.StringIO()):
@@ -502,7 +502,7 @@ class EmpresasNoSaguao(unittest.TestCase):
         """Toda rota do código, GET e POST: no andar próprio vale a lista do papel; no alheio, a rota de andar dá o 404
         de andar que não existe; no saguão, só a lista da pessoa do prédio. O admin do prédio nunca cai na guarda."""
         listas = {"adminb": (e.ADMIN_EMPRESA_GET, e.ADMIN_EMPRESA_POST), "membrob": (e.MEMBRO_GET, e.MEMBRO_POST)}
-        publicos = {"/entrar", "/primeiro-acesso", "/logo", "/convite"}
+        publicos = {"/entrar", "/primeiro-acesso", "/logo", "/convite", "/api/ponte/decisoes"}
         with contextlib.redirect_stdout(io.StringIO()):
             for quem in ("dono", "adminb", "membrob"):
                 for onde, q in (("proprio", f"?andar={self.B}"), ("alheio", f"?andar={self.A}"), ("saguao", "")):

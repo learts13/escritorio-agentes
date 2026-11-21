@@ -5,7 +5,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
+
+	"firmopolis/ponte/internal/decisao"
 )
 
 // eventosCodex são os eventos que o normalizador do Codex usa (fontes/codex). O
@@ -55,6 +59,11 @@ var codex = integracao{
 			}
 			novo, havia = n, havia || h
 		}
+		n, h, err := instalarGrupos(novo, []string{eventoDecidir}, grupoCodexDecidir(op), grupoCodexDecidirNosso)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		novo, havia = n, havia || h
 		var avisos []string
 		if string(novo) != string(docOuVazio(doc)) {
 			// A aprovação fica no [hooks.state] do config.toml, com um trusted_hash que
@@ -65,19 +74,21 @@ var codex = integracao{
 				avisos = append(avisos, "Codex: hook novo só roda depois de aprovado. Abra o codex, rode /hooks e aprove os hooks do ponte.exe (a ponte não grava o trusted_hash por você).")
 			}
 		}
-		resumo := fmt.Sprintf("hook command `%s` em %d eventos (%s), em segundo plano menos no %s",
-			comandoBash(op.Exe, "codex"), len(eventosCodex), strings.Join(eventosCodex, ", "), eventoCodexSincrono)
+		resumo := fmt.Sprintf("hook command `%s` em %d eventos (%s), em segundo plano menos no %s; no %s, também o `%s`, "+
+			"síncrono, que espera até %d s a resposta pelo Firmópolis (só com alguém atendendo)",
+			comandoBash(op.Exe, "codex"), len(eventosCodex), strings.Join(eventosCodex, ", "), eventoCodexSincrono,
+			eventoDecidir, comandoDecidirBash(op.Exe, op.Porta), int(decisao.EsperaCodex/time.Second))
 		return novo, resumo, avisos, nil
 	},
 	tirar: func(op Opcoes, doc []byte, _ *registro) ([]byte, []string, error) {
-		novo, meio, err := tirarGrupos(doc, grupoCodexNosso)
+		novo, meio, err := tirarGrupos(doc, qualquerCodexNosso)
 		var avisos []string
 		if meio {
 			avisos = append(avisos, "Codex: havia hooks de outros depois do nosso; eles mudam de posição e o Codex vai pedir a aprovação deles de novo em /hooks.")
 		}
 		return novo, avisos, err
 	},
-	temNosso: func(_ Opcoes, doc []byte) bool { return temGrupo(doc, grupoCodexNosso) },
+	temNosso: func(_ Opcoes, doc []byte) bool { return temGrupo(doc, qualquerCodexNosso) },
 }
 
 // eventoCodexSincrono é o único evento em que o Codex não aceita hook async: ele
@@ -110,6 +121,38 @@ func grupoCodex(op Opcoes, ev string) objeto {
 		{"hooks", []any{h}},
 	}
 }
+
+// O `ponte decidir codex`: síncrono, só no PermissionRequest, num grupo só dele.
+var reDecidirCodex = regexp.MustCompile(`(?:^|[\\/"'\s&])ponte(?:\.exe)?["']?\s+decidir\s+(?:--porta\s+\d+\s+)?codex\s*$`)
+
+func comandoDecidirBash(exe string, porta int) string {
+	return "'" + strings.ReplaceAll(exe, "'", `'\''`) + "' decidir --porta " + strconv.Itoa(porta) + " codex"
+}
+
+func comandoDecidirPowerShell(exe string, porta int) string {
+	return "& '" + strings.ReplaceAll(exe, "'", "''") + "' decidir --porta " + strconv.Itoa(porta) + " codex"
+}
+
+func grupoCodexDecidir(op Opcoes) objeto {
+	return objeto{
+		{"matcher", ""},
+		{"hooks", []any{objeto{
+			{"type", "command"},
+			{"command", comandoDecidirBash(op.Exe, op.Porta)},
+			{"commandWindows", comandoDecidirPowerShell(op.Exe, op.Porta)},
+			{"timeout", timeoutDecidir("codex")},
+		}}},
+	}
+}
+
+func grupoCodexDecidirNosso(v any) bool {
+	return grupoCom(v, func(h map[string]any) bool {
+		cmd, _ := h["command"].(string)
+		return h["type"] == "command" && reDecidirCodex.MatchString(cmd)
+	})
+}
+
+func qualquerCodexNosso(v any) bool { return grupoCodexNosso(v) || grupoCodexDecidirNosso(v) }
 
 func grupoCodexNosso(v any) bool {
 	return grupoCom(v, func(h map[string]any) bool {

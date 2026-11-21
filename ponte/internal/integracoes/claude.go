@@ -10,6 +10,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"firmopolis/ponte/internal/decisao"
 )
 
 // eventosClaude são os eventos que o normalizador do Claude usa (fontes/claude).
@@ -32,18 +35,23 @@ var claude = integracao{
 	instalado: func(op Opcoes) bool { return existe(filepath.Join(op.Home, ".claude")) },
 	instalar: func(op Opcoes, doc []byte, _ *registro) ([]byte, string, []string, error) {
 		novo, _, err := instalarGrupos(doc, eventosClaude, grupoClaude(op), grupoClaudeNosso)
+		if err == nil {
+			novo, _, err = instalarGrupos(novo, []string{eventoDecidir}, grupoClaudeDecidir(op), grupoClaudeDecidirNosso)
+		}
 		if err != nil {
 			return nil, "", nil, err
 		}
-		resumo := fmt.Sprintf("hook command em segundo plano `\"%s\" %s` em %d eventos (%s)",
-			op.Exe, strings.Join(argsClaude(op), " "), len(eventosClaude), strings.Join(eventosClaude, ", "))
+		resumo := fmt.Sprintf("hook command em segundo plano `\"%s\" %s` em %d eventos (%s); "+
+			"no %s, também o `\"%s\" %s`, que espera até %d s a resposta pelo Firmópolis (só com alguém atendendo)",
+			op.Exe, strings.Join(argsClaude(op), " "), len(eventosClaude), strings.Join(eventosClaude, ", "),
+			eventoDecidir, op.Exe, strings.Join(argsDecidir(op, "claude"), " "), int(decisao.EsperaClaude/time.Second))
 		return novo, resumo, bloqueiosClaude(op, novo), nil
 	},
 	tirar: func(_ Opcoes, doc []byte, _ *registro) ([]byte, []string, error) {
-		novo, _, err := tirarGrupos(doc, grupoClaudeNosso)
+		novo, _, err := tirarGrupos(doc, qualquerClaudeNosso)
 		return novo, nil, err
 	},
-	temNosso: func(_ Opcoes, doc []byte) bool { return temGrupo(doc, grupoClaudeNosso) },
+	temNosso: func(_ Opcoes, doc []byte) bool { return temGrupo(doc, qualquerClaudeNosso) },
 }
 
 func argsClaude(op Opcoes) []string {
@@ -67,6 +75,43 @@ func grupoClaude(op Opcoes) objeto {
 		}}},
 	}
 }
+
+// eventoDecidir é o único evento do `ponte decidir`: o pedido de permissão. Nunca o PreToolUse.
+const eventoDecidir = "PermissionRequest"
+
+func argsDecidir(op Opcoes, rota string) []string {
+	return []string{"decidir", "--porta", strconv.Itoa(op.Porta), rota}
+}
+
+// timeoutDecidir é o timeout do hook síncrono: a espera da ponte mais a folga.
+func timeoutDecidir(rota string) int {
+	return int((decisao.Espera(rota) + decisao.Folga) / time.Second)
+}
+
+// grupoClaudeDecidir é o `ponte decidir claude`, síncrono (sem async: o Claude lê a decisão
+// do stdout) e num grupo só dele. Sem decisão, sai calado e o Claude mostra o diálogo de
+// sempre, que aparece enquanto o hook espera (testado no 2.1.327).
+func grupoClaudeDecidir(op Opcoes) objeto {
+	return objeto{
+		{"matcher", ""},
+		{"hooks", []any{objeto{
+			{"type", "command"},
+			{"command", op.Exe},
+			{"args", argsDecidir(op, "claude")},
+			{"timeout", timeoutDecidir("claude")},
+		}}},
+	}
+}
+
+func grupoClaudeDecidirNosso(v any) bool {
+	return grupoCom(v, func(h map[string]any) bool {
+		cmd, _ := h["command"].(string)
+		args, _ := h["args"].([]any)
+		return h["type"] == "command" && reExe.MatchString(cmd) && len(args) > 0 && args[0] == "decidir" && args[len(args)-1] == "claude"
+	})
+}
+
+func qualquerClaudeNosso(v any) bool { return grupoClaudeNosso(v) || grupoClaudeDecidirNosso(v) }
 
 // grupoClaudeNosso reconhece o hook atual e o http das versões anteriores.
 func grupoClaudeNosso(v any) bool {

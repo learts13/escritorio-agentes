@@ -48,12 +48,14 @@ const Apresentacao = (() => {
     return svg;
   }
 
-  const barra = document.querySelector(".controles");
+  const barra = document.querySelector(".controles-menu") || document.querySelector(".controles");   // no menu "⋯" da câmera
   if (barra) {
     botao = document.createElement("button");
     botao.type = "button"; botao.className = "apresentacao-bt";
     botao.setAttribute("aria-keyshortcuts", ATALHO);
     botao.append(icone());
+    const rotulo = document.createElement("span"); rotulo.className = "rotulo-menu"; rotulo.setAttribute("aria-hidden", "true"); rotulo.textContent = "Modo apresentação";
+    botao.append(rotulo);
     botao.addEventListener("click", alternar);
     barra.append(botao);
   }

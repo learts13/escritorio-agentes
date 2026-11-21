@@ -261,9 +261,80 @@ const Efeitos = (() => {
     for (const ex of [meio - a - 1, meio + a - 1]) { px(c, ex, o.y + 5, 2, 15, "#8a909c"); px(c, ex, o.y + 5, 1, 15, "#c9ced8"); px(c, ex - 1, o.y + 3, 4, 2, "#e8e4dc"); }
     posteRingue(c, o.x + 1, o.y, "#d23c3c"); posteRingue(c, o.x + o.w - 4, o.y, "#3a6fd8");
   }
+  // ---- móveis de frente (vista 3/4, a mesma das mesas de trabalho): substituem as peças isométricas do atlas ----
+  // tampo visto de cima com a quina clara, saia de frente mais escura, pés e sombra; cada um no tamanho do sprite antigo
+  const ESTOFADO = ["#2f2f3c", "#4a4a5c", "#1b1b24"];
+  function tampo(c, x, y, w, h, mad, saia = 4) {
+    px(c, x, y, w, h, mad); px(c, x, y, w, 1, claro(mad, 0.35)); px(c, x, y + h - 1, w, 1, claro(mad, 0.15));
+    for (let i = 3; i < w - 3; i += 7) px(c, x + i, y + 2 + (i % 3), 4, 1, escuro(mad, 0.08));   // veio da madeira
+    px(c, x, y + h, w, saia, escuro(mad, 0.3)); px(c, x, y + h + saia - 1, w, 1, escuro(mad, 0.5));
+  }
+  function encostoFrente(c, cx, y) { // cadeira vista de frente, atrás da mesa: só o encosto aparece
+    const [k, luz, esc] = ESTOFADO;
+    px(c, cx - 5, y + 1, 10, 9, k); px(c, cx - 4, y, 8, 1, k); px(c, cx - 4, y + 1, 8, 1, luz); px(c, cx - 3, y + 3, 6, 5, luz); px(c, cx - 3, y + 7, 6, 1, esc);
+  }
+  function encostoCostas(c, cx, y) { // cadeira de costas, na frente da mesa: encosto, haste e a base de rodinhas
+    const [k, luz, esc] = ESTOFADO;
+    px(c, cx - 5, y + 1, 11, 8, k); px(c, cx - 4, y, 9, 1, k); px(c, cx - 4, y + 1, 9, 1, luz); px(c, cx - 5, y + 8, 11, 1, esc);
+    px(c, cx, y + 9, 1, 3, "#5b5b68"); px(c, cx - 4, y + 12, 9, 1, esc); px(c, cx - 4, y + 13, 1, 1, "#14131f"); px(c, cx + 4, y + 13, 1, 1, "#14131f");
+  }
+  const SOMBRA_MOVEL = (c, x, y, w) => { px(c, x + 3, y - 1, w - 6, 1, "rgba(0,0,0,.18)"); px(c, x, y, w, 2, "rgba(0,0,0,.18)"); px(c, x + 3, y + 2, w - 6, 1, "rgba(0,0,0,.18)"); };
+  const CADEIRAS_REUNIAO = [19, 38, 57];   // o meio de cada cadeira (mapa.js põe as vagas no mesmo x)
+  // Reunião em três camadas para quem senta ficar entre elas: o fundo (encostos de trás), o tampo e a frente (cadeiras de costas)
+  function reuniaoFundo(c, o) { for (const cx of CADEIRAS_REUNIAO) encostoFrente(c, o.x + cx, o.y + 5); }
+  function reuniaoMesa(c, o) {
+    const { x, y } = o, mad = "#a8743f";
+    SOMBRA_MOVEL(c, x + 6, y + 40, 65);
+    px(c, x + 11, y + 33, 3, 8, "#4e3220"); px(c, x + 63, y + 33, 3, 8, "#4e3220"); px(c, x + 37, y + 33, 3, 7, "#4e3220");
+    tampo(c, x + 7, y + 14, 63, 15, mad);
+    // dois notebooks (a tampa de costas para nós), papéis, canecas e a jarra d'água
+    for (const lx of [14, 50]) { px(c, x + lx, y + 11, 11, 6, "#9aa3b8"); px(c, x + lx, y + 11, 11, 1, "#c7ccd8"); px(c, x + lx + 5, y + 13, 1, 1, "#e9ecf2"); px(c, x + lx - 1, y + 17, 13, 1, "#5b6170"); }
+    px(c, x + 31, y + 19, 7, 4, "#f4f1ea"); px(c, x + 33, y + 20, 6, 4, "#e2ddd0"); px(c, x + 34, y + 21, 4, 1, "#9aa3b8");
+    px(c, x + 27, y + 21, 3, 3, "#f4f1ea"); px(c, x + 27, y + 22, 3, 1, "#3a92e6");
+    px(c, x + 44, y + 20, 3, 3, "#f4f1ea"); px(c, x + 44, y + 21, 3, 1, "#e8574a");
+    px(c, x + 39, y + 15, 3, 5, "rgba(190,225,255,.85)"); px(c, x + 39, y + 15, 3, 1, "#ffffff");
+  }
+  function reuniaoFrente(c, o) { for (const cx of CADEIRAS_REUNIAO) encostoCostas(c, o.x + cx, o.y + 34); }
+  // sinuca de frente: madeira, tabela, caçapas, bolas e o taco no pano (verde ou azul)
+  function sinuca(c, o) {
+    const { x, y, w, h } = o, pano = o.nome === "sinuca2" ? "#2f8fd8" : "#2f9a5a", mad = "#7a4a2a";
+    SOMBRA_MOVEL(c, x + 2, y + h - 3, w - 4);
+    for (const lx of [3, w - 7]) { px(c, x + lx, y + h - 11, 4, 8, escuro(mad, 0.4)); px(c, x + lx, y + h - 11, 1, 8, mad); }
+    const th = h - 14;   // altura do tampo (com a borda)
+    px(c, x, y, w, th, mad); px(c, x, y, w, 1, claro(mad, 0.35));
+    px(c, x + 3, y + 3, w - 6, th - 6, pano); px(c, x + 3, y + 3, w - 6, 1, escuro(pano, 0.3)); px(c, x + 3, y + 3, 1, th - 6, escuro(pano, 0.15));
+    for (const [a, b] of [[2, 2], [w - 5, 2], [2, th - 5], [w - 5, th - 5], [(w >> 1) - 1, 2], [(w >> 1) - 1, th - 5]]) px(c, x + a, y + b, 3, 3, "#14131f");
+    for (const [a, b] of [[2, 2], [w - 5, 2], [2, th - 5], [w - 5, th - 5]]) px(c, x + a + 1, y + b + 1, 1, 1, "#3a3a46");
+    const bolas = [["#ffffff", 0.25, 0.5], ["#ffd23f", 0.66, 0.4], ["#e8574a", 0.7, 0.58], ["#3a5fd8", 0.76, 0.48], ["#1b1b22", 0.62, 0.52], ["#ff8a3d", 0.72, 0.32]];
+    for (const [k, fx, fy] of bolas) { const bx = x + 4 + Math.round(fx * (w - 10)), by = y + 4 + Math.round(fy * (th - 9)); px(c, bx, by, 2, 2, k); px(c, bx, by, 1, 1, claro(k, 0.5)); }
+    px(c, x + 6, y + th - 8, Math.round(w * 0.45), 1, "#e0c08a"); px(c, x + 6, y + th - 8, 4, 1, "#3a2414");   // o taco deitado
+    px(c, x, y + th, w, 5, escuro(mad, 0.25)); px(c, x, y + th, w, 1, claro(mad, 0.1)); px(c, x, y + th + 4, w, 1, escuro(mad, 0.55));
+    px(c, x + (w >> 1) - 3, y + th + 1, 6, 2, "#c9a227");   // a plaquinha de latão na saia
+  }
+  // mesa da cozinha de frente: tampo com toalha, pratos e duas cadeiras de lado, uma em cada ponta
+  function cadeiraLado(c, x, y, dir) { // dir 1: o encosto à esquerda (quem senta olha para a direita)
+    const mad = "#8a5a3a", e = dir > 0 ? x : x + 7;
+    px(c, e, y, 2, 12, mad); px(c, e, y, 2, 1, claro(mad, 0.3));
+    px(c, x, y + 8, 9, 2, claro(mad, 0.15)); px(c, x, y + 10, 9, 1, escuro(mad, 0.3));
+    px(c, x + (dir > 0 ? 0 : 7), y + 11, 2, 6, escuro(mad, 0.35)); px(c, x + (dir > 0 ? 7 : 0), y + 11, 2, 6, escuro(mad, 0.35));
+  }
+  function mesaCozinha(c, o) {
+    const { x, y, w, h } = o, toalha = o.nome === "mesa_cozinha2" ? "#e8574a" : "#3a92e6", mad = "#b07a4f";
+    SOMBRA_MOVEL(c, x + 1, y + h - 3, w - 2);
+    cadeiraLado(c, x, y + h - 21, 1); cadeiraLado(c, x + w - 9, y + h - 21, -1);
+    const L = x + 8, tw = w - 16, ty = y + h - 24;
+    px(c, L + 2, ty + 12, 2, 9, escuro(mad, 0.45)); px(c, L + tw - 4, ty + 12, 2, 9, escuro(mad, 0.45));
+    tampo(c, L, ty, tw, 9, mad, 3);
+    px(c, L + 2, ty + 1, tw - 4, 7, "#f4f1ea"); for (let i = L + 2; i < L + tw - 2; i += 2) px(c, i, ty + 1, 1, 7, claro(toalha, 0.55));   // toalha xadrez
+    px(c, L + 2, ty + 8, tw - 4, 3, toalha); for (let i = L + 3; i < L + tw - 2; i += 3) px(c, i, ty + 8, 1, 3, claro(toalha, 0.4));     // a barra caindo na frente
+    for (const pxo of [L + 3, L + tw - 9]) { px(c, pxo, ty + 3, 6, 3, "#ffffff"); px(c, pxo + 1, ty + 4, 4, 1, "#e0d8c8"); }
+    px(c, L + (tw >> 1) - 1, ty - 3, 3, 5, "rgba(190,225,255,.85)"); px(c, L + (tw >> 1) - 1, ty - 3, 3, 1, "#ffffff");   // a jarra
+  }
   const PECAS = { quadro_avisos: [0, quadroAvisos], lixeiras: [0, lixeiras], bancada: [3, bancada], jardineira: [0, jardineira], divisoria: [0, divisoria],
     estante_livros: [0, estanteLivros], luminaria_arco: [0, luminariaArco], poltrona_tecido: [0, poltronaTecido], aparador_baixo: [0, aparadorBaixo],
-    ringue_tras: [0, ringueTras], ringue_frente: [0, ringueFrente] };
+    ringue_tras: [0, ringueTras], ringue_frente: [0, ringueFrente],
+    reuniao: [0, reuniaoFrente], reuniao_mesa: [0, reuniaoMesa], reuniao_fundo: [0, reuniaoFundo], sinuca: [0, sinuca], sinuca2: [0, sinuca],
+    mesa_cozinha: [0, mesaCozinha], mesa_cozinha2: [0, mesaCozinha] };
   const salaDe = o => o.sala !== undefined ? o.sala : (o.sala = [...P.salas, ...P.baixo].find(s => o.x + o.w / 2 >= s.px && o.x + o.w / 2 <= s.px + s.pw && o.y + o.h > s.py && o.y + o.h <= s.py + s.ph + 2) || null);
   const anel = {};   // o ring light é desenhado uma vez (aceso e apagado) e depois só copiado
   function desenharAnel(aceso) {

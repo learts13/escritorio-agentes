@@ -19,7 +19,7 @@ const Timelapse = (() => {
     api = a;
     $("abrir-timelapse").addEventListener("click", abrir);
     $("tl-fechar").addEventListener("click", () => $("dlg-timelapse").close());
-    $("dlg-timelapse").addEventListener("close", () => { const o = origem; origem = null; if (o && o.isConnected) o.focus(); });
+    $("dlg-timelapse").addEventListener("close", () => { const o = origem; origem = null; if (o && o.isConnected) { if (window.focarOuMenu) focarOuMenu(o); else o.focus(); } });
     $("tl-baixar").addEventListener("click", baixar);
     $("tl-apagar").addEventListener("click", async () => { await limpar(() => true); proximo = 0; mostrar("Quadros apagados."); });
     if (!suporta || api.demo()) return;   // navegador sem as peças, ou demonstração: só o diálogo explica

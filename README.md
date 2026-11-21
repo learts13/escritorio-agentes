@@ -52,8 +52,9 @@ It **does not call any AI model** and does not spend tokens. Approving always ha
 
 ## Features
 
-- 🏢 **A building made from your teams:** reception with your logo, one room per team (it grows with the number of agents), corridor, meeting room, lounge and kitchen. A new agent gets a desk in the "New" room.
-- 🖥️ **Terminals on this computer:** with the local bridge, each terminal becomes a little terminal on the map. Busy, it works in the team room (with Maestri, each workspace in use gets its own room automatically). Waiting for you, it goes to the reception with a "!" or "?". Free, it gets coffee and chats in the hallway with another free terminal. Terminals on another machine come in through the mirror, with no tunnel (see [Local bridge](#local-bridge-the-terminals-on-this-computer)).
+- 🏢 **A building made from your teams:** reception with your logo, one room per team (it grows with the number of agents), corridor, meeting room, lounge, kitchen and bathroom. A new agent gets a desk in the "New" room. There are at most 6 rooms per row: extra teams and the Maestri rooms move to blocks further down, with the project rooms together under a "Projetos" sign.
+- 🖥️ **Terminals on this computer:** with the local bridge, each terminal becomes a little terminal on the map. Busy, it works in the team room (with Maestri, each workspace in use gets its own room automatically). Waiting for you, it goes to the reception with a "!" or "?". Free, it gets coffee and chats in the hallway with another free terminal. The color tells the program and the accessory tells the role (a crown for the Maestro, glasses and a magnifying glass for the Auditor, a hard hat for the Braçal). Terminals on another machine come in through the mirror, with no tunnel (see [Local bridge](#local-bridge-the-terminals-on-this-computer)).
+- ✅ **Answer from the office:** permission requests from Claude Code, Codex and OpenCode get **Permitir** (allow) and **Negar** (deny) on the terminal's card, and questions from Maestri and OpenCode terminals get a **Responder** (answer) field, on a phone too (see [Answer from the office](#answer-from-the-office-allow-or-deny-from-anywhere)).
 - 📻 **Office radio:** three stations composed on the fly by the browser, with no audio files, plus an optional internet radio (see [Office radio](#office-radio)).
 - 🧹 **Building staff:** the bathroom gets dirty and closed, the cleaner cleans, the handyman fixes what breaks and the doorman looks after the entrance (see [Building staff](#building-staff)).
 - 🧑‍💻 **Live map:** agents go to their desk and type when they get a task. When they are free they play arcade, video games, pool, foosball, ping-pong, chess, darts and basketball by themselves, play the piano or the guitar, grab a coffee or chat in pairs. They arrive in the morning and leave at night through the front door.
@@ -78,7 +79,7 @@ It **does not call any AI model** and does not spend tokens. Approving always ha
 - 🎞️ **Daily time-lapse:** the office's day in a ~30 s video, recorded only in your browser (see [Time-lapse](#time-lapse)).
 - 📸 **Photo mode:** hides the interface and saves a PNG of the office.
 - 🧪 **Demo mode:** `?demo=1` shows fictional agents and an accelerated day, ring and strike included, with nothing sent to or read from the server. Good for trying it out and for screenshots.
-- 🎥 **Camera:** zoom with the wheel or pinch, drag, double-click to focus a room, "Go to…" an agent (`/` or `Ctrl+K`), and keyboard shortcuts (`+`, `-`, `0`).
+- 🎥 **Camera:** zoom in whole steps (1x, 2x, 3x...) with the wheel, pinch or buttons, drag, double-click to focus a room, "Go to…" an agent (`/` or `Ctrl+K`), and keyboard shortcuts (`+`, `-`, `0`).
 - 📱 **Phone friendly**, with clickable objects that also work with the keyboard and touch.
 - 🔒 **Login** with username and password, published **only on your Tailscale network**.
 
@@ -89,12 +90,12 @@ All screenshots come from **demo mode** or from a preview with **fictional data*
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/02-esperando-voce.png"><img src="./docs/screenshots/02-esperando-voce.png" alt="Approvals at a glance: a '!' over Hana, who is waiting for approval, and a '?' over Cacau, who has a question; the 'Waiting for you' list shows both requests with Review and Answer buttons" width="100%"></a>
+      <a href="./docs/screenshots/02-esperando-voce.png"><img src="./docs/screenshots/02-esperando-voce.png" alt="Approvals at a glance, in demo mode: the whole building by day, with a '!' over Flora, who is waiting for approval, and a '?' over Gael, who has a question, in the Marketing room; the 'Waiting for you' list shows both requests with Answer and Review buttons" width="100%"></a>
       <p><em>Approvals at a glance: "!" and "?" on the map and the "Waiting for you" list.</em></p>
     </td>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/03-noite-chuva.png"><img src="./docs/screenshots/03-noite-chuva.png" alt="The office at night in the rain: dark, empty team rooms, street lamps on and most of the team chatting and playing in the lounge and the meeting room" width="100%"></a>
-      <p><em>Night and rain: lights go off in empty rooms and the street lamps come on.</em></p>
+      <a href="./docs/screenshots/03-noite-chuva.png"><img src="./docs/screenshots/03-noite-chuva.png" alt="The office at 6:48 pm in the rain: the Marketing and Ops rooms lit, with people working, the other team rooms dark, street lamps and wall lamps on and the rest of the team in the meeting room and the kitchen" width="100%"></a>
+      <p><em>Night and rain: only rooms with real work light up, and the street lamps come on.</em></p>
     </td>
   </tr>
   <tr>
@@ -158,7 +159,7 @@ All screenshots come from **demo mode** or from a preview with **fictional data*
 </table>
 
 <p align="center">
-  <img src="./docs/screenshots/09-celular.png" alt="The office on a phone: the map at the top with agents and speech bubbles, and the 'Waiting for you' list with Review and Answer buttons below" width="300">
+  <img src="./docs/screenshots/09-celular.png" alt="The office on a phone: right below the title, the tall map, with the time and weather pill on top and the camera bar (−, 1x, +, Ver tudo and the ⋯ menu) at the bottom left; the filters come after the map" width="300">
 </p>
 
 ## Install
@@ -341,7 +342,7 @@ A layer of fun, drawn by the server. Free agents make friends and rivals, grab c
 - **Complaints, suggestions and gossip:** now and then a free agent complains about the air conditioning or suggests cake Friday in a speech bubble, and two free agents go whisper by the coffee about a third one ("Psiu…"), with no name in the bubble.
 - **Strike:** at most one a day. It starts when at least 4 free agents are unhappy with each other, or after 5 complaints in the day. Up to 8 free agents sit on the floor in front of the ring, holding little signs ("MAIS CAFÉ", "PUFE JÁ!"). One who gets a task leaves the strike at once. It ends by itself within 30 minutes ("Por hoje chega…") or when someone clicks a sign or the **Atender o pedido** ("meet the demand") notice, and then the strikers become better friends ("Obrigado, chefe!") and the demand arrives, the same on every screen: the delivery rider brings pizza through the reception and the crew eats in front of the ring, a courier brings fresh coffee and everyone grabs a cup, someone sets the air conditioning to 23 ("Ahh, agora sim"), a "Sexta livre aprovada!" banner goes up with a little party... About 20 seconds later, everyone goes back to their spot.
 - **Best friends and rivals:** the card shows up to 3 of each, with a value from 0 to 100, and the day's last fight.
-- **Ring scoreboard:** each agent's wins, losses and streak for the week (Monday to Sunday, Brasília time), with the top 3 on a board on the ring's wall, the full ranking when you click it and last week's champion. Automatic and sent fights count; one canceled before the end does not. The winner shows up on a banner above the ring.
+- **Ring scoreboard:** each agent's wins, losses and streak for the week (Monday to Sunday, Brasília time), with the top 3 on a board on the ring's wall and last week's champion. The ring and the board only show up during a fight; the rest of the time the arena is open floor, and clicking it opens the full ranking. Automatic and sent fights count; one canceled before the end does not. The winner shows up on a banner above the ring.
 - **Serious mode:** the box in **Customize** pauses the whole layer, with no events, fights or strikes; a scene in progress disappears within 10 s on every screen. Good for presentations.
 - **Demo and Simulation:** in demo mode (`?demo=1`) the ring, the strike, the scoreboard and **Send to the ring** also run, locally, with no server: the first fight comes in about a minute and the strike a little later. The Simulation parameters (`?hora=`, `?data=`, `?clima=`) turn the social life off on that tab.
 - **Starts over on restart, except the scoreboard:** friendships, rivalries and events live only in the service's memory; a restart takes everyone back to the starting point, the same for all. Only the week's scoreboard goes to disk, in `dados/placar.json` (up to 64 KB and 500 agents, written atomically when it changes). If the file is unreadable, the scoreboard starts empty, with a note in the log; switching the agentes.chat account also clears it.
@@ -355,7 +356,7 @@ The building also has people who look after it, and the bathroom can get gross. 
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/26-banheiro-interditado.png"><img src="./docs/screenshots/26-banheiro-interditado.png" alt="The closed bathroom at the end of the hallway: the sign on the WC door, the 'Interditado' (closed) bubble and two little terminals, Gil and Ivo, waiting in line with the alert" width="100%"></a>
+      <a href="./docs/screenshots/26-banheiro-interditado.png"><img src="./docs/screenshots/26-banheiro-interditado.png" alt="The bathroom, the bottom-row room next to the kitchen: three stalls, the counter with two sinks and a mirror, paper and puddles on the floor; in the hallway, in front of the door, the cone, the 'Interditado' (closed) bubble and two little terminals, Ivo and Rui, waiting in line" width="100%"></a>
       <p><em>Closed: the queue waits and, after a while, gives up.</em></p>
     </td>
     <td width="50%" align="center">
@@ -366,11 +367,11 @@ The building also has people who look after it, and the bathroom can get gross. 
 </table>
 
 <p align="center">
-  <a href="./docs/screenshots/27-faxineira-zelador.png"><img src="./docs/screenshots/27-faxineira-zelador.png" alt="On top, the cleaner Dona Rosa cleaning the bathroom door with a bucket and mop; below, the handywoman Dona Neide with her toolbox in the kitchen, next to the coffee machine with the 'Quebrada!' (broken) bubble" width="900"></a>
+  <a href="./docs/screenshots/27-faxineira-zelador.png"><img src="./docs/screenshots/27-faxineira-zelador.png" alt="The same view of the bathroom and the kitchen: the cleaner Seu Bené mopping inside the bathroom, among the puddles, and the handyman Seu Tião with his toolbox in the kitchen, next to the coffee machine with the 'Quebrada!' (broken) bubble" width="900"></a>
 </p>
-<p align="center"><em>The cleaner at the bathroom and the handywoman fixing the coffee machine.</em></p>
+<p align="center"><em>Cleaning inside the bathroom and the handyman fixing the coffee machine.</em></p>
 
-- **Dirt:** every bathroom trip makes it a little dirtier, and a desperate terminal or one that cut the line makes it dirtier still. Above 60, flies and stink lines show up at the WC door, and whoever comes out shows an "eww" bubble. Above 90, the bathroom is **closed**, with a sign: nobody goes in, the queue waits with an alert and, after a while, gives up. Coffee and snacks leave cups and crumbs on the floor.
+- **Dirt:** every bathroom trip makes it a little dirtier, and a desperate terminal or one that cut the line makes it dirtier still. The dirt shows on the bathroom floor (paper, puddles, toilet paper out of a stall). Above 60, flies and stink lines show up over the stalls, and whoever comes out shows an "eww" bubble. Above 90, the bathroom is **closed**, with a wet-floor cone and a sign at the door: nobody goes in, the queue waits with an alert and, after a while, gives up. Coffee and snacks leave cups and crumbs on the floor.
 - **Cleaning:** when the dirt passes 60, or on a round (more often at night), the cleaner comes in from the street with a bucket and mop, cleans the bathroom with sparkles, picks up cups and crumbs and leaves.
 - **Maintenance:** now and then something breaks. With the coffee machine broken, nobody gets coffee (agents, coffee circles and terminals give up, with an alert). A broken hallway light flickers. The handyman comes with a toolbox, fixes it with sparks and leaves.
 - **Front desk:** during office hours, the doorman stays by the entrance, reads the paper, has a coffee and greets whoever arrives. After hours, the night watchman takes over with a flashlight and does rounds.
@@ -406,14 +407,14 @@ For keeping the office on a wall TV or a second monitor. Open it with the **Modo
 
 ## Presentation mode
 
-For showing the screen on a call with a client or posting a screenshot without leaking anything. Turn it on with the button on the camera bar or with `Alt+Shift+P`; it is remembered per tab until the tab closes.
+For showing the screen on a call with a client or posting a screenshot without leaking anything. Turn it on from the "⋯" menu on the camera bar or with `Alt+Shift+P`; it is remembered per tab until the tab closes.
 
 - **What changes:** the avatars stay, but the names become "Agente 1", "Pessoa 2" and "Você" (you), numbered in the order they show up; the speech bubbles disappear; and the screen hides whatever shows a person's or agent's name, task title, conversation, room chat, mural, status note, the scoreboard, the Conversas, Aprovações and Jornal pages, the meeting titles and guests, and the meeting room links in **Personalizar** (a Zoom link can carry the password in `?pwd=`). The 5-minute meeting alert only says "Uma reunião começa em breve".
 - **Screen only, not access control:** the mode only hides things on this screen. Whoever holds the session still reads everything through the API and the browser DevTools, and the server answers the same. Do not hand a signed-in browser to someone who should not see the data.
 
 ## Office radio
 
-A radio on the wall of the Sala comunal (common room). Click it (or reach it with `Tab` and press `Enter`), or the radio button on the camera bar, to open its controls: on and off, station and volume. There is nothing to install or configure.
+A radio on the wall of the Sala comunal (common room). Click it (or reach it with `Tab` and press `Enter`), or "Rádio da firma" in the "⋯" menu on the camera bar, to open its controls: on and off, station and volume. There is nothing to install or configure.
 
 <p align="center">
   <a href="./docs/screenshots/29-radio.png"><img src="./docs/screenshots/29-radio.png" alt="The Rádio Firmópolis controls open over the common room: the Desligar o rádio (turn off) button, the stations Lo-fi da firma (selected), Chiptune do fliperama and Jazz da cafeteria, the volume and 'Tocando: Lo-fi da firma'" width="900"></a>
@@ -553,18 +554,18 @@ Do the terminals run on a VM or another machine? Skip these steps and use the [m
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/24-terminais-salas-maestri.png"><img src="./docs/screenshots/24-terminais-salas-maestri.png" alt="The building with little terminals of several programs, all fictional: Nina · Codex at the reception waiting for approval, Ada · Claude Code +2 in the meeting room, Gil · Claude Code in the common room and Lin · Codex, Rui · OpenCode, Bea · agy and Zé · MiniMax in the Loja and Front rooms, created automatically for Maestri" width="100%"></a>
-      <p><em>Terminals of five programs and the automatic Maestri rooms.</em></p>
+      <a href="./docs/screenshots/35-planta-blocos.png"><img src="./docs/screenshots/35-planta-blocos.png" alt="The whole building in full screen, with fictional data: on top, the reception and the Diretoria, Ops, Produto and Vendas rooms; in the middle, the meeting room, the common room, the kitchen and the bathroom; below, in a block with its own hallway, the Loja Online, App Mobile and Site Novo rooms, created automatically for the Maestri workspaces under the Projetos sign" width="100%"></a>
+      <p><em>The floor plan in blocks: the Maestri rooms together, under "Projetos".</em></p>
     </td>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/25-cartao-terminal.png"><img src="./docs/screenshots/25-cartao-terminal.png" alt="The card of the terminal Ada, the Maestro with a crown, in the meeting room: Claude Code, Trabalhando (working), project, what it is doing, workspace, 2 helpers, since when, its needs as bars and today's log" width="100%"></a>
-      <p><em>The terminal card: the Maestro, wearing a crown, with its needs and its day.</em></p>
+      <a href="./docs/screenshots/36-terminais-papeis.png"><img src="./docs/screenshots/36-terminais-papeis.png" alt="Six fictional little terminals side by side in the Loja Online room, at 3x zoom, with short names: Maestro with a crown, Auditor with glasses and a magnifying glass, Braçal and Implementador with hard hats (the latter with the '!'), Gemini in agy blue and Docs in MiniMax pink" width="100%"></a>
+      <p><em>The color tells the program; the accessory, the role.</em></p>
     </td>
   </tr>
 </table>
 
 
-- **On the map:** each terminal walks in from the street with its name and program on the label ("Ada · Codex"). Busy, it works in its team's room (with Maestri, the workspace's room). Waiting for your approval or answer, or after an error, it goes to the reception with a "!" or "?". Free, it stays in the common room or the kitchen.
+- **On the map:** each terminal walks in from the street. Its color tells the program (Claude Code orange, Codex silver, OpenCode green, agy blue, MiniMax pink, others lilac) and its role, read from the Maestri name ("Role · Model"), gets an accessory: a crown for the Maestro, glasses and a magnifying glass for the Auditor, a hard hat for the Braçal and the Implementador. In the overview, only the characters and the "!"/"?" badges show; from 2x up, the short name ("Maestro"); the full name stays in the card. Busy, it works in its team's room (with Maestri, the workspace's room). Waiting for your approval or answer, or after an error, it goes to the reception with a "!" or "?". Free, it stays in the common room or the kitchen.
 - **Coffee and chats:** each terminal has these two needs, and they drop faster while it works. When it is free, after a short break, it goes to the coffee machine or asks another free terminal for a chat in the hallway. It is cosmetic only, and the real state wins: when the terminal gets back to work, it drops the coffee right away.
 - **Security:** the bridge only listens on 127.0.0.1 and only accepts the WebSocket from a listed origin with the right token. The browser gets a reduced version, without the activity target (file or command) and without the day's history.
 - **Without the bridge:** the app retries with a growing wait of up to 1 minute and shows no error on screen. In Chrome, the first connection may ask for the local network access permission. Safari may refuse `ws://` from an https page.
@@ -582,6 +583,49 @@ If your terminals run on one machine (a VM, for example) and you open Firmópoli
 - **Which floor shows it:** in classic mode, the main floor. In lobby mode, the lobby never gets the mirror; set `ESCRITORIO_PONTE_ANDAR` to the id of the company floor that should see the terminals.
 - **How it works:** the bridge sends a `POST /api/ponte/espelho` with the key in `Authorization: Bearer`, over https only, about 2 s after each change and at least every 30 s. When the server does not answer, it waits longer after each failure, up to 5 minutes, without blocking. The server keeps it in memory only, and the app reads `GET /api/ponte` every 3 s. After 90 s with nothing new, the mirror counts as off. The local bridge on this computer, when connected, takes priority.
 - **Security:** with the mirror on, **the names of the terminals, projects, workspaces and bands go to the server**, along with the states and tool names. The activity target (file or command) and the band members never leave the machine. The server checks everything with the app's own limits (48 terminals, names up to 40 characters, 32 workspaces, 200 events per terminal for the day) and accepts up to 256 KB per send, at most one per second. Only the floor's members can read it; the lobby, visitors and signed-out users get nothing. The key lives in `espelho.json` in the bridge folder (readable only by your user) and in `dados/ponte-espelho.chave` on the server (0600). It never goes to the log. Generating a new key makes the old one stop working right away.
+
+### Answer from the office: Allow or Deny from anywhere
+
+When a Claude Code, Codex or OpenCode terminal asks for permission (the "!" at the reception), whoever decides sees the tool, a summary of the request and the time left on the terminal's card and in the "Esperando você" (waiting for you) list, with **Permitir** (allow) and **Negar** (deny) buttons. It works in the browser on this PC (through the local bridge) and on a phone or another machine (through the mirror). The terminal's own dialog stays on screen: whoever answers first, there or in Firmópolis, wins. When the terminal asks a question (the "?"), you can answer with a short text (see below).
+
+- **Which programs:** Allow/Deny works in Claude Code, Codex and OpenCode; answering a question, in Maestri terminals and OpenCode. A standalone agy or MiniMax only shows its status (the "!" or "?" on the map): answer in the terminal.
+- **To turn it on, in short:** on the terminals' machine, `ponte setup --aplicar` (or `ponte conectar <address>`) already turns it on in the browser on this PC. To decide from a phone, add `--decidir-remoto`. In Codex, run `/hooks` and approve the `ponte` hooks again. The building admin decides (plus whoever is in `ESCRITORIO_PONTE_DECISORES`).
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/37-cartao-permitir.png"><img src="./docs/screenshots/37-cartao-permitir.png" alt="The card of the fictional terminal Implementador · Sonnet, in a hard hat, asking for approval: the request 'Bash · npm test -- --watch=false', 'vence em 98 s' (expires in 98 s), the Permitir and Negar buttons and the note on what goes through the server; on the map, the Implementador with the '!' next to the Maestro, the Auditor and the Braçal" width="100%"></a>
+      <p><em>A permission request: Allow or Deny on the card.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/38-cartao-responder.png"><img src="./docs/screenshots/38-cartao-responder.png" alt="The card of the fictional terminal Revisor · Codex, which has a question: 'Pergunta · o texto dela está no terminal' (the text is in the terminal), the field with 'Pode usar a branch nova', the Responder button and the note that the text is typed into the terminal followed by Enter; on the map, the Revisor with the '?' at the reception" width="100%"></a>
+      <p><em>A question: the text goes to the terminal, with Enter.</em></p>
+    </td>
+  </tr>
+</table>
+
+
+- **Who decides:** the building admin and, in addition, the logins in the `ESCRITORIO_PONTE_DECISORES` variable (comma separated). A plain member only sees. Only on the bridge's floor (the same as the mirror), never in the lobby or the preview.
+- **Turning it on:** `ponte setup --aplicar` (or `ponte conectar`) installs, besides the state hooks, a synchronous hook only on Claude Code's and Codex's `PermissionRequest` (`ponte decidir`), and the OpenCode plugin starts waiting for the decision. In Codex, run `/hooks` and approve the `ponte` hooks again. That is enough for the browser on this PC.
+- **From the phone is opt-in, on the terminals' machine:** `ponte conectar <address> --decidir-remoto` or, with the mirror already on, `ponte setup --aplicar --decidir-remoto` (`--sem-decidir-remoto` turns it off). Without it, no request goes to the server and the bridge does not even ask it for decisions. It is stored as `decidir_remoto` in `espelho.json`.
+- **No delay for whoever is at the terminal:** the bridge only holds the request if someone who decides has Firmópolis open (the page visible on this PC, or the map open on a phone, through the server). With nobody there, the hook returns at once and the terminal shows its usual dialog. A request waits up to 2 minutes in Claude Code and OpenCode, and 25 s in Codex; with no answer, the terminal goes on with its own dialog. In Claude Code, the dialog shows while the hook waits (checked on 2.1.327).
+- **What goes to the server (only with `--decidir-remoto` and someone who decides with the map open):** the tool and a summary of the request, **masked** (tokens, passwords, keys and prompts passed to other agents become `***`) and cut at **300 characters**: the command, the file relative to the project folder or the URL without credentials. Never the tool's full input, the full folder, the permission suggestions or the conversation. Only people who decide get the requests; the server keeps everything in memory only.
+- **When in doubt, only Deny:** from afar, you can only allow a Bash command (with the usual keys: command, description, timeout and background) or a URL fetch without a query; file writes (Write, Edit, MultiEdit, NotebookEdit, OpenCode's "edit"), MCP tools and any key outside that list only get Deny. It is also Deny-only if the summary was cut, is empty, the tool name is too long or the file is outside the project (the screen shows "fora do projeto: …/.ssh/authorized_keys"), the request is marked incomplete and, from afar, it can only be denied; to allow it, answer at the terminal. Invisible or text-reversing characters (control, bidi, zero width) show as a marker, like `‹U+202E›`. Questions (`AskUserQuestion`) and plans (`ExitPlanMode`) stay at the terminal.
+- **How it works:** each request has a 128-bit id, takes a single decision and expires. From a phone, the decision goes through `POST /api/ponte/decidir` (with the session, only from the site's own origin, up to 20 per minute per person) and the bridge picks it up by long-poll, `GET /api/ponte/decisoes`, with the mirror's key. **The bridge never opens a port:** it only makes outbound requests and keeps listening on `127.0.0.1` only. The hook does not send the token: it sends a nonce and the token's HMAC over it and the request, and only accepts a reply signed by the bridge, so another program on the port cannot decide in its place. The state events (`ponte hook` and the OpenCode plugin) are signed too, without the token. During the transition, the bridge still accepts the plain token on events, for an OpenCode plugin from a previous version, until the next `ponte setup --aplicar`.
+- **Accepted risk:** the browser on this PC still carries the token (in `localStorage`, to open `/ws`). The bridge assumes a single-user machine: whoever uses the same OS account, or can run code on the page, already has the token.
+- **Phone over Tailscale:** with the Tailscale app on, the phone opens the office as usual (`https://<your-machine>.<your-tailnet>.ts.net/`) and the buttons show for whoever decides. The bridge needs no public port or tunnel.
+- **Security:** anyone able to run code on the Firmópolis page (an XSS) could approve a command. That is why the page only accepts scripts from its own site (CSP `script-src 'self'`, no `unsafe-inline`), the bridge's data reaches the screen as text only, and the server checks the origin, the role, the floor and the format of every decision. The log keeps who decided, the id (shortened), the action, the tool and the wait; never the summary, the cookie or the key.
+
+#### Answering a question
+
+When the terminal waits for your answer (the "?"), its card gets a field and a **Responder** (answer) button (in the "Esperando você" list, the button opens the card). **The text is typed into the terminal and sent with Enter**, as if you had typed it there. Who decides, the floor and `--decidir-remoto` follow the same rules as Allow/Deny.
+
+- **Where it works:** in Maestri terminals (Claude Code, Codex, agy and MiniMax Code), the bridge types the text with `maestri ask "<terminal>" --raw "<text>\n"`, without a shell. In OpenCode, the plugin answers through its question API (`POST /question/{id}/reply`), only for a single question that accepts free text, and the card shows the question's text, masked. Outside Maestri (standalone Claude, Codex and agy), there is no button: answer at the terminal.
+- **Only when the wait accepts text:** in Claude Code, the hook decides: the MCP elicitation form (`elicitation_dialog`) and, of `agent_needs_input`, only the written question ("Your cloud session needs an answer before it can start"). The session file's "input needed" covers every elicitation, including the link one, so it never turns the button on by itself nor undoes what the hook said. Option dialogs (the sandbox network request, mode switch, usage credits, Remote Control, goal proposal, elicitation link, the iTerm2/tmux "Teammate setup" and the auto mode notices) and any unknown kind or message get no button: there, text and Enter would confirm the default option.
+- **The text:** a single line, up to 1000 characters, not starting with a hyphen, no backslash and no invisible characters (line break, tab, ESC, control, bidi, zero width). Such texts are **rejected**, never rewritten: a line break would send the answer half-way, and `maestri --raw` reads `\n`, `\e` and `\xNN` as keys. The bridge adds a single Enter at the end. The browser, the server and the bridge check the same rule.
+- **Only in the question, once:** the answer is delivered only if the terminal is in the question at that moment and the request belongs to that question (otherwise 409 or 410). It never goes to a terminal waiting for approval: there, the text would become keypresses in the permission dialog. Right before typing, the bridge checks again that the wait is the same (any change of state or wait kind bumps the terminal's "generation") and resolves the terminal again; if anything changed, it does not type. If `maestri` fails, the question does not reopen, to avoid answering twice. Each question takes one answer, stays open for 5 minutes (expired with the terminal still in the question, the bridge opens another) and waits even with nobody watching the map. Up to 20 attempts per minute.
+- **How the bridge finds the terminal:** `maestri` only works with the app's socket and a caller terminal, and only reaches the terminals connected to the caller (a terminal cannot reach itself). The bridge service finds the socket on its own (the newest `/tmp/maestri-*/maestri.sock`, only the user's own, in a closed folder) and the binary (`MAESTRI_CLI`, `PATH` or `/opt/maestri-box/resources/cli/maestri`), runs `maestri list` as the question's terminal and calls as a terminal connected to it, in the same workspace (the Maestro first). The binary must belong to root or the user, with no group or other write permission. Without the binary, the socket or anyone connected, with the terminal's name repeated in another workspace (case-insensitive) or starting with a hyphen, the button does not show. On Windows, only with `MAESTRI_SOCKET` in the bridge's environment.
+- **What is logged:** the bridge and the server keep only the text's length, never its content. From a phone, the text goes through the server (in memory) until the bridge picks it up.
 
 ## Newspaper
 

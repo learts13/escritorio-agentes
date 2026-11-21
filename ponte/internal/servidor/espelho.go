@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"firmopolis/ponte/internal/decisao"
 	"firmopolis/ponte/internal/historico"
 	"firmopolis/ponte/internal/maestri"
 	"firmopolis/ponte/internal/mundo"
@@ -30,7 +31,7 @@ import (
 const ArquivoEspelho = "espelho.json"
 
 // Versao vai no User-Agent (a Cloudflare barra o do Go).
-const Versao = "2.1.0"
+const Versao = "2.2.0"
 
 const (
 	// MaxEspelho é o teto do corpo; o servidor aceita até 256 KiB. Acima, o dia vai
@@ -41,14 +42,20 @@ const (
 	EsperaEspelho = 2 * time.Second
 	VidaEspelho   = 30 * time.Second
 	tempoEspelho  = 10 * time.Second
-	recuoMin      = 5 * time.Second
-	recuoMax      = 5 * time.Minute
+	// intervaloEspelho é o mínimo entre dois envios (o servidor aceita um por segundo): o pedido
+	// de permissão novo vai sem juntar, mas não antes disso.
+	intervaloEspelho = 1100 * time.Millisecond
+	recuoMin         = 5 * time.Second
+	recuoMax         = 5 * time.Minute
 )
 
 // ConfigEspelho é o espelho.json.
 type ConfigEspelho struct {
 	URL   string `json:"url"`
 	Chave string `json:"chave"`
+	// DecidirRemoto (opt-in, `ponte setup|conectar --decidir-remoto`): os pedidos de permissão vão
+	// ao servidor e a ponte aceita Permitir/Negar de lá (o celular). Desligado, só a decisão local.
+	DecidirRemoto bool `json:"decidir_remoto,omitempty"`
 }
 
 // NormalizarEspelho devolve o endereço do Firmópolis sem a barra do fim, ou erro. Vale
@@ -117,14 +124,19 @@ func GravarEspelho(dir string, c ConfigEspelho) error {
 	return os.Rename(tmp.Name(), arquivo)
 }
 
-// corpoEspelho é o que vai ao servidor: a visão do navegador, num objeto só.
+// corpoEspelho é o que vai ao servidor: a visão do navegador, num objeto só. Na v2, também os
+// pedidos de permissão esperando (só a ferramenta e o resumo mascarado, até 300 caracteres).
 type corpoEspelho struct {
 	V          int                    `json:"v"`
 	Teste      bool                   `json:"teste,omitempty"`
 	Moradores  []mundo.Morador        `json:"moradores"`
 	Workspaces []maestri.Workspace    `json:"workspaces"`
 	Dia        []historico.EventoHist `json:"dia"`
+	Pendentes  []decisao.Pendente     `json:"pendentes,omitempty"`
 }
+
+// ErrFormato é o 400 do servidor: um servidor anterior à v2 recusa o corpo com os pedidos.
+var ErrFormato = errors.New("o servidor recusou o formato (400)")
 
 // codificarEspelho monta o corpo dentro de MaxEspelho: passou, o dia perde a metade mais
 // velha até caber (ou ficar vazio).
@@ -170,6 +182,8 @@ func EnviarEspelho(ctx context.Context, cliente *http.Client, c ConfigEspelho, c
 		return errors.New("o servidor recusou a chave (401): gere outra em Personalizar > Ponte local")
 	case resp.StatusCode == http.StatusNotFound:
 		return errors.New("o servidor não tem o espelho ligado (404): gere a chave em Personalizar > Ponte local")
+	case resp.StatusCode == http.StatusBadRequest:
+		return ErrFormato
 	}
 	return fmt.Errorf("o servidor respondeu %d", resp.StatusCode)
 }
@@ -190,13 +204,22 @@ func (s *Servidor) avisarEspelho() {
 	}
 }
 
-// corpoDoEspelho é o estado de agora, já reduzido como o do navegador.
-func (s *Servidor) corpoDoEspelho() ([]byte, error) {
+// corpoDoEspelho é o estado de agora, já reduzido como o do navegador. Os pedidos de permissão só
+// vão com o --decidir-remoto ligado e alguém que decide atendendo pelo servidor. v1: nunca (o
+// servidor anterior à v2).
+func (s *Servidor) corpoDoEspelho(c ConfigEspelho, v1 bool) ([]byte, error) {
 	s.mu.Lock()
 	snap := paraNavegador(s.snapshot()).(msgSnapshot)
 	dia := paraNavegador(s.dia()).(msgDia)
 	s.mu.Unlock()
-	return codificarEspelho(corpoEspelho{V: 1, Moradores: snap.Moradores, Workspaces: snap.Workspaces, Dia: dia.Eventos})
+	corpo := corpoEspelho{V: 2, Moradores: snap.Moradores, Workspaces: snap.Workspaces, Dia: dia.Eventos}
+	if c.DecidirRemoto && s.atendidoRemoto() {
+		corpo.Pendentes = s.dec.Lista()
+	}
+	if v1 {
+		corpo.V, corpo.Pendentes = 1, nil
+	}
+	return codificarEspelho(corpo)
 }
 
 // espelhar é o laço do espelho: manda EsperaEspelho depois de uma mudança e, sem mudança,
@@ -204,35 +227,64 @@ func (s *Servidor) corpoDoEspelho() ([]byte, error) {
 // diz só quando para e quando volta.
 func (s *Servidor) espelhar(ctx context.Context) {
 	cliente := clienteEspelho()
-	falhas := 0
+	falhas, v1 := 0, false
+	var ultimo time.Time
+	urgente := func() bool { // o pedido novo vai já, respeitando o intervalo mínimo do servidor
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(intervaloEspelho - time.Since(ultimo)):
+			return true
+		}
+	}
 	for {
-		espera, mudou := s.op.VidaEspelho, s.espMudou
+		espera, mudou, pendente := s.op.VidaEspelho, s.espMudou, s.espPendente
 		if falhas > 0 {
-			espera, mudou = min(recuoMin<<min(falhas-1, 6), recuoMax), nil // no recuo, mudança não apressa
+			// no recuo, mudança não apressa
+			espera, mudou, pendente = min(recuoMin<<min(falhas-1, 6), recuoMax), nil, nil
 		}
 		select {
 		case <-ctx.Done():
 			return
+		case <-pendente:
+			if !urgente() {
+				return
+			}
 		case <-mudou:
 			select {
 			case <-ctx.Done():
 				return
+			case <-s.espPendente:
+				if !urgente() {
+					return
+				}
 			case <-time.After(s.op.EsperaEspelho):
 			}
 		case <-time.After(espera):
 		}
-		select { // o que mudou durante a espera já vai neste envio
-		case <-s.espMudou:
-		default:
+		for _, ch := range []chan struct{}{s.espMudou, s.espPendente} { // o que mudou na espera já vai agora
+			select {
+			case <-ch:
+			default:
+			}
 		}
 		c, ok := s.op.Espelho()
 		if !ok {
 			falhas = 0
 			continue
 		}
-		corpo, err := s.corpoDoEspelho()
+		corpo, err := s.corpoDoEspelho(c, v1)
 		if err == nil {
 			err = EnviarEspelho(ctx, cliente, c, corpo)
+			ultimo = time.Now()
+		}
+		if errors.Is(err, ErrFormato) && !v1 {
+			v1 = true // servidor anterior à v2: segue o espelho, sem os pedidos de permissão
+			log.Print("espelho: o servidor não aceita os pedidos de permissão (versão anterior); mandando sem eles")
+			if corpo, err = s.corpoDoEspelho(c, v1); err == nil && urgente() {
+				err = EnviarEspelho(ctx, cliente, c, corpo)
+				ultimo = time.Now()
+			}
 		}
 		if ctx.Err() != nil {
 			return
@@ -253,7 +305,10 @@ func (s *Servidor) espelhar(ctx context.Context) {
 
 // clienteEspelho nunca segue redirecionamento: o Go repassa o Authorization a um redirect para o mesmo host em
 // http:// (ou a um subdomínio), e a chave iria em texto puro. Um 3xx vira "o servidor respondeu 30x".
-func clienteEspelho() *http.Client {
-	return &http.Client{Timeout: tempoEspelho,
+func clienteEspelho() *http.Client { return clienteSemRedirect(tempoEspelho) }
+
+// clienteSemRedirect é o clienteEspelho com outro prazo (o long-poll das decisões).
+func clienteSemRedirect(prazo time.Duration) *http.Client {
+	return &http.Client{Timeout: prazo,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }

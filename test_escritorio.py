@@ -3522,6 +3522,17 @@ class Previa(unittest.TestCase):
     pasta temporária própria e para com o sinal de sair: a pasta de dados dela tem de sumir junto."""
     RAIZ = os.path.dirname(os.path.abspath(e.__file__))
 
+    @classmethod
+    def setUpClass(cls):
+        # a prévia sobe com o AGENTES_ORG do ambiente; se outro arquivo de teste importou o escritorio antes deste
+        # (sem a variável), o e.ORG ficou vazio e a URL do teste não bateria: vale a do ambiente, restaurada no fim
+        cls.org_antes = e.ORG
+        e.ORG = os.environ["AGENTES_ORG"]
+
+    @classmethod
+    def tearDownClass(cls):
+        e.ORG = cls.org_antes
+
     def subir(self, *args):
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))

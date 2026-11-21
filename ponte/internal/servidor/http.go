@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"firmopolis/ponte/internal/clima"
+	"firmopolis/ponte/internal/decisao"
 	"firmopolis/ponte/internal/fontes/agy"
 	"firmopolis/ponte/internal/fontes/claude"
 	"firmopolis/ponte/internal/fontes/codex"
@@ -69,6 +70,13 @@ type Opcoes struct {
 	Espelho       func() (ConfigEspelho, bool)
 	EsperaEspelho time.Duration
 	VidaEspelho   time.Duration
+	// EsperaDecisao troca a espera dos pedidos de permissão (zero: decisao.Espera da rota) e
+	// EsperaRemota o long-poll das decisões do servidor (zero: EsperaRemota). Os testes trocam.
+	EsperaDecisao time.Duration
+	EsperaRemota  time.Duration
+	// Maestri acha o `maestri` que digita a resposta de uma pergunta (respostas.go). nil:
+	// maestri.AcharCLI; os testes trocam.
+	Maestri func() (maestri.CLI, bool)
 }
 
 // normalizadores liga cada rota de /evento ao normalizador do provedor.
@@ -95,6 +103,16 @@ type Servidor struct {
 	fila        chan func()
 	descartados atomic.Int64
 	espMudou    chan struct{} // avisa o laço do espelho (espelho.go) de que algo mudou
+	espPendente chan struct{} // pedido de permissão novo: o espelho manda já (sem juntar)
+
+	dec         *decisao.Registro // os pedidos de permissão esperando (decisoes.go)
+	atendLocal  atomic.Int64      // UnixNano do último "atender" de um cliente do /ws
+	atendRemoto atomic.Int64      // UnixNano do último long-poll em que o servidor disse "atendendo"
+
+	muResp      sync.Mutex                // respostas.go
+	perguntando map[string]bool           // moradores com a pergunta do Maestri aberta
+	perguntas   map[string]estadoPergunta // o estado de pergunta publicado de cada morador (sob s.mu)
+	respostas   []time.Time               // as tentativas de resposta do último minuto
 
 	muPID     sync.Mutex
 	agentes   map[string]agente // fonte:sessão → agente já resolvido
@@ -105,7 +123,9 @@ type Servidor struct {
 	mu         sync.Mutex
 	clientes   map[*cliente]bool
 	workspaces []maestri.Workspace
-	ambiente   clima.Estado // clima e datas do dia
+	terminais  []mundo.MetaTerminal    // os terminais do Maestri, de todos os workspaces (respostas.go)
+	ambiente   clima.Estado            // clima e datas do dia
+	estados    map[string]mundo.Estado // o último estado publicado de cada morador (decisoes.go)
 
 	aoConsumir func() // testes: simula um processamento lento
 	aoPassar   func() // testes: conta os passos do ticker
@@ -135,6 +155,9 @@ func Novo(op Opcoes) *Servidor {
 	if op.Clima == nil {
 		op.Clima = clima.NovaFonte(clima.Config{}, "")
 	}
+	if op.Maestri == nil {
+		op.Maestri = acharMaestri
+	}
 	if op.EsperaEspelho <= 0 {
 		op.EsperaEspelho = EsperaEspelho
 	}
@@ -142,14 +165,19 @@ func Novo(op Opcoes) *Servidor {
 		op.VidaEspelho = VidaEspelho
 	}
 	s := &Servidor{
-		op:         op,
-		reg:        mundo.NovoRegistro(nil),
-		fila:       make(chan func(), TamanhoFila),
-		espMudou:   make(chan struct{}, 1),
-		agentes:    map[string]agente{},
-		agenteLog:  map[string]bool{},
-		clientes:   map[*cliente]bool{},
-		workspaces: []maestri.Workspace{},
+		op:          op,
+		reg:         mundo.NovoRegistro(nil),
+		fila:        make(chan func(), TamanhoFila),
+		espMudou:    make(chan struct{}, 1),
+		espPendente: make(chan struct{}, 1),
+		dec:         decisao.NovoRegistro(nil),
+		estados:     map[string]mundo.Estado{},
+		perguntando: map[string]bool{},
+		perguntas:   map[string]estadoPergunta{},
+		agentes:     map[string]agente{},
+		agenteLog:   map[string]bool{},
+		clientes:    map[*cliente]bool{},
+		workspaces:  []maestri.Workspace{},
 	}
 	if op.Demo {
 		s.op.Historico = nil // o demo nunca grava
@@ -172,6 +200,7 @@ func Novo(op Opcoes) *Servidor {
 func (s *Servidor) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /evento/{rota}", s.evento)
+	mux.HandleFunc("POST /pendente/{rota}", s.pendente)
 	mux.HandleFunc("GET /ws", s.ws)
 	return s.guarda(mux)
 }
@@ -198,6 +227,7 @@ func (s *Servidor) Rodar(ctx context.Context) error {
 	go s.op.Clima.Rodar(ctx, s.definirAmbiente)
 	if s.op.Espelho != nil {
 		go s.espelhar(ctx)
+		go s.decisoesRemotas(ctx)
 	}
 	go func() {
 		<-ctx.Done()
@@ -221,7 +251,11 @@ func (s *Servidor) evento(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	if !iguais(r.Header.Get("X-Ponte-Token"), s.op.Token) {
+	// O hook e o plugin atuais assinam (nonce e HMAC do token sobre o corpo, como o /pendente): o
+	// token não viaja. X-Ponte-Token puro ainda vale só para o plugin do OpenCode de uma versão
+	// anterior, até o próximo `ponte setup --aplicar` trocá-lo (transição; sai numa versão futura).
+	token := r.Header.Get("X-Ponte-Token")
+	if token != "" && !iguais(token, s.op.Token) || token == "" && !nonceValido(r.Header.Get("X-Ponte-Nonce")) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -233,6 +267,10 @@ func (s *Servidor) evento(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if token == "" && !s.assinado(r, corpo) {
+		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 	// Corpo que não se lê não é erro para o agente: responde 204 e ignora.
@@ -418,6 +456,7 @@ func (s *Servidor) vincular(workspaces []maestri.Workspace, metas []mundo.MetaTe
 	defer s.mu.Unlock()
 	if workspaces != nil {
 		s.workspaces = workspaces
+		s.terminais = metas                             // o leitor manda sempre todos os terminais junto com os workspaces
 		s.reg.DefinirPastas(maestri.Pastas(workspaces)) // antes das metas e dos sinais
 	}
 	for _, meta := range metas {
@@ -431,9 +470,15 @@ func (s *Servidor) vincular(workspaces []maestri.Workspace, metas []mundo.MetaTe
 func (s *Servidor) publicar(m *mundo.Morador, saiu string) {
 	if saiu != "" {
 		s.transmitir(msgSaiu{V: 1, Tipo: "saiu", ID: saiu})
+		s.respondidoNoTerminal(saiu, "")
+		delete(s.perguntas, saiu)
 	}
 	if m == nil {
 		return
+	}
+	s.respondidoNoTerminal(m.ID, m.Estado)
+	if s.atualizarPergunta(m) {
+		s.abrirPerguntaMaestri(m)
 	}
 	if s.op.Historico != nil {
 		e := historico.EventoHist{TS: instante(m), MoradorID: m.ID, Estado: m.Estado}

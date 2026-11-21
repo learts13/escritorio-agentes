@@ -134,7 +134,20 @@
       </div>
 
       <div class="faixa andares">
-        <div class="poco" aria-hidden="true"><div class="elevador"><canvas class="elevador-mascote" width="32" height="32"></canvas><span class="elevador-visor">12</span></div></div>
+        <div class="poco" aria-hidden="true"><div class="elevador"><canvas class="elevador-mascote" width="32" height="32"></canvas><span class="elevador-visor">13</span></div></div>
+
+        <article class="andar andar-invertido" data-andar="13">
+          <p class="placa-andar"><span>13</span>Responder</p>
+          <div class="andar-texto">
+            <h3>Permitir ou Negar, daqui mesmo.</h3>
+            <p>Quando um terminal do Claude Code, do Codex ou do OpenCode pede permissão, o cartão dele mostra a ferramenta, um resumo e o tempo que falta, com <strong>Permitir</strong> e <strong>Negar</strong>. Quando faz uma pergunta, você escreve a resposta e ela é digitada no terminal, com Enter. O diálogo do terminal continua: quem responder primeiro leva.</p>
+            <p>Vale no navegador do seu PC e, se você ligar com <code>--decidir-remoto</code>, no celular. A ponte nunca abre porta, e o servidor só vê a ferramenta e um resumo mascarado.</p>
+          </div>
+          <figure class="janela janela-larga">
+            <img src="img/responder.webp" alt="O cartão do terminal Implementador, de capacete, pedindo para rodar 'npm test', com os botões Permitir e Negar e o tempo que falta; ao lado, no mapa, o Maestro de coroa, o Auditor de óculos e o Braçal de capacete." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>Um pedido de permissão no cartão do terminal, com dados fictícios.</figcaption>
+          </figure>
+        </article>
 
         <article class="andar" data-andar="12">
           <p class="placa-andar"><span>12</span>Rádio</p>
@@ -157,9 +170,9 @@
             <p>Clique em alguém da equipe para ver o que está fazendo.</p>
           </div>
           <div class="mural-fotos">
-            <figure class="foto foto-a"><img src="img/z-banheiro.webp" alt="Dois terminaizinhos na fila do banheiro, com a placa de interditado e o balão 'Interditado' na porta WC." width="880" height="520" loading="lazy" decoding="async"><figcaption>Interditado</figcaption></figure>
-            <figure class="foto foto-b"><img src="img/z-faxina.webp" alt="A faxineira Dona Rosa limpando a porta do banheiro com balde e rodo." width="720" height="440" loading="lazy" decoding="async"><figcaption>A faxina chegou</figcaption></figure>
-            <figure class="foto foto-c"><img src="img/z-zelador.webp" alt="A zeladora Dona Neide com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'." width="720" height="440" loading="lazy" decoding="async"><figcaption>Cafeteira quebrada</figcaption></figure>
+            <figure class="foto foto-a"><img src="img/z-banheiro.webp?v=2" alt="Dois terminaizinhos na fila do banheiro interditado, no corredor, com o cone e o balão 'Interditado'; embaixo, o banheiro com as três cabines, a bancada e o chão sujo." width="880" height="520" loading="lazy" decoding="async"><figcaption>Interditado</figcaption></figure>
+            <figure class="foto foto-b"><img src="img/z-faxina.webp?v=2" alt="O faxineiro Seu Bené passando o rodo dentro do banheiro, entre poças e papel no chão, ao lado das cabines." width="720" height="440" loading="lazy" decoding="async"><figcaption>A faxina chegou</figcaption></figure>
+            <figure class="foto foto-c"><img src="img/z-zelador.webp?v=2" alt="O zelador Seu Tião com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'." width="720" height="440" loading="lazy" decoding="async"><figcaption>Cafeteira quebrada</figcaption></figure>
           </div>
         </article>
 
@@ -167,12 +180,12 @@
           <p class="placa-andar"><span>10</span>Terminais</p>
           <div class="andar-texto">
             <h3>Os terminais da sua máquina, no mapa.</h3>
-            <p>Pela ponte local, cada Claude Code, Codex, agy, OpenCode e MiniMax aberto vira um terminalzinho. Com o Maestri, cada workspace em uso ganha a sua sala sozinho, e o Maestro vai à sala de reunião de coroa. Um clique no terminalzinho mostra o programa, o estado e o dia dele.</p>
+            <p>Pela ponte local, cada Claude Code, Codex, agy, OpenCode e MiniMax aberto vira um terminalzinho. A cor diz o programa, e o acessório diz o papel: coroa no Maestro, óculos e lupa no Auditor, capacete no Braçal. Com o Maestri, cada workspace em uso ganha a sua sala sozinho, num bloco de baixo, sob a placa "Projetos".</p>
             <p>Os terminais estão numa VM? O espelho manda para o seu escritório, sem túnel, com um comando só: <code>ponte conectar</code>.</p>
           </div>
           <figure class="janela janela-larga">
-            <img src="img/terminais-maestri.webp" alt="O prédio com terminaizinhos de vários programas nas salas Loja e Front, criadas sozinhas para o Maestri, e a Ada, o Maestro, na sala de reunião." width="960" height="600" loading="lazy" decoding="async">
-            <figcaption>Terminais fictícios de cinco programas, com as salas automáticas do Maestri.</figcaption>
+            <img src="img/terminais-maestri.webp?v=2" alt="O prédio inteiro: a recepção e quatro salas de time em cima, a sala de reunião, a sala comunal, a cozinha e o banheiro no meio, e embaixo as salas Loja Online, App Mobile e Site Novo, criadas sozinhas para o Maestri, sob a placa Projetos." width="960" height="600" loading="lazy" decoding="async">
+            <figcaption>A planta em blocos, com terminais fictícios em três workspaces do Maestri.</figcaption>
           </figure>
         </article>
 
@@ -196,7 +209,7 @@
             <p>Trabalhando, esperando você ou de folga: a cor do crachá e o balão na cabeça contam. A cada 30 segundos o escritório lê o time de novo, e os moradores andam até onde devem estar.</p>
           </div>
           <figure class="janela janela-larga">
-            <img src="img/01-escritorio-dia.webp" alt="O mapa do escritório de dia, com as salas Dev, Produto, Marketing, Vendas e Ops, agentes nas mesas e balões de fala." width="960" height="462" loading="lazy" decoding="async">
+            <img src="img/01-escritorio-dia.webp?v=2" alt="O mapa do escritório de dia, com as salas Dev, Produto, Marketing, Vendas e Ops em cima, a sala de reunião, a sala comunal, a cozinha e o banheiro embaixo, e um '!' e um '?' sobre quem espera você." width="960" height="389" loading="lazy" decoding="async">
             <figcaption>O prédio inteiro de dia, com 10 agentes fictícios do modo demonstração.</figcaption>
           </figure>
         </article>
@@ -388,13 +401,13 @@
         <div class="quadro-coluna">
           <h3>No mapa</h3>
           <ul>
-            <li><strong>Prédio montado pelo time</strong><span>Recepção com o seu logo, uma sala por time que cresce com o número de agentes, corredor, sala de reunião, sala comunal e cozinha.</span></li>
+            <li><strong>Prédio montado pelo time</strong><span>Recepção com o seu logo, uma sala por time que cresce com o número de agentes, sala de reunião, sala comunal, cozinha e banheiro. No máximo 6 salas por fileira; o resto desce em blocos.</span></li>
             <li><strong>Mapa vivo</strong><span>Com tarefa, o agente vai para a mesa e digita. Livre, joga fliperama, sinuca, pebolim, xadrez ou dardos, toca violão e toma café. Chega de manhã e vai embora à noite.</span></li>
             <li><strong>21 poses e 45 sons</strong><span>Jogos em dupla com torcida, &quot;toca aqui&quot;, robô aspirador à noite e sons sintetizados no navegador, cada categoria com o seu volume.</span></li>
             <li><strong>Objetos clicáveis</strong><span>A TV de 5 canais, os fliperamas, a jukebox, a cafeteira, o aquário, o gato, a lousa de código e o sino das vendas, entre outros.</span></li>
             <li><strong>Rádio da firma</strong><span>Três estações compostas na hora pelo navegador, sem arquivo de áudio, e uma rádio da internet se a empresa quiser.</span></li>
             <li><strong>Zeladoria</strong><span>Banheiro que suja e interdita, faxineira, zelador para o que quebra e porteiro na entrada.</span></li>
-            <li><strong>Câmera</strong><span>Zoom pela roda ou pela pinça, duplo clique para focar uma sala e &quot;Ir para…&quot; um agente com Ctrl+K.</span></li>
+            <li><strong>Câmera</strong><span>Zoom em degraus nítidos (1x, 2x, 3x) pela roda ou pela pinça, duplo clique para focar uma sala e &quot;Ir para…&quot; um agente com Ctrl+K.</span></li>
           </ul>
         </div>
         <div class="quadro-coluna">
@@ -404,7 +417,8 @@
             <li><strong>Conversas</strong><span>A lista do dia das conversas dos agentes, desligada por padrão. Responder pelo mapa também é opcional.</span></li>
             <li><strong>Equipe</strong><span>Contas por convite, chat geral, salas e DM com menções e anexos, mural, status e reuniões com agenda.</span></li>
             <li><strong>Visitas</strong><span>Quem da equipe está com o escritório aberto aparece no mapa, e um link de 1 hora traz alguém de fora para a sala de reunião.</span></li>
-            <li><strong>Terminais da sua máquina</strong><span>Pela ponte local, ou de outra máquina pelo espelho, sem túnel. O Maestri ganha uma sala por workspace.</span></li>
+            <li><strong>Terminais da sua máquina</strong><span>Pela ponte local, ou de outra máquina pelo espelho, sem túnel. A cor diz o programa e o acessório, o papel. O Maestri ganha uma sala por workspace.</span></li>
+            <li><strong>Responder do escritório</strong><span>Permitir ou Negar os pedidos dos terminais e responder as perguntas deles no cartão, também no celular.</span></li>
             <li><strong>Jornal da semana</strong><span>Manchete, notas e os números de cada agente nesta semana e na passada.</span></li>
           </ul>
         </div>
@@ -460,7 +474,7 @@
       <h2 id="titulo-mural" class="titulo-secao">Regras da firma, pregadas no mural.</h2>
       <ul class="avisos">
         <li class="aviso aviso-amarelo"><h3>Zero token</h3><p>Nenhum modelo de IA é chamado para o escritório existir. Ele só lê o estado do time e desenha.</p></li>
-        <li class="aviso aviso-rosa"><h3>Só leitura</h3><p>Por padrão, o escritório olha e não mexe. Responder pelo mapa é opcional e começa desligado.</p></li>
+        <li class="aviso aviso-rosa"><h3>Só leitura</h3><p>Por padrão, o escritório olha e não mexe. Responder o agentes.chat pelo mapa começa desligado, e decidir pelo celular só liga com <code>--decidir-remoto</code>.</p></li>
         <li class="aviso aviso-azul"><h3>Na sua máquina</h3><p>Roda no seu servidor, fechado na sua rede privada. Os dados do time não passam por nós.</p></li>
         <li class="aviso aviso-verde"><h3>Código aberto</h3><p>AGPL-3.0, Python só com a biblioteca padrão e JavaScript puro. Sem build e sem caixa-preta.</p></li>
       </ul>

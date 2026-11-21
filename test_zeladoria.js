@@ -16,11 +16,14 @@ function carregar() {
   vm.runInNewContext(FONTE, contexto);
   return contexto.window.Zeladoria;
 }
-// o prédio de mentira: o corredor em y=100, o banheiro em x=200, a entrada em x=400 e uma máquina de café com duas vagas
+// o prédio de mentira: o corredor em y=100, a porta do banheiro em x=200 (a sala embaixo do corredor, com três cabines), a
+// entrada em x=400 e uma máquina de café com duas vagas
 function predio(fora = false) {
+  const sala = { tipo: "banheiro", chave: "banheiro", px: 40, py: 120, pw: 192, ph: 176, chao: 168, portas: [200] };
+  const cabines = [0, 1, 2].map(i => ({ x: 58 + i * 26, y: 215, px: 44 + i * 26, chao: 168, ocupada: false }));
   return { fora, lista: [], eventos: [],
     vagas: [{ tipo: "cafe", x: 104, y: 140, fechada: false }, { tipo: "cafe", x: 120, y: 140, fechada: true }, { tipo: "lanche", x: 60, y: 140 }],
-    predio: { banheiro: { x: 200, y: 100 }, corredorTopo: 90, corredorY: 100, entrada: { x: 400, calcadaY: 200 }, predioRet: { x: 0, y: 0, w: 420, h: 190 },
+    predio: { banheiro: { x: 200, y: 100, sala, cabines }, corredorTopo: 90, corredorY: 100, corredorAlt: 20, entrada: { x: 400, calcadaY: 200 }, predioRet: { x: 0, y: 0, w: 420, h: 190 },
       luzesTeto: [{ x: 50, y: 93 }, { x: 150, y: 93 }], animados: [{ tipo: "cafe", x: 100, y: 120, w: 8, h: 10 }], objetos: [], salas: [], baixo: [] } };
 }
 // o caminho do vida.js, simplificado: chega direto no fim da rota
@@ -59,10 +62,40 @@ const daEquipe = (Z, papel) => Z.npcs().filter(n => n.papel === papel);
   const n = daEquipe(Z, "limpeza")[0];
   assert.match(n.nome, / · Limpeza$/);
   let viuLimpando = false;
-  assert.ok(rodar(Z, m, 30, () => { if (Z.estado().limpando) { viuLimpando = true; assert.equal(Z.bloqueado(), true); assert.match(n.fazendo, /Limpando/); } return Z.sujeira() === 0; }), "ela limpa");
+  const s = m.predio.banheiro.sala;
+  assert.ok(rodar(Z, m, 30, () => {
+    if (Z.estado().limpando) {
+      viuLimpando = true; assert.equal(Z.bloqueado(), true); assert.match(n.fazendo, /Limpando/);
+      assert.ok(n.x > s.px && n.x < s.px + s.pw && n.y > s.chao && n.y < s.py + s.ph, `passa o rodo dentro do banheiro: ${n.x}, ${n.y}`);
+    }
+    return Z.sujeira() === 0;
+  }), "ela limpa");
   assert.ok(viuLimpando, "o banheiro fica fechado durante a faxina");
   assert.equal(Z.bloqueado(), false, "limpo: a fila anda de novo");
   assert.ok(rodar(Z, m, 10, () => daEquipe(Z, "limpeza").length === 0), "ela vai embora");
+}
+
+// a sujeira aparece no chão do banheiro e aumenta com o uso (papel, poças, o papel higiênico saindo da cabine), dentro da
+// sala; interditado, o cone e a placa ficam na porta, no corredor, e o balão "Interditado" junto deles
+{
+  const Z = carregar(), m = predio();
+  Z.passo(m, 0.1, agora, h);
+  const b = m.predio.banheiro, s = b.sala;
+  assert.equal(Z.sujeiraNoChao(b).length, 0, "limpo: nada no chão");
+  let antes = 0;
+  for (const n of [20, 40, 60, 80, 95]) {
+    Z.limpar(); Z.sujar(n);
+    const lista = Z.sujeiraNoChao(b);
+    assert.ok(lista.length > antes, `com ${n}, mais sujeira`); antes = lista.length;
+    for (const [, , x, y] of lista) assert.ok(x > s.px && x < s.px + s.pw && y > s.chao && y < s.py + s.ph, `no chão do banheiro: ${x}, ${y}`);
+  }
+  assert.ok(Z.interditado());
+  const f = Z.falas().find(q => q.fala === "Interditado");
+  assert.ok(f && Math.abs(f.x - b.x) < 16 && f.y > m.predio.corredorTopo && f.y < m.predio.corredorTopo + m.predio.corredorAlt, "o balão na porta, no corredor");
+  const feitos = []; const ctx = { set fillStyle(v) { feitos.push(v); }, fillRect(x, y) { feitos.push([x, y]); } };
+  Z.ar(ctx, 0);
+  assert.ok(feitos.includes("#f08a24"), "o cone laranja"); assert.ok(feitos.includes("#f5c518"), "e a placa amarela");
+  assert.equal(Z.sujeiraNoChao({ x: 1, y: 1 }).length, 0, "sem a sala, nada no chão");
 }
 
 // as migalhas: no máximo 6; a faxina da ronda recolhe todas

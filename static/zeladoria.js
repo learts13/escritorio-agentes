@@ -101,12 +101,12 @@ const Zeladoria = (() => {
     if (papel === "manutencao") return chamarZelador(m);
     return null;
   }
-  // a faxineira: o banheiro (se sujou), cada migalha, e vai embora
+  // a faxineira: o banheiro (se sujou: entra e passa o rodo lá dentro), cada migalha, e vai embora
   function chamarLimpeza(m) {
     if (deServico("limpeza")) return null;
     const b = m.predio.banheiro, passos = [];
     if (b && z.sujeira > 0) {
-      passos.push(ir([b.x + 3, m.predio.corredorTopo + 9], "Indo ao banheiro"));
+      passos.push(ir(pontoFaxina(m), "Indo ao banheiro"));
       passos.push(fazer("limpar", LIMPAR_T, "Limpando o banheiro", n => { limpar(); falar(n, sorteia(FRASES.limpo), 2.5); }));
     }
     for (const g of z.migalhas) {
@@ -141,6 +141,12 @@ const Zeladoria = (() => {
     return n;
   }
   function falar(n, txt, s) { n.fala = txt; n.ate = agoraS() + s; }
+  // onde a faxineira passa o rodo: no meio do banheiro, entre as cabines e a bancada (sem a sala, na porta)
+  function pontoFaxina(m) {
+    const b = m.predio.banheiro, s = b.sala;
+    return s ? [s.px + Math.round(s.pw * 0.45), s.chao + 64] : [b.x + 3, m.predio.corredorTopo + 9];
+  }
+  const corredorBaixo = p => p.corredorTopo + (p.corredorAlt || 48);   // a parede de baixo do corredor, onde fica a porta do banheiro
 
   // ---------- a cada quadro (vida.js: Vida.passo) ----------
   // h: o caminho do vida.js { rotaAte(m, a, b), andar(m, p, dt, agora) }
@@ -241,36 +247,62 @@ const Zeladoria = (() => {
   }
 
   // ---------- desenho (app.js; tudo em px do mundo, já na escala do mapa) ----------
-  // no chão, antes da cena: as migalhas e os copos
+  // a sujeira no chão do banheiro, que aumenta com o uso: papel amassado, poças, o papel higiênico saindo da cabine
+  function sujeiraNoChao(b) {
+    const s = b && b.sala, k = (b && b.cabines) || [];
+    if (!s || k.length < 3) return [];
+    return [[15, "papel", k[0].x + 4, s.chao + 52], [30, "poca", s.px + s.pw - 66, s.chao + 27], [45, "papel", k[2].x - 3, s.chao + 56],
+      [60, "rolo", k[1].x - 2, k[1].y - 7], [60, "poca", k[1].x + 6, s.chao + 63], [75, "papel", s.px + s.pw - 40, s.chao + 44],
+      [90, "pocao", s.px + Math.round(s.pw * 0.42), s.chao + 84]].filter(p => z.sujeira >= p[0]);
+  }
+  function poca(c, x, y, grande) {
+    const meias = grande ? [6, 10, 12, 12, 10, 6] : [3, 6, 7, 6, 3];
+    meias.forEach((w, j) => {
+      const borda = j === 0 || j === meias.length - 1;
+      c.fillStyle = "#4f86c6"; c.fillRect(x - w, y + j, 2 * w + 1, 1);                             // a borda mais escura
+      if (!borda) { c.fillStyle = "#8cc2ea"; c.fillRect(x - w + 1, y + j, 2 * w - 1, 1); }
+    });
+    c.fillStyle = "#e6f6ff"; c.fillRect(x - 2, y + 1, 3, 1); c.fillRect(x + 2, y + 2, 1, 1);
+  }
+  function papel(c, x, y) {
+    c.fillStyle = "#5f6b78"; c.fillRect(x - 2, y - 2, 6, 5);                                       // o contorno
+    c.fillStyle = "#f7f7f2"; c.fillRect(x - 1, y - 1, 4, 3); c.fillStyle = "#c4ccd4"; c.fillRect(x + 1, y, 2, 1); c.fillRect(x, y + 1, 1, 1);
+  }
+  // no chão, antes da cena: as migalhas e os copos, e a sujeira do banheiro
   function chao(c) {
+    for (const [, tipo, x, y] of sujeiraNoChao(z.m && z.m.predio.banheiro)) {
+      if (tipo === "poca" || tipo === "pocao") poca(c, x, y, tipo === "pocao");
+      else if (tipo === "papel") papel(c, x, y);
+      else { c.fillStyle = "#d5d9de"; for (let k = 0; k < 9; k++) c.fillRect(x + (k % 4 < 2 ? 0 : 1), y + k, 2, 1); c.fillStyle = "#f7f7f2"; for (let k = 0; k < 9; k++) c.fillRect(x + (k % 4 < 2 ? 0 : 1), y + k, 1, 1); }   // o papel saindo pela fresta
+    }
     for (const g of z.migalhas) {
       if (g.tipo === "copo") { c.fillStyle = "#14131f"; c.fillRect(g.x - 1, g.y - 4, 4, 5); c.fillStyle = "#f4efe4"; c.fillRect(g.x, g.y - 3, 2, 3); c.fillStyle = "#7a4a2a"; c.fillRect(g.x, g.y - 3, 2, 1); }
       else { c.fillStyle = "#c9a26a"; c.fillRect(g.x, g.y, 1, 1); c.fillRect(g.x + 2, g.y - 1, 1, 1); c.fillRect(g.x - 2, g.y + 1, 1, 1); c.fillStyle = "#8a6a3e"; c.fillRect(g.x + 1, g.y + 1, 1, 1); }
     }
   }
-  // por cima da cena: moscas e fedor na porta do banheiro, a placa de interditado, a cafeteira quebrada, a lâmpada que pisca,
-  // o brilho da faxina e as faíscas do conserto. t: o relógio dos objetos (0 com menos movimento)
+  // por cima da cena: fedor e moscas nas cabines do banheiro, o cone e a placa de interditado na porta, a cafeteira quebrada,
+  // a lâmpada que pisca, o brilho da faxina e as faíscas do conserto. t: o relógio dos objetos (0 com menos movimento)
   function ar(c, t) {
     const m = z.m;
     if (!m) return;
     const p = m.predio, b = p.banheiro, parado = calmo() || !t;
     if (b && suja()) {
-      const topo = p.corredorTopo;
-      for (let i = 0; i < 3; i++) { // linhas de fedor verdes subindo da porta
-        const x = b.x - 6 + i * 6, sobe = parado ? 0 : Math.floor(t / 180 + i * 2) % 6;
-        c.fillStyle = "rgba(110,190,40,.9)";
-        for (let k = 0; k < 5; k++) c.fillRect(x + ((k + sobe) % 2) * 2, topo - 2 - k * 3 - sobe, 2, 3);
-      }
-      const n = interditado() ? 4 : 3;
-      for (let i = 0; i < n; i++) { // moscas: um ponto preto e a asa clara, rodando em volta da porta
+      const ks = b.cabines && b.cabines.length ? b.cabines : [{ x: b.x, y: p.corredorTopo + 6 }];
+      ks.forEach((k, i) => { // linhas de fedor verdes subindo de cada cabine
+        const sobe = parado ? 0 : Math.floor(t / 180 + i * 2) % 6, y0 = k.y - 34;
+        c.fillStyle = "rgba(110,190,40,.85)";
+        for (let j = 0; j < 4; j++) c.fillRect(k.x - 1 + ((j + sobe) % 2) * 2, y0 - j * 3 - sobe, 2, 3);
+      });
+      const meio = ks[Math.floor(ks.length / 2)], n = interditado() ? 5 : 3;
+      for (let i = 0; i < n; i++) { // moscas: um ponto preto e a asa clara, rodando em volta das cabines
         const a = parado ? i * 2.1 : t / (260 + i * 70) + i * 2.1;
-        const x = Math.round(b.x + Math.cos(a) * (7 + i * 2)), y = Math.round(topo - 8 + Math.sin(a * 1.7) * 4 + i);
+        const x = Math.round(meio.x + Math.cos(a) * (16 + i * 5)), y = Math.round(meio.y - 50 + Math.sin(a * 1.7) * 6 + i * 2);
         c.fillStyle = "#14131f"; c.fillRect(x, y, 2, 2);
         c.fillStyle = "rgba(220,235,255,.9)"; c.fillRect(x + ((parado ? 0 : Math.floor(t / 60)) % 2 ? 2 : -1), y - 1, 1, 1);
       }
     }
-    if (b && interditado() && !z.limpando) placa(c, b.x + 9, p.corredorTopo + 12);
-    if (b && z.limpando) brilho(c, b.x, p.corredorTopo - 6, t, parado);
+    if (b && interditado() && !z.limpando) { const y = corredorBaixo(p) - 3; placa(c, b.x - 10, y); cone(c, b.x + 11, y); }
+    if (b && z.limpando) for (const n of z.npcs.values()) if (n.acao === "limpar") brilho(c, n.x, n.y - 12, t, parado);
     if (z.quebrado.cafe) for (const q of maquinas(m)) quebradaIcone(c, q.x - 4, q.y - 2, t, parado);
     if (z.quebrado.luz !== null) {
       const l = (p.luzesTeto || [])[z.quebrado.luz];
@@ -286,6 +318,13 @@ const Zeladoria = (() => {
     c.fillStyle = "#14131f"; for (let k = 0; k < 3; k++) c.fillRect(x - 4 + k * 3, y - 4, 2, 1);
     c.fillStyle = "#e8574a"; c.fillRect(x - 1, y - 9, 3, 1); c.fillRect(x - 2, y - 8, 1, 3); c.fillRect(x + 2, y - 8, 1, 3); c.fillRect(x - 1, y - 6, 3, 1);
     c.fillRect(x - 1, y - 7, 1, 1); c.fillRect(x + 1, y - 8, 1, 1);   // a barra do proibido
+  }
+  // o cone de piso molhado: laranja, com a faixa branca e a base preta
+  function cone(c, x, y) {
+    c.fillStyle = "#14131f"; c.fillRect(x - 5, y - 1, 11, 2); c.fillRect(x - 1, y - 12, 3, 1);
+    for (let k = 0; k < 10; k++) { const w = 1 + Math.floor(k / 2); c.fillStyle = "#14131f"; c.fillRect(x - w, y - 11 + k, 2 * w + 1, 1); }
+    for (let k = 0; k < 10; k++) { const w = Math.floor(k / 2); c.fillStyle = k >= 4 && k <= 5 ? "#f4f4f0" : "#f08a24"; c.fillRect(x - w, y - 11 + k, 2 * w + 1, 1); }
+    c.fillStyle = "#ffb15c"; c.fillRect(x - 1, y - 6, 1, 3);
   }
   function brilho(c, x, y, t, parado) { // estrelinhas da faxina piscando na porta
     const pts = [[-6, -2], [5, -6], [0, 4], [7, 3], [-4, 7]];
@@ -364,7 +403,7 @@ const Zeladoria = (() => {
     if (!m) return r;
     const p = m.predio, mq = z.quebrado.cafe && maquinas(m)[0];
     if (mq) r.push({ x: mq.x - 4, y: mq.y + 22, fala: "Quebrada!" });
-    if (p.banheiro && interditado() && !z.limpando) r.push({ x: p.banheiro.x + 5, y: p.corredorTopo + 14, fala: "Interditado" });
+    if (p.banheiro && interditado() && !z.limpando) r.push({ x: p.banheiro.x, y: corredorBaixo(p) - 12, fala: "Interditado" });
     return r;
   }
   // a luminária quebrada pisca (app.js: as luzes de teto à noite); com menos movimento, fica apagada
@@ -390,7 +429,7 @@ const Zeladoria = (() => {
     z.proxQuebra = z.proxDemo = z.proxRonda = agoraS() + 600;
   }
 
-  return { SUJA, INTERDITA, USO, sujar, suja, interditado, bloqueado, limpar, migalha, quebrar, consertar, quebrado, chamar, passo,
+  return { SUJA, INTERDITA, USO, sujeiraNoChao, sujar, suja, interditado, bloqueado, limpar, migalha, quebrar, consertar, quebrado, chamar, passo,
     chao, ar, npc, falas, lampadaApagada, npcEm, npcs, mexendo, estado, zerar, sujeira: () => z.sujeira };
 })();
 

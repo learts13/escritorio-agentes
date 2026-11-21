@@ -575,7 +575,7 @@ const Radio = (() => {
   function fechar(foco) {
     if (!painel) return false;
     painel.remove(); painel = null;
-    if (foco && devolver && !devolver.hidden) devolver.focus();
+    if (foco && devolver && !devolver.hidden) { if (window.focarOuMenu) focarOuMenu(devolver); else devolver.focus(); }   // menu da câmera fechado: o botão do menu
     devolver = null;
     return true;
   }

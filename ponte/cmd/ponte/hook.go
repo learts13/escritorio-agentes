@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"firmopolis/ponte/internal/decisao"
 	"firmopolis/ponte/internal/servidor"
 )
 
@@ -17,7 +18,7 @@ import (
 const prazoHook = 900 * time.Millisecond
 
 // hook é o `ponte hook <claude|agy|codex|mcode>` que os agentes rodam a cada evento: repassa
-// o JSON do stdin a POST /evento/<rota> com o token, o MAESTRI_TERMINAL_ID, em
+// o JSON do stdin a POST /evento/<rota> assinado com o token (nonce e HMAC; o token não viaja), o MAESTRI_TERMINAL_ID, em
 // X-Ponte-PID-Hook o PID do pai (o agente, ou o shell que ele abriu) e, em
 // X-Ponte-Hora, a hora em que o agente criou este processo (o Claude e o Codex rodam
 // o hook em segundo plano, e os eventos podem chegar fora de ordem). A ponte sobe do
@@ -63,7 +64,10 @@ func hook(args []string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Ponte-Token", token)
+	// o token não viaja: um nonce e o HMAC dele sobre o nonce e o corpo, como no `ponte decidir`
+	nonce := novoNonce()
+	req.Header.Set("X-Ponte-Nonce", nonce)
+	req.Header.Set("X-Ponte-Assinatura", decisao.Assinar(token, []byte(nonce), decisao.Soma(corpo)))
 	req.Header.Set("X-Maestri-Terminal-Id", os.Getenv("MAESTRI_TERMINAL_ID"))
 	req.Header.Set("X-Ponte-PID-Hook", strconv.Itoa(os.Getppid()))
 	req.Header.Set("X-Ponte-Hora", strconv.FormatInt(hora.UnixMilli(), 10))

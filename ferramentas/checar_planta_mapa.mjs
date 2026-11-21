@@ -171,7 +171,7 @@ const exemplo = await js(`(() => {
     // nada encavalado: pegada (parte de baixo) de cada peça movida ou posta contra as outras peças sólidas
     const fundo = o => Math.max(6, o.h * 0.35), peg = o => ({ x: o.x + 1, y: o.y + o.h - fundo(o), w: o.w - 2, h: fundo(o) });
     const sobre = (r, q) => r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y;
-    const solidos = p.objetos.filter(o => o.nome && o.chave >= 0 && o.w && o.h && !/^(fruteira)$/.test(o.nome));
+    const solidos = p.objetos.filter(o => o.nome && o.chave >= 0 && o.w && o.h && !/^(fruteira|reuniao_mesa|reuniao_fundo)$/.test(o.nome));
     const mexidos = p.objetos.filter(o => o.id && (o.id.startsWith("novo:") || o.pos.x !== o.auto.x || o.pos.y !== o.auto.y) && o.chave >= 0);
     for (const o of mexidos) for (const q of solidos) if (q !== o && sobre(peg(o), peg(q))) { out.push(rotulo + ": " + o.id + " encavalado em " + (q.id || q.nome)); break; }
     for (const o of mexidos) for (const s of p.salas) for (const m of s.mesas) if (sobre(peg(o), { x: m.x - 16, y: m.topo, w: 32, h: 13 })) out.push(rotulo + ": " + o.id + " em cima de mesa");

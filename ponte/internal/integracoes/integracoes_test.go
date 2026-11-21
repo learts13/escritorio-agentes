@@ -277,13 +277,13 @@ func TestAplicarPreservaTerceiros(t *testing.T) {
 
 	settings := a.ler(t, ".claude/settings.json")
 	linhasEmOrdem(t, settingsTerceiros, settings)
-	if got, want := semNossos(decodificar(t, settings), grupoClaudeNosso), decodificar(t, settingsTerceiros); !reflect.DeepEqual(got, want) {
+	if got, want := semNossos(decodificar(t, settings), qualquerClaudeNosso), decodificar(t, settingsTerceiros); !reflect.DeepEqual(got, want) {
 		t.Fatalf("o settings.json mudou fora da nossa marca:\n%v\n%v", got, want)
 	}
 	hooks := decodificar(t, settings).(map[string]any)["hooks"].(map[string]any)
 	for _, ev := range eventosClaude {
 		lista, ok := hooks[ev].([]any)
-		if !ok || !grupoClaudeNosso(lista[len(lista)-1]) {
+		if !ok || !qualquerClaudeNosso(lista[len(lista)-1]) {
 			t.Errorf("faltou o nosso hook no fim de %s", ev)
 		}
 	}
@@ -294,7 +294,7 @@ func TestAplicarPreservaTerceiros(t *testing.T) {
 
 	codex := a.ler(t, ".codex/hooks.json")
 	linhasEmOrdem(t, codexTerceiros, codex)
-	if got, want := semNossos(decodificar(t, codex), grupoCodexNosso), decodificar(t, codexTerceiros); !reflect.DeepEqual(got, want) {
+	if got, want := semNossos(decodificar(t, codex), qualquerCodexNosso), decodificar(t, codexTerceiros); !reflect.DeepEqual(got, want) {
 		t.Fatalf("o hooks.json do Codex mudou fora da nossa marca")
 	}
 
@@ -397,8 +397,13 @@ func TestComandosCodexEAgy(t *testing.T) {
 			t.Errorf("faltou o evento %s no Codex", ev)
 			continue
 		}
-		// Em segundo plano, menos no SessionEnd, que o Codex só roda síncrono.
-		nosso := lista[len(lista)-1].(map[string]any)["hooks"].([]any)[0].(map[string]any)
+		// Em segundo plano, menos no SessionEnd, que o Codex só roda síncrono. No PermissionRequest,
+		// o último é o `ponte decidir` (conferido abaixo); o do estado vem antes.
+		i := len(lista) - 1
+		if ev == eventoDecidir {
+			i--
+		}
+		nosso := lista[i].(map[string]any)["hooks"].([]any)[0].(map[string]any)
 		if async, _ := nosso["async"].(bool); async != (ev != "SessionEnd") {
 			t.Errorf("Codex %s: async = %v", ev, nosso["async"])
 		}

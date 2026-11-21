@@ -67,7 +67,7 @@ const TV = (() => {
     $("tv-legenda").hidden = true; $("tv-cheia").hidden = true; mundo(false);
     fila = []; atual = null; configV = null;
     api.soltar(); api.telaCheia(false);
-    $("modo-tv").focus({ preventScroll: true });
+    if (window.focarOuMenu) focarOuMenu($("modo-tv")); else $("modo-tv").focus({ preventScroll: true });   // o botão fica no menu da câmera
   }
 
   function pedirTelaCheia() {

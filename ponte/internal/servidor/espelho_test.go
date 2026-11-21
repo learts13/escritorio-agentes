@@ -90,7 +90,7 @@ func TestEspelhoMandaAVisaoReduzidaComChaveEDebounce(t *testing.T) {
 		}
 	}
 	var d corpoEspelho
-	if err := json.Unmarshal([]byte(corpo), &d); err != nil || d.V != 1 || len(d.Moradores) != 1 || len(d.Workspaces) != 1 ||
+	if err := json.Unmarshal([]byte(corpo), &d); err != nil || d.V != 2 || len(d.Moradores) != 1 || len(d.Workspaces) != 1 ||
 		d.Moradores[0].Atividade == nil || d.Moradores[0].Atividade.Ferramenta != "Bash" || d.Workspaces[0].Bands[0].Nome != "Front" {
 		t.Fatalf("corpo: %v %+v", err, d)
 	}

@@ -11,10 +11,10 @@
   <meta name="theme-color" content="#0f0f0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="estilo.css?v=131">
-  <link rel="stylesheet" href="chat_sala.css?v=131">
-  <link rel="stylesheet" href="reunioes.css?v=131">
-  <link rel="stylesheet" href="linha_tempo.css?v=131">
+  <link rel="stylesheet" href="estilo.css?v=138">
+  <link rel="stylesheet" href="chat_sala.css?v=138">
+  <link rel="stylesheet" href="reunioes.css?v=138">
+  <link rel="stylesheet" href="linha_tempo.css?v=138">
 </head>
 <body>
   <a class="pular" href="#principal">Ir para o conteúdo</a>
@@ -164,20 +164,26 @@
           <section id="faixa-ausencia" class="faixa-ausencia" aria-live="polite" hidden></section>
           <div id="palco" class="palco">
             <canvas id="tela" tabindex="0" aria-label="Mapa do escritório. Arraste para mover, use a roda ou a pinça para dar zoom e toque num agente para ver o que ele está fazendo."></canvas>
-            <p class="selo-vivo" aria-hidden="true"><span id="ao-vivo" class="ao-vivo"></span><span id="relogio" class="relogio"></span></p>
+            <!-- selo curto: hora, ícone do tempo e temperatura; o clique (ou o title) mostra a cidade e o tempo por extenso -->
+            <button id="selo-vivo" class="selo-vivo" type="button" aria-expanded="false"><span id="ao-vivo" class="ao-vivo" aria-hidden="true"></span><span id="relogio" class="relogio"></span><span id="selo-icone" class="selo-icone" aria-hidden="true"></span><span id="selo-temp" class="relogio"></span><span id="selo-mais" class="selo-mais" hidden></span></button>
             <div id="aviso-greve" class="aviso-greve" hidden>
               <p class="greve-linha"><span class="greve-ic" aria-hidden="true">✊</span><span><strong id="greve-texto">Greve</strong> <span id="greve-motivo" class="greve-motivo"></span></span></p>
               <button id="greve-atender" class="botao so-admin" type="button" aria-describedby="greve-texto greve-motivo">Atender o pedido</button>
             </div>
             <div class="controles" role="toolbar" aria-label="Câmera">
               <button id="zoom-menos" type="button" aria-label="Afastar">−</button>
+              <span id="zoom-nivel" class="zoom-nivel" aria-hidden="true">1x</span>
               <button id="zoom-mais" type="button" aria-label="Aproximar">+</button>
               <button id="ver-tudo" type="button" aria-label="Ver tudo"><span class="ic" data-icone="encaixar" aria-hidden="true"></span><span class="rotulo-ver" aria-hidden="true">Ver tudo</span></button>
-              <button id="tela-cheia" type="button" aria-pressed="false" aria-label="Mapa em tela cheia"><span class="ic" data-icone="expandir" aria-hidden="true"></span></button>
-              <button id="modo-foto" type="button" aria-label="Modo foto"><span class="ic" data-icone="camera" aria-hidden="true"></span></button>
-              <button id="modo-tv" type="button" aria-label="Modo TV" title="Modo TV: a câmera passeia sozinha e corre para as novidades"><span class="ic" data-icone="tv" aria-hidden="true"></span></button>
-              <button id="abrir-radio" type="button" aria-label="Rádio da firma" title="Rádio da firma: ligar, trocar de estação e mudar o volume"><span class="ic" data-icone="radio" aria-hidden="true"></span></button>
-              <button id="abrir-timelapse" type="button" aria-label="Time-lapse do dia" title="Time-lapse do dia"><span class="ic" data-icone="filme" aria-hidden="true"></span></button>
+              <!-- o resto da câmera fica no menu "⋯" (app.js: abrirMenuCamera) -->
+              <button id="controles-mais" class="controles-mais" type="button" aria-label="Mais opções do mapa" aria-expanded="false" aria-controls="controles-menu">⋯</button>
+              <div id="controles-menu" class="controles-menu" role="group" aria-label="Mais opções do mapa" hidden>
+                <button id="tela-cheia" type="button" aria-pressed="false" aria-label="Mapa em tela cheia"><span class="ic" data-icone="expandir" aria-hidden="true"></span><span class="rotulo-menu" aria-hidden="true">Tela cheia</span></button>
+                <button id="modo-foto" type="button" aria-label="Modo foto"><span class="ic" data-icone="camera" aria-hidden="true"></span><span class="rotulo-menu" aria-hidden="true">Modo foto</span></button>
+                <button id="modo-tv" type="button" aria-label="Modo TV" title="Modo TV: a câmera passeia sozinha e corre para as novidades"><span class="ic" data-icone="tv" aria-hidden="true"></span><span class="rotulo-menu" aria-hidden="true">Modo TV</span></button>
+                <button id="abrir-radio" type="button" aria-label="Rádio da firma" title="Rádio da firma: ligar, trocar de estação e mudar o volume"><span class="ic" data-icone="radio" aria-hidden="true"></span><span class="rotulo-menu" aria-hidden="true">Rádio da firma</span></button>
+                <button id="abrir-timelapse" type="button" aria-label="Time-lapse do dia" title="Time-lapse do dia"><span class="ic" data-icone="filme" aria-hidden="true"></span><span class="rotulo-menu" aria-hidden="true">Time-lapse do dia</span></button>
+              </div>
             </div>
             <!-- modo TV (tv.js): a faixa do telejornal e os dois botões; o cursor e os botões somem com o mouse parado -->
             <div id="tv-legenda" class="tv-legenda" aria-hidden="true" hidden></div>
@@ -186,7 +192,6 @@
               <button id="tv-sair" class="tv-bt" type="button">Sair do modo TV</button>
             </div>
             <span class="dica-mapa" aria-hidden="true">Toque num agente</span>
-            <button id="abrir-cheia" class="abrir-cheia" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>Abrir o mapa em tela cheia</button>
             <div id="cartao-agente" class="cartao-agente" hidden></div>
             <div id="ficha" class="ficha" role="dialog" aria-labelledby="ficha-nome" hidden></div>
             <section id="conversa" class="conversa" role="dialog" aria-labelledby="conversa-titulo" tabindex="-1" hidden></section>
@@ -545,6 +550,7 @@
             <div id="pt-espelho" hidden>
               <h3 class="ajuste-sub">Espelho: ver de qualquer navegador</h3>
               <p class="ajuda">Para ver os terminais de outra máquina (uma VM, por exemplo) sem túnel: a ponte de lá manda ao servidor os nomes dos terminais e dos projetos, os estados e as ferramentas, nunca arquivo, comando ou alvo. Quem é deste andar vê os terminais no mapa.</p>
+              <p class="ajuda">Responder pelo escritório: no navegador deste PC, os botões Permitir e Negar já valem (nada passa pelo servidor). Pelo celular é opcional e fica desligado até alguém ligar na máquina dos terminais, com <code>ponte conectar &lt;endereço&gt; --decidir-remoto</code> (ou <code>ponte setup --aplicar --decidir-remoto</code>). Ligado, quando alguém que decide está com o mapa aberto, a ponte manda também a ferramenta e um resumo mascarado do pedido (até 300 caracteres; nunca a entrada inteira, a pasta ou a conversa). Resumo cortado ou arquivo fora do projeto: de longe, só Negar. Quem decide é o admin do prédio; membro só vê.</p>
               <p id="pt-esp-estado" class="aviso-form" role="status"></p>
               <code id="pt-esp-comando" class="ponte-comando" hidden></code>
               <p id="pt-esp-chave-rot" class="ajuda" hidden>Quando ele pedir, cole esta chave:</p>
@@ -818,36 +824,36 @@
       </div>
     </div>
   </dialog>
-  <script src="abertura.js?v=131"></script>
-  <script src="avatar.js?v=131"></script>
-  <script src="mapa.js?v=131"></script>
-  <script src="expediente.js?v=131"></script>
-  <script src="vida.js?v=131"></script>
-  <script src="apresentacao.js?v=131"></script>
-  <script src="sprites.js?v=131"></script>
-  <script src="ponte.js?v=131"></script>
-  <script src="zeladoria.js?v=131"></script>
-  <script src="som.js?v=131"></script>
-  <script src="radio.js?v=131"></script>
-  <script src="ceu.js?v=131"></script>
-  <script src="clima.js?v=131"></script>
-  <script src="festas.js?v=131"></script>
-  <script src="simular.js?v=131"></script>
-  <script src="efeitos.js?v=131"></script>
-  <script src="brincar.js?v=131"></script>
-  <script src="tv.js?v=131"></script>
-  <script src="jornal.js?v=131"></script>
-  <script src="novidades.js?v=131"></script>
-  <script src="timelapse.js?v=131"></script>
-  <script src="avisar.js?v=131"></script>
-  <script src="resposta_rapida.js?v=131"></script>
-  <script src="linha_tempo.js?v=131"></script>
-  <script src="reunioes.js?v=131"></script>
-  <script src="times_auto.js?v=131"></script>
-  <script src="app.js?v=131"></script>
-  <script src="personalizar.js?v=131"></script>
-  <script src="ajustes.js?v=131"></script>
-  <script src="assistente.js?v=131"></script>
-  <script src="chat_sala.js?v=131"></script>
+  <script src="abertura.js?v=138"></script>
+  <script src="avatar.js?v=138"></script>
+  <script src="mapa.js?v=138"></script>
+  <script src="expediente.js?v=138"></script>
+  <script src="vida.js?v=138"></script>
+  <script src="apresentacao.js?v=138"></script>
+  <script src="sprites.js?v=138"></script>
+  <script src="ponte.js?v=138"></script>
+  <script src="zeladoria.js?v=138"></script>
+  <script src="som.js?v=138"></script>
+  <script src="radio.js?v=138"></script>
+  <script src="ceu.js?v=138"></script>
+  <script src="clima.js?v=138"></script>
+  <script src="festas.js?v=138"></script>
+  <script src="simular.js?v=138"></script>
+  <script src="efeitos.js?v=138"></script>
+  <script src="brincar.js?v=138"></script>
+  <script src="tv.js?v=138"></script>
+  <script src="jornal.js?v=138"></script>
+  <script src="novidades.js?v=138"></script>
+  <script src="timelapse.js?v=138"></script>
+  <script src="avisar.js?v=138"></script>
+  <script src="resposta_rapida.js?v=138"></script>
+  <script src="linha_tempo.js?v=138"></script>
+  <script src="reunioes.js?v=138"></script>
+  <script src="times_auto.js?v=138"></script>
+  <script src="app.js?v=138"></script>
+  <script src="personalizar.js?v=138"></script>
+  <script src="ajustes.js?v=138"></script>
+  <script src="assistente.js?v=138"></script>
+  <script src="chat_sala.js?v=138"></script>
 </body>
 </html>

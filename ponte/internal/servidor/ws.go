@@ -3,7 +3,6 @@ package servidor
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,7 +22,7 @@ const (
 	// filaCliente é quantas mensagens um cliente pode ter pendentes; cheia, ele é
 	// desconectado (cliente lento não segura os outros nem o consumidor).
 	filaCliente = 256
-	// limiteLeitura é o maior quadro que o jogo pode mandar; o que chega é ignorado.
+	// limiteLeitura é o maior quadro que o jogo pode mandar (os comandos, decisoes.go).
 	limiteLeitura = 64 << 10
 	escritaMax    = 5 * time.Second
 )
@@ -114,11 +113,14 @@ func (s *Servidor) ws(w http.ResponseWriter, r *http.Request) {
 		cl.fila <- codificar(s.snapshot())
 		cl.fila <- codificar(s.dia())
 	}
+	for _, p := range s.dec.Lista() { // os pedidos de permissão que já esperam
+		cl.fila <- codificar(msgPendente{V: 1, Tipo: "pendente", Pendente: p})
+	}
 	s.clientes[cl] = true
 	s.mu.Unlock()
 	defer s.desinscrever(cl)
 
-	go ignorarLeituras(ctx, c, cancelar)
+	go s.lerComandos(ctx, c, cl)
 	for {
 		select {
 		case <-ctx.Done():
@@ -149,21 +151,6 @@ func (s *Servidor) tokenNoSubprotocolo(r *http.Request) bool {
 		}
 	}
 	return pediu && ok
-}
-
-// ignorarLeituras consome o que o jogo mandar (o canal de comandos é da Fase 3). Quadro
-// acima do limite ou conexão fechada encerram o cliente.
-func ignorarLeituras(ctx context.Context, c *websocket.Conn, cancelar context.CancelFunc) {
-	defer cancelar()
-	for {
-		_, leitor, err := c.Reader(ctx)
-		if err != nil {
-			return
-		}
-		if _, err := io.Copy(io.Discard, leitor); err != nil {
-			return
-		}
-	}
 }
 
 // transmitir põe a mensagem na fila de cada cliente. Chamar com s.mu.

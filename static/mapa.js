@@ -1,6 +1,8 @@
 // Monta o prédio do escritório a partir dos times.
-// Em cima: recepção (logo) + uma sala por time (cresce com o número de agentes).
-// No meio: corredor. Embaixo: sala de reunião, sala comunal (montada por "cantinhos") e cozinha.
+// Em cima: recepção (logo) + uma sala por time (cresce com o número de agentes), no máximo 6 por fileira.
+// No meio: corredor. Embaixo: sala de reunião, sala comunal (montada por "cantinhos"), cozinha e banheiro.
+// Mais abaixo, se precisar: blocos com os outros times e as salas de projeto, cada um com o seu corredor, ligados ao
+// principal por um corredor à esquerda.
 // Todo móvel é ancorado pela base (centro, chão); peça que o tema não tem é simplesmente pulada.
 "use strict";
 
@@ -9,9 +11,18 @@ const T = 16;
 const PAREDE = 3;              // altura da parede, em tiles
 const MESA_W = 3, MESA_H = 3;  // célula de mesa, em tiles
 const BAIXO_PISO = 8;          // piso das salas de baixo, em tiles
+const WC_W = 12;               // largura do banheiro, em tiles
 const CORREDOR_H = 3;
-const MX = 5, MY = 4, MB = 13;  // área externa: laterais, topo e rua embaixo (em tiles)
+const MX = 3, MY = 2;          // área externa: laterais e topo (em tiles); embaixo, fachada, calçada e rua (em px, abaixo)
 const FACHADA = 32;  // px: a frente do prédio vista de frente, embaixo da planta (Firmópolis); empurra a rua para baixo
+const CALCADA = 24, RUA_ALT = 30;   // px: a calçada da rua e a faixa de asfalto, enxutas (o prédio é o assunto)
+const ruaY = p => p.y + p.h + FACHADA + CALCADA + 3;   // topo do asfalto (p: o retângulo do prédio)
+const MAX_FILEIRA = 6;         // salas por fileira, no máximo; passou, abre outra fileira (e outro corredor)
+const CON_W = 3;               // tiles: o corredor de ligação, à esquerda, que desce do corredor principal até os outros
+const LOUNGE_MIN = 30;         // tiles: a sala comunal mínima (entrada, o espaço do ringue e o painel do logo)
+// Uma parede e um piso para o prédio todo (a identidade de cada time vem do tapete na cor dele); a planta do modo
+// construção ainda pinta sala por sala. Cozinha e banheiro ficam com o azulejo
+const PAREDE_UNICA = 0, PISO_UNICO = 1, PISO_COZINHA = 3;
 const ESTILOS_MESA = [
   { tampo: "#c9a777", brilho: "#dcbd8c", frente: "#8a6a45", borda: "#6e5236", pe: "#2b2b36" },   // madeira clara
   { tampo: "#7a5236", brilho: "#946646", frente: "#53361f", borda: "#3e2716", pe: "#1f1f26" },   // madeira escura
@@ -30,9 +41,9 @@ function sprite(atlas, nome) { return atlas.json.sprites[nome] || (PROCEDURAIS[n
 const PLACA_FONTE = "8px Silkscreen, monospace", PLACA_H = 14;
 let medidor = null;
 function larguraTexto(txt) { medidor = medidor || document.createElement("canvas").getContext("2d"); medidor.font = PLACA_FONTE; return Math.ceil(medidor.measureText(txt).width); }
-const nomePlaca = n => (n.length > 24 ? n.slice(0, 23).trimEnd() + "…" : n);   // nome muito longo não vira placa ilegível
-function tamanhoPlaca(s) {
-  const w = 18 + larguraTexto(nomePlaca(s.nome).toUpperCase()) + 6, cont = s.handles ? 3 + larguraTexto("00/00") + 6 : 0;
+const nomePlaca = n => (n.length > 14 ? n.slice(0, 13).trimEnd() + "…" : n);   // nome curto: a placa é igual em toda sala
+function tamanhoPlaca(s) {   // sala de projeto (band do Maestri) não tem contador: as mesas dela não têm dono
+  const w = 18 + larguraTexto(nomePlaca(s.nome).toUpperCase()) + 6, cont = s.handles && !s.projeto ? 3 + larguraTexto("00/00") + 6 : 0;
   return { w, total: w + cont };
 }
 
@@ -184,6 +195,122 @@ function pintarRadio(c, x, y) {
   pintaPx(c, x + 1, y + 17, 20, 1, "rgba(0,0,0,.25)");                                                      // sombra na parede
 }
 
+// ---------------- banheiro (Firmópolis): tudo em pixel art desenhada aqui, no fundo do mapa
+const WC_CABINES = 3, CABINE = { w: 26, alto: 28, fundo: 40 };   // cabine: largura, altura das divisórias e onde fica a frente (px do chão)
+// piso de pastilhas brancas com a faixa azul junto das paredes e a parede de azulejo com a faixa azul (por cima da parede 6)
+function pintarBanheiro(c, s) {
+  const x0 = s.px, y0 = s.chao, w = s.pw, h = s.py + s.ph - y0, r = rng(semente("banheiro"));
+  const cols = Math.ceil(w / 8), lins = Math.ceil(h / 8);
+  for (let j = 0; j < lins; j++) for (let i = 0; i < cols; i++) {
+    const borda = i === 1 || i === cols - 2 || j === lins - 2, x = x0 + i * 8, y = y0 + j * 8;
+    const k = r(), cor = borda ? "#5b8fcc" : k < 0.08 ? "#d4e4f2" : k < 0.5 ? "#f1f5f8" : "#eaf0f4";
+    pintaPx(c, x, y, 8, 8, "#b9c6d2"); pintaPx(c, x + 1, y + 1, 7, 7, cor);                    // rejunte e pastilha
+    pintaPx(c, x + 1, y + 1, 2, 1, borda ? "#8fb6e2" : "#ffffff");                             // brilho no canto
+  }
+  pintaPx(c, x0, y0, w, 3, "rgba(36,40,60,.16)"); pintaPx(c, x0, y0 + 3, w, 2, "rgba(36,40,60,.08)");   // sombra da parede
+  pintaPx(c, x0, y0, 2, h, "rgba(36,40,60,.08)"); pintaPx(c, x0 + w - 2, y0, 2, h, "rgba(36,40,60,.08)");
+  { // o ralo no meio do piso
+    const rx = x0 + Math.round(w * 0.42), ry = y0 + 84;
+    pintaPx(c, rx - 4, ry - 3, 9, 7, "#8d99a6"); pintaPx(c, rx - 3, ry - 2, 7, 5, "#5f6b78");
+    for (let k = 0; k < 3; k++) pintaPx(c, rx - 2 + k * 2, ry - 1, 1, 3, "#b9c3cd");
+  }
+  for (let x = x0; x < x0 + w; x++) { // a faixa decorativa da parede de azulejo, em azul
+    const k = (x - x0) % 6;
+    pintaPx(c, x, s.py + 22, 1, 7, k === 0 ? "#2f5fb3" : "#e4edf6");
+    if (k === 3) { pintaPx(c, x, s.py + 23, 1, 5, "#5b8fcc"); pintaPx(c, x - 1, s.py + 25, 3, 1, "#5b8fcc"); }
+  }
+}
+// uma cabine vista de frente: o vaso lá dentro (só a caixa e a tampa aparecem por cima da porta), as divisórias até o chão
+// e a porta com a fresta embaixo. O sinal de vago/ocupado e os pés na fresta são do desenharCabines (mudam a cada quadro)
+function pintarCabine(c, x, chao) {
+  const { w, alto, fundo } = CABINE, fy = chao + fundo, cx = x + 1 + w / 2, topo = fy - alto;
+  // o vaso: a caixa na parede e o assento no chão
+  pintaPx(c, cx - 6, chao - 13, 12, 11, "#7d8a97"); pintaPx(c, cx - 5, chao - 12, 10, 9, "#f4f6f8"); pintaPx(c, cx - 5, chao - 12, 10, 2, "#ffffff");
+  pintaPx(c, cx - 1, chao - 10, 3, 1, "#b9c3cd");   // a descarga
+  [3, 4, 5, 5, 5, 5, 5, 5, 4, 4, 3].forEach((m, j) => { // o assento oval, de cima: contorno, louça e a tampa aberta
+    pintaPx(c, cx - m, chao - 3 + j, 2 * m, 1, "#7d8a97");
+    if (j > 0 && j < 10) pintaPx(c, cx - m + 1, chao - 3 + j, 2 * m - 2, 1, j < 3 ? "#ffffff" : "#eef2f5");
+  });
+  pintaPx(c, cx - 2, chao + 1, 4, 5, "#c9d4de"); pintaPx(c, cx - 1, chao + 2, 2, 3, "#a9c3da");   // a água
+  // o rolo de papel na divisória
+  pintaPx(c, x + 3, chao + 2, 4, 4, "#7d8a97"); pintaPx(c, x + 4, chao + 3, 2, 2, "#ffffff");
+  // as divisórias: de cima, a quina sobe da parede até a frente; embaixo, o pé de metal
+  for (const px of [x, x + w]) {
+    pintaPx(c, px, chao - alto, 2, fy - (chao - alto), "#3f5f86"); pintaPx(c, px, chao - alto, 1, fy - (chao - alto), "#7fa4cc");
+    pintaPx(c, px - 1, fy - 3, 4, 3, "#9aa5b1"); pintaPx(c, px - 1, fy - 3, 4, 1, "#c9d1d9");
+  }
+  // a porta (com a fresta de 3 px embaixo) e o frontão em cima dela
+  pintaPx(c, x + 2, topo, w - 2, 3, "#3f5f86"); pintaPx(c, x + 2, topo, w - 2, 1, "#7fa4cc");
+  pintaPx(c, x + 2, topo + 3, w - 2, alto - 6, "#2f4766");
+  pintaPx(c, x + 3, topo + 3, w - 4, alto - 7, "#5f86b3"); pintaPx(c, x + 3, topo + 3, w - 4, 1, "#86aad3");
+  pintaPx(c, x + 5, topo + 6, w - 8, alto - 13, "#5580ad"); pintaPx(c, x + 5, topo + 6, 1, alto - 13, "#7099c4");   // o painel
+  pintaPx(c, x + w - 6, topo + 9, 4, 4, "#1d2b3d");                                                                  // o visor do trinco
+  pintaPx(c, x + w - 5, topo + 14, 2, 2, "#d9dee4"); pintaPx(c, x + w - 5, topo + 15, 2, 1, "#8d99a6");             // a maçaneta
+  pintaPx(c, x + 2, fy, w + 2, 2, "rgba(30,40,60,.18)");                                                             // sombra
+}
+// a bancada de mármore claro sobre o gabinete de madeira, com duas cubas, as torneiras, o sabonete e o espelho em cima
+function pintarBancada(c, x, chao, w) {
+  const cubas = [x + Math.round(w * 0.27), x + Math.round(w * 0.73)];
+  // espelho: moldura, vidro azulado e o reflexo na diagonal
+  const ex = x + 2, ey = chao - 27, ew = w - 4, eh = 19;
+  pintaPx(c, ex, ey, ew, eh, "#6b7682"); pintaPx(c, ex + 1, ey + 1, ew - 2, eh - 2, "#bcdcec");
+  for (let k = 0; k < 3; k++) for (let j = 0; j < eh - 2; j++) { const px = ex + 6 + k * 13 + Math.floor((eh - 2 - j) / 2); if (px < ex + ew - 1) pintaPx(c, px, ey + 1 + j, k === 1 ? 2 : 1, 1, "#e8f6fc"); }
+  pintaPx(c, ex + 1, ey + eh - 3, ew - 2, 2, "#a7c9db"); pintaPx(c, ex + 1, ey + eh, ew - 2, 1, "rgba(0,0,0,.18)");
+  // torneiras cromadas na parede
+  for (const cx of cubas) { pintaPx(c, cx, chao - 7, 1, 4, "#9aa5b1"); pintaPx(c, cx - 1, chao - 7, 3, 1, "#d9dee4"); pintaPx(c, cx, chao - 4, 1, 2, "#6b7682"); }
+  // tampo
+  pintaPx(c, x, chao - 3, w, 10, "#9aa5b1"); pintaPx(c, x + 1, chao - 2, w - 2, 8, "#eef1f4"); pintaPx(c, x + 1, chao - 2, w - 2, 1, "#ffffff");
+  for (let k = 0; k < w / 3; k++) pintaPx(c, x + 2 + ((k * 7) % (w - 4)), chao - 1 + ((k * 5) % 6), 1, 1, "#d3dae1");   // veios do mármore
+  for (const cx of cubas) { // a cuba oval e o ralinho
+    pintaPx(c, cx - 7, chao - 1, 14, 6, "#8d99a6"); pintaPx(c, cx - 6, chao - 1, 12, 6, "#c9d4de"); pintaPx(c, cx - 5, chao, 10, 4, "#dfe7ee");
+    pintaPx(c, cx - 7, chao - 1, 1, 1, "#eef1f4"); pintaPx(c, cx + 6, chao - 1, 1, 1, "#eef1f4"); pintaPx(c, cx - 7, chao + 4, 1, 1, "#eef1f4"); pintaPx(c, cx + 6, chao + 4, 1, 1, "#eef1f4");
+    pintaPx(c, cx, chao + 2, 1, 1, "#6b7682");
+  }
+  const sx = x + Math.round(w / 2);   // o sabonete líquido entre as cubas
+  pintaPx(c, sx - 1, chao - 5, 3, 5, "#2f6b4a"); pintaPx(c, sx, chao - 4, 1, 3, "#5fbf8a"); pintaPx(c, sx, chao - 7, 1, 2, "#d9dee4");
+  // gabinete de madeira com duas portinhas e os puxadores
+  pintaPx(c, x, chao + 7, w, 12, "#5e3c26"); pintaPx(c, x + 1, chao + 7, w - 2, 11, "#9b7653"); pintaPx(c, x + 1, chao + 7, w - 2, 1, "#b48d66");
+  for (const cx of cubas) { pintaPx(c, cx - 8, chao + 9, 16, 8, "#8a6a45"); pintaPx(c, cx - 7, chao + 10, 14, 6, "#a98260"); pintaPx(c, cx - 1, chao + 12, 2, 1, "#e0c08a"); }
+  pintaPx(c, x, chao + 19, w, 2, "rgba(30,40,60,.18)");
+}
+// o secador de mãos na parede (10x12) e a lixeira de pedal no chão (pé em base)
+function pintarSecador(c, x, y) {
+  pintaPx(c, x, y, 10, 12, "#6b7682"); pintaPx(c, x + 1, y + 1, 8, 9, "#e3e8ec"); pintaPx(c, x + 1, y + 1, 8, 1, "#ffffff");
+  pintaPx(c, x + 2, y + 10, 6, 2, "#3a3f48"); pintaPx(c, x + 3, y + 12, 4, 1, "#1d2129");   // o bocal
+  pintaPx(c, x + 7, y + 3, 1, 1, "#e5484d");                                                  // a luzinha
+  pintaPx(c, x + 2, y + 5, 4, 1, "#b9c3cd"); pintaPx(c, x + 2, y + 7, 4, 1, "#b9c3cd");       // a grade
+  pintaPx(c, x + 1, y + 13, 9, 1, "rgba(0,0,0,.15)");
+}
+function pintarLixeiraWc(c, x, base) {
+  pintaPx(c, x, base - 11, 9, 11, "#5f6b78"); pintaPx(c, x + 1, base - 10, 7, 9, "#aab4be"); pintaPx(c, x + 2, base - 10, 1, 9, "#d3dae1");
+  pintaPx(c, x - 1, base - 12, 11, 2, "#7d8a97"); pintaPx(c, x, base - 12, 9, 1, "#c9d1d9");   // a tampa
+  pintaPx(c, x + 3, base - 1, 3, 1, "#3a3f48");                                                // o pedal
+  pintaPx(c, x, base, 10, 1, "rgba(0,0,0,.18)");
+}
+// por cima do fundo, a cada quadro: o sinal do trinco (verde vago, vermelho ocupado) e, ocupada, os pés na fresta da porta
+function desenharCabines(c, b) {
+  for (const k of (b && b.cabines) || []) {
+    const fy = k.chao + CABINE.fundo, topo = fy - CABINE.alto, x = k.px + CABINE.w - 5;
+    pintaPx(c, x, topo + 10, 2, 2, k.ocupada ? "#e5484d" : "#3fbf5f");
+    if (k.ocupada) { pintaPx(c, k.x - 4, fy - 2, 3, 2, "#1d1b26"); pintaPx(c, k.x + 1, fy - 2, 3, 2, "#1d1b26"); }
+  }
+}
+
+// A identidade do time: um tapete (9-slice em pixel art) sob o grupo de mesas, na cor do time, e um filete dela no alto
+// da parede. É a única cor da sala: piso e parede são os do prédio inteiro
+function pintarTapete(c, s, chao, cor) {
+  const x0 = s.px + 2 * T + 2, x1 = s.px + 2 * T + s.cols * MESA_W * T - 2, y0 = chao + 12, y1 = chao + 8 + (s.linhas - 1) * MESA_H * T + 38;
+  const w = x1 - x0, h = y1 - y0, fundo = mistura(cor, "#3a3040", 0.5), borda = mistura(cor, "#1b1622", 0.65), filete = mistura(cor, "#f4ead8", 0.45);
+  pintaPx(c, x0 + 1, y1, w, 1, "rgba(0,0,0,.18)");                                                       // sombra
+  pintaPx(c, x0, y0, w, h, borda); pintaPx(c, x0 + 2, y0 + 2, w - 4, h - 4, fundo);                         // borda e miolo
+  pintaPx(c, x0 + 1, y0, w - 2, 1, mistura(borda, "#ffffff", 0.15));                                      // brilho da borda
+  pintaPx(c, x0 + 4, y0 + 4, w - 8, 1, filete); pintaPx(c, x0 + 4, y1 - 5, w - 8, 1, filete);               // filete por dentro
+  pintaPx(c, x0 + 4, y0 + 4, 1, h - 8, filete); pintaPx(c, x1 - 5, y0 + 4, 1, h - 8, filete);
+  for (const [cx, cy] of [[x0 + 4, y0 + 4], [x1 - 5, y0 + 4], [x0 + 4, y1 - 5], [x1 - 5, y1 - 5]]) pintaPx(c, cx - 1, cy - 1, 3, 3, filete);   // cantos
+  for (let x = x0 + 1; x < x1 - 1; x += 3) { pintaPx(c, x, y0 - 1, 1, 1, filete); pintaPx(c, x, y1, 1, 1, filete); }   // franja
+  pintaPx(c, s.px, s.py, s.pw, 2, cor); pintaPx(c, s.px, s.py + 2, s.pw, 1, mistura(cor, "#1b1622", 0.4));   // filete no alto da parede
+}
+
 function pintarSala(c, atlas, sala) {
   const { tx, ty, tw, th, parede, piso } = sala;
   const p = sprite(atlas, `piso${piso}`), chao = { x: tx * T, y: (ty + PAREDE) * T, w: tw * T, h: (th - PAREDE) * T };
@@ -192,7 +319,7 @@ function pintarSala(c, atlas, sala) {
       const w = Math.min(3, tx + tw - x) * T, h = Math.min(2, ty + th - y) * T;
       c.drawImage(atlas.img, p[0], p[1], w, h, x * T, y * T, w, h);
     }
-  if (PISOS_DO_TIME.has(piso)) { // carpete na cor do time (multiplica: o desenho do carpete continua aparecendo)
+  if (PISOS_DO_TIME.has(piso) && sala.tipo !== "cozinha") { // carpete na cor do time (multiplica: o desenho do carpete continua aparecendo); a cozinha usa o ladrilho creme cru
     c.save(); c.globalCompositeOperation = "multiply"; c.globalAlpha = 0.55;
     c.fillStyle = sala.cor || CORES_CARPETE[semente(sala.nome) % CORES_CARPETE.length]; c.fillRect(chao.x, chao.y, chao.w, chao.h);
     c.restore();
@@ -356,10 +483,6 @@ const PEQUENOS = ["lixeira", "planta", "planta2", "extintor", "planta_fina"];
 const PROCEDURAIS = { ventilador: [14, 22], hidrante: [7, 10], ring_light: [16, 36], quadro_avisos: [24, 24], lixeiras: [26, 16],
   estante_livros: [30, 42], luminaria_arco: [24, 40], poltrona_tecido: [22, 24], aparador_baixo: [34, 22], placa_expediente: [70, 34] };   // a placa tem 2 px de folga de cada lado
 
-// pisos e paredes que são da cara das salas comuns ficam fora das salas de time
-const pisoDoTime = n => { n = Number.isInteger(n) ? ((n % 10) + 10) % 10 : 3; return n === 6 ? 3 : n === 7 ? 5 : n; };
-const paredeDoTime = n => { n = Number.isInteger(n) ? ((n % 7) + 7) % 7 : 2; return n === 6 ? 5 : n; };
-
 // Modo construção (planta.js): o que dá para pôr (só enfeite de chão, sem atividade na vida.js nem no brincar.js),
 // o que só sai (a animação fica presa ao lugar) e o que não se espelha (direção, tela ou letreiro no desenho)
 const CATALOGO = new Set(["planta", "planta2", "planta_fina", "planta_alta", "planta_alta2", "planta_alta3", "planta_cacto", "planta_g1", "planta_g3", "planta_g4",
@@ -389,48 +512,63 @@ function montarPredio(atlas, config, grupos, planta) {
 function montar(atlas, config, grupos, planta) {
   const tem = n => !!sprite(atlas, n);
   const marca = semente(config.empresa || "escritorio");   // cada empresa ganha seu próprio sorteio
-  const salas = [];
-  let x = MX;
-  const recepcao = { tipo: "recepcao", chave: "recepcao", nome: "Recepção", tx: x, ty: MY, tw: 10, parede: 3, piso: 1, mesas: [] };
-  salas.push(recepcao); x += recepcao.tw + 1;
-  // Cada time vira uma sala; com muitos times, os últimos descem para a fileira de baixo (porta na
-  // parede de cima, no máximo 2 fileiras de mesas) até as duas fileiras ficarem com larguras parecidas.
-  const largCima = n => Math.min(Math.max(n, 2), 4) * MESA_W + 5;
-  const largBaixo = n => Math.max(2, Math.ceil(n / 2)) * MESA_W + 5;
-  const minimoBaixo = 12 + 1 + 40 + 1 + 14;  // reunião + comunal + cozinha
+  // Fileiras de no máximo 6 salas, com larguras parecidas: em cima do corredor principal, a recepção e os primeiros times;
+  // embaixo dele, reunião, sala comunal, cozinha e banheiro. Os outros times e as salas de projeto (bands do Maestri)
+  // ganham blocos mais abaixo, cada um com o seu corredor (uma fileira em cima, porta embaixo; outra embaixo, porta em
+  // cima), ligados ao principal por um corredor que desce pela esquerda. Assim o prédio fica mais perto de 2:1
   const qtd = g => Math.max(1, g.handles.length);
-  let emCima = grupos.length, wCima = recepcao.tw + 1 + grupos.reduce((t, g) => t + largCima(qtd(g)), 0), wBaixo = minimoBaixo + 1;
-  while (emCima > 1 && wCima - wBaixo > 30) {   // até ~6 times cabe tudo em cima (a sala comunal só cresce)
-    const g = grupos[emCima - 1], c2 = wCima - largCima(qtd(g)), b2 = wBaixo + largBaixo(qtd(g));
-    if (Math.abs(c2 - b2) >= Math.abs(wCima - wBaixo)) break;
-    wCima = c2; wBaixo = b2; emCima--;
+  const recepcao = { tipo: "recepcao", chave: "recepcao", nome: "Recepção", tw: 10, parede: PAREDE_UNICA, piso: PISO_UNICO, mesas: [] };
+  const salaDoGrupo = g => {
+    const n = qtd(g), cols = Math.min(Math.max(n, 2), 4), linhas = Math.ceil(n / cols);
+    return { tipo: g.tipo || "mesas", chave: "time:" + g.nome, nome: g.nome, cor: g.cor, icone: g.icone, tw: cols * MESA_W + 4,
+      parede: PAREDE_UNICA, piso: PISO_UNICO, cols, linhas, handles: g.handles, mesas: [], projeto: !!g.virtual };
+  };
+  const fileiras = lista => {   // em n fileiras de tamanhos parecidos (no máximo 6 cada)
+    const n = Math.ceil(lista.length / MAX_FILEIRA), out = [];
+    for (let k = 0, i = 0; k < n; k++) { const q = Math.ceil((lista.length - i) / (n - k)); out.push(lista.slice(i, i + q)); i += q; }
+    return out;
+  };
+  const doTime = fileiras([recepcao, ...grupos.filter(g => !g.virtual).map(salaDoGrupo)]);
+  const deProjeto = fileiras(grupos.filter(g => g.virtual).map(salaDoGrupo));
+  const salas = [...doTime.flat(), ...deProjeto.flat()];
+  // blocos: os times que sobraram primeiro; um bloco com projetos começa por eles em cima (a faixa "Projetos" fica acima)
+  const blocos = [], resto = doTime.slice(1), proj = [...deProjeto];
+  while (resto.length >= 2) blocos.push({ cima: resto.shift(), baixo: resto.shift() });
+  if (resto.length) blocos.push(proj.length ? { cima: proj.shift(), baixo: resto.shift() } : { cima: null, baixo: resto.shift() });
+  while (proj.length) blocos.push(proj.length >= 2 ? { cima: proj.shift(), baixo: proj.shift() } : { cima: null, baixo: proj.shift() });
+  const xL = blocos.length ? MX + CON_W + 1 : MX;   // as fileiras de baixo começam depois do corredor de ligação
+  const larg = f => f.reduce((t, q) => t + q.tw, 0) + f.length - 1;
+  const minimoBaixo = 12 + 1 + LOUNGE_MIN + 1 + 14 + 1 + WC_W;  // reunião + comunal + cozinha + banheiro
+  const B = Math.max(MX + larg(doTime[0]), xL + minimoBaixo, ...blocos.flatMap(k => [k.cima, k.baixo]).filter(Boolean).map(f => xL + larg(f)));   // primeira coluna depois do prédio
+  // a fileira ocupa a largura toda: a sobra vai para as salas de time por igual (a sala larga ganha um cantinho de estar)
+  const porNaFileira = (f, x0, ty, portaEmCima) => {
+    const sobra = B - (x0 + larg(f)), crescem = f.filter(q => q.tipo !== "recepcao"), alvo = crescem.length ? crescem : f;
+    alvo.forEach((q, i) => { q.tw += Math.floor(sobra / alvo.length) + (i < sobra % alvo.length ? 1 : 0); });
+    let x = x0;
+    for (const q of f) { Object.assign(q, { tx: x, ty }); if (portaEmCima) q.emCima = true; x += q.tw + 1; }
+    const th = PAREDE + Math.max(...f.map(q => q.linhas || 1)) * MESA_H + 2;
+    for (const q of f) q.th = th;
+    return th;
+  };
+  let y = MY;
+  y += porNaFileira(doTime[0], MX, y, false);
+  const corredor = { ty: y, h: CORREDOR_H }; y += CORREDOR_H;
+  const yb = y, thb = PAREDE + BAIXO_PISO; y += thb;
+  const rotulos = [];   // faixas com o nome do bloco (app.js desenha: a fonte só existe depois de carregar)
+  for (const k of blocos) {
+    y += 1;   // a parede grossa entre os blocos
+    if ((k.cima || k.baixo)[0].projeto && !blocos.some(o => o !== k && o.rotulo)) { k.rotulo = true; rotulos.push({ texto: "PROJETOS", x: xL * T, y: (y - 1) * T + 3 }); }
+    if (k.cima) y += porNaFileira(k.cima, xL, y, false);
+    k.corredor = { ty: y, h: CORREDOR_H }; y += CORREDOR_H;
+    y += porNaFileira(k.baixo, xL, y, true);
   }
-  let linhasMax = 1;
-  const debaixo = [];
-  grupos.forEach((g, i) => {
-    const n = qtd(g), embaixo = i >= emCima;
-    const cols = embaixo ? Math.max(2, Math.ceil(n / 2)) : Math.min(Math.max(n, 2), 4), linhas = Math.ceil(n / cols);
-    const s = { tipo: g.tipo || "mesas", chave: "time:" + g.nome, nome: g.nome, cor: g.cor, icone: g.icone, tx: x, ty: MY, tw: cols * MESA_W + 4, parede: paredeDoTime(g.parede), piso: pisoDoTime(g.piso), cols, linhas, handles: g.handles, mesas: [] };
-    salas.push(s);
-    if (embaixo) { s.emCima = true; debaixo.push(s); return; }
-    linhasMax = Math.max(linhasMax, linhas);
-    x += cols * MESA_W + 5;
-  });
-  let B = Math.max(x - 1, MX + wBaixo - 1);            // primeira coluna depois do prédio
-  const ultimaCima = salas[emCima];                     // a mais à direita da fileira de cima cresce até o fim
-  if (x - 1 < B) ultimaCima.tw += B - (x - 1);
-  const alturaSalas = PAREDE + linhasMax * MESA_H + 2;
-  for (const s of salas) s.th = alturaSalas;
-  const corredor = { ty: MY + alturaSalas, h: CORREDOR_H };
-  const yb = corredor.ty + corredor.h, thb = PAREDE + BAIXO_PISO;
-  // fileira de baixo, da direita para a esquerda: salas de time que desceram, cozinha, sala comunal (o que sobrar) e reunião
-  let xb = B;
-  for (const s of [...debaixo].reverse()) { xb -= s.tw; Object.assign(s, { tx: xb, ty: yb, th: thb }); xb -= 1; }
-  const reuniao = { tipo: "reuniao", chave: "reuniao", nome: "Reunião", tx: MX, ty: yb, tw: 12, th: thb, parede: 1, piso: 7 };
-  const cozinha = { tipo: "cozinha", chave: "cozinha", nome: "Cozinha", tx: xb - 14, ty: yb, tw: 14, th: thb, parede: 6, piso: 6 };
-  const lounge = { tipo: "lounge", chave: "lounge", nome: "Sala comunal", tx: reuniao.tx + reuniao.tw + 1, ty: yb, th: thb, parede: 2, piso: 1 };
+  const fimPredio = y;
+  const reuniao = { tipo: "reuniao", chave: "reuniao", nome: "Reunião", tx: xL, ty: yb, tw: 12, th: thb, parede: PAREDE_UNICA, piso: PISO_UNICO };
+  const wc = { tipo: "banheiro", chave: "banheiro", nome: "Banheiro", tx: B - WC_W, ty: yb, tw: WC_W, th: thb, parede: 6, piso: 0 };
+  const cozinha = { tipo: "cozinha", chave: "cozinha", nome: "Cozinha", tx: wc.tx - 1 - 14, ty: yb, tw: 14, th: thb, parede: 6, piso: PISO_COZINHA };
+  const lounge = { tipo: "lounge", chave: "lounge", nome: "Sala comunal", tx: reuniao.tx + reuniao.tw + 1, ty: yb, th: thb, parede: PAREDE_UNICA, piso: PISO_UNICO };
   lounge.tw = cozinha.tx - 1 - lounge.tx;
-  const baixo = [reuniao, lounge, cozinha];
+  const baixo = [reuniao, lounge, cozinha, wc];   // a cozinha fica no índice 2 (efeitos.js: festaChao)
   // planta: a pintura vale mais que o times.json (valor cru); sala que não existe nesta montagem é ignorada e contada
   const resumoPlanta = { rev: planta && Number.isInteger(planta.rev) ? planta.rev : 0, aplicados: 0, ignorados: [] };
   const pinturas = planta && planta.salas && typeof planta.salas === "object" ? planta.salas : null;
@@ -443,23 +581,40 @@ function montar(atlas, config, grupos, planta) {
     for (const s of minhas) { if (parede !== undefined) s.parede = parede; if (piso !== undefined) s.piso = piso; }
     resumoPlanta.aplicados++;
   }
-  const W = (B + MX) * T, H = (yb + thb + MB) * T;
-  const predioRet = { x: (MX - 1) * T, y: (MY - 1) * T, w: (B - MX + 2) * T, h: (yb + thb - MY + 2) * T };
+  const W = (B + MX) * T;
+  const predioRet = { x: (MX - 1) * T, y: (MY - 1) * T, w: (B - MX + 2) * T, h: (fimPredio - MY + 2) * T };
+  const H = ruaY(predioRet) + RUA_ALT + 3 + 8;
   const corredorY = (corredor.ty + 1.5) * T;
+  // os corredores (o principal primeiro): onde se anda em cada um e, nos de baixo, o caminho pela ligação até o principal
+  const conX0 = MX * T, conX1 = (MX + CON_W) * T, conX = (conX0 + conX1) / 2;
+  const corredores = [corredor, ...blocos.map(k => k.corredor)].map((k, i) => {
+    const topo = k.ty * T, yk = (k.ty + 1.5) * T;
+    return Object.assign(k, { topo, alt: CORREDOR_H * T, y: yk, lig: i ? [[conX, yk], [conX, corredorY]] : [] });
+  });
+  for (const k of blocos) for (const q of [...(k.cima || []), ...k.baixo]) { q.corY = k.corredor.y; q.lig = k.corredor.lig; q.nc = corredores.indexOf(k.corredor); }
   const corMarca = cor("destaque");
 
   const fundo = document.createElement("canvas"); fundo.width = W; fundo.height = H;
   const c = fundo.getContext("2d"); c.imageSmoothingEnabled = false;
   const pc = sprite(atlas, "piso0");
   pintarExterior(c, atlas, W, H, predioRet, marca);
-  // corredor: o granilite vai exatamente de parede a parede das salas; à esquerda, a entrada do prédio
+  // corredores: o granilite vai exatamente de parede a parede das salas; à esquerda, a entrada do prédio (no principal)
+  // e o corredor de ligação, que desce do principal até os de baixo
   const cx0 = MX * T, cx1 = B * T, cT0 = corredor.ty * T, cB0 = cT0 + corredor.h * T;
-  for (let y = cT0; y < cB0; y += 32)
-    for (let x = cx0; x < cx1; x += 48) { const w = Math.min(48, cx1 - x), h = Math.min(32, cB0 - y); c.drawImage(atlas.img, pc[0], pc[1], w, h, x, y, w, h); }
-  pintaPx(c, cx1, cT0, 3, corredor.h * T, "#23212f");                                        // fundo do corredor
+  const granilite = (x0, y0, x1, y1) => {
+    for (let y = y0; y < y1; y += 32)
+      for (let x = x0; x < x1; x += 48) { const w = Math.min(48, x1 - x), h = Math.min(32, y1 - y); c.drawImage(atlas.img, pc[0], pc[1], w, h, x, y, w, h); }
+  };
+  for (const k of corredores) { granilite(cx0, k.topo, cx1, k.topo + k.alt); pintaPx(c, cx1, k.topo, 3, k.alt, "#23212f"); }   // fundo de cada corredor
+  const ultimo = corredores[corredores.length - 1];
+  if (corredores.length > 1) { // a ligação: chão, paredes dos lados e a sombra das paredes
+    granilite(conX0, cB0, conX1, ultimo.topo);
+    pintaPx(c, conX0 - 3, cB0, 3, ultimo.topo + ultimo.alt - cB0, "#23212f"); pintaPx(c, conX1, cB0, 3, ultimo.topo - cB0, "#23212f");
+    pintaPx(c, conX0, cB0, 2, ultimo.topo - cB0, "rgba(36,20,8,.1)"); pintaPx(c, conX1 - 2, cB0, 2, ultimo.topo - cB0, "rgba(36,20,8,.1)");
+  }
   pintaPx(c, cx0 - 3, cT0, 3, 8, "#23212f"); pintaPx(c, cx0 - 3, cB0 - 8, 3, 8, "#23212f");   // batentes da entrada
   { // lado de fora: calçada de pedra portuguesa (ondas) da porta até a rua, capacho na porta e soleira por dentro
-    const px0 = predioRet.x - 26, fimCaminho = predioRet.y + predioRet.h + FACHADA + 68;
+    const px0 = predioRet.x - 26, fimCaminho = predioRet.y + predioRet.h + FACHADA + 2;
     const pedra = (x, y, w, h) => {
       pintaPx(c, x, y, w, h, "#ece8de");
       c.fillStyle = "#5c5c64";
@@ -599,17 +754,7 @@ function montar(atlas, config, grupos, planta) {
       if (s.emCima) paredeOcupada.push({ x: x - 2, w: Math.min(tp.total, s.placa.max) + 4, y: s.py + 4 }); else livre(x - 3, fim - 12, tp.total + 6, 12);
     }
     const tipo = DECOR_CHAO[s.tipo] ? s.tipo : "mesas", funcao = funcaoDaSala(s), corTime = corDoTime(s);
-    if (tipo === "mesas" && !PISOS_DO_TIME.has(s.piso)) { // tapete sob o grupo de mesas, na cor do time (o carpete tingido já é dele)
-      const x0 = s.px + 2 * T + 2, x1 = s.px + 2 * T + s.cols * MESA_W * T - 2, y0 = chao + 12, y1 = chao + 8 + (s.linhas - 1) * MESA_H * T + 38;
-      const fundoT = mistura(corTime, "#3a3040", 0.55), borda = mistura(corTime, "#1b1622", 0.7), filete = mistura(corTime, "#f4ead8", 0.45), w = x1 - x0, h = y1 - y0;
-      const estilo = semente(s.nome + "t") % 3;
-      pintaPx(c, x0, y0, w, h, fundoT);
-      if (estilo === 1) for (let y = y0 + 6; y < y1 - 6; y += 6) pintaPx(c, x0 + 5, y, w - 10, 2, mistura(fundoT, filete, 0.25));   // listras
-      if (estilo === 2) for (let y = y0 + 6, k = 0; y < y1 - 5; y += 6, k++) for (let x = x0 + 6 + (k % 2) * 3; x < x1 - 5; x += 6) pintaPx(c, x, y, 1, 1, filete);   // pontilhado
-      pintaPx(c, x0, y0, w, 2, borda); pintaPx(c, x0, y1 - 2, w, 2, borda); pintaPx(c, x0, y0, 2, h, borda); pintaPx(c, x1 - 2, y0, 2, h, borda);
-      pintaPx(c, x0 + 3, y0 + 3, w - 6, 1, filete); pintaPx(c, x0 + 3, y1 - 4, w - 6, 1, filete); pintaPx(c, x0 + 3, y0 + 3, 1, h - 6, filete); pintaPx(c, x1 - 4, y0 + 3, 1, h - 6, filete);
-      pintaPx(c, x0 + 1, y1, w, 1, "rgba(0,0,0,.18)");
-    }
+    if (!PISOS_DO_TIME.has(s.piso)) pintarTapete(c, s, chao, corTime);   // a cor do time: o tapete sob as mesas e a faixa no alto da parede
     // sala mais larga que as mesas (a última da fileira cresce até o fim): cantinho do time no espaço que sobra
     let cantinho = false;
     {
@@ -622,7 +767,6 @@ function montar(atlas, config, grupos, planta) {
         if (fim - chao > 90) obj("mesinha", m - 6, fim - 32);
       }
     }
-    if (tipo === "gabinete") obj("tapete_persa", s.px + 2 * T + s.cols * MESA_W * T / 2, chao + 8 + s.linhas * MESA_H * T + 4);
     // faixa da direita: peças da cara do time e depois as sorteadas, uma atrás da outra sem se cobrirem
     const dx = s.px + s.pw - 16;
     const fixos = (FIXOS_CHAO[tipo] || []).filter(tem), fila = [];
@@ -697,8 +841,9 @@ function montar(atlas, config, grupos, planta) {
   // portas: abrem a parede de cima para o corredor
   reuniao.portas.push(reuniao.px + reuniao.pw / 2);
   cozinha.portas.push(cozinha.px + cozinha.pw - 26);   // na ponta: a bancada corre inteira pela parede
+  wc.portas.push(wc.px + wc.pw - 24);                  // na ponta direita: a fila do corredor fica na frente do próprio banheiro
   const reservarPorta = (s, px) => pegadas.push({ x: px - 22, y: s.chao - 2, w: 44, h: 36, livre: true });
-  for (const s of [reuniao, cozinha]) for (const px of s.portas) reservarPorta(s, px);
+  for (const s of [reuniao, cozinha, wc]) for (const px of s.portas) reservarPorta(s, px);
   // Placa no alto da parede, no trecho livre (sem porta, janela, quadro, TV, relógio ou logo) mais perto da porta;
   // se a parede não tiver um trecho do tamanho dela, a placa encolhe (o nome espreme) em vez de cobrir algo
   const placaBaixo = s => {
@@ -724,9 +869,14 @@ function montar(atlas, config, grupos, planta) {
     const mesa = obj("reuniao", cx, chao + 5.4 * T);
     obj("planta_g1", s.px + 12, chao + 1.6 * T); obj("planta_g3", s.px + s.pw - 12, chao + 1.6 * T);
     obj("quadro_branco", s.px + s.pw - 20, chao + 5.4 * T);   // na altura da mesa, para a apresentação
-    if (mesa) { // pé de quem senta em cada cadeira do sprite (mesa na diagonal) e para onde olha
-      const cadeiras = [[7, 36, "dir"], [21, 20, "baixo"], [35, 13, "baixo"], [72, 12, "esq"], [48, 44, "cima"], [63, 36, "cima"]];
-      for (const [cx0, cy0, olha] of cadeiras) { const v = vaga(s, mesa.x + cx0 * mesa.w / 77, mesa.y + cy0 * mesa.h / 49, "reuniao"); v.olha = olha; liga(mesa, "vagas", v); }
+    if (mesa) { // mesa de frente (efeitos.js): o tampo e os encostos de trás são anexos, para quem senta ficar entre as camadas
+      for (const [nome, dy] of [["reuniao_fundo", 10], ["reuniao_mesa", 36]]) {
+        const a = { nome, x: mesa.x, y: mesa.y, w: mesa.w, h: mesa.h, dx: 0, chave: mesa.y + dy }; objetos.push(a); liga(mesa, "anexos", a);
+      }
+      // pé de quem senta em cada cadeira (três atrás, olhando para baixo, e três de costas na frente) e para onde olha
+      for (const cx0 of [19, 38, 57]) for (const [cy0, olha] of [[19, "baixo"], [44, "cima"]]) {
+        const v = vaga(s, mesa.x + cx0, mesa.y + cy0, "reuniao"); v.olha = olha; liga(mesa, "vagas", v);
+      }
     }
   }
   // Cozinha de verdade: bancada contínua na parede (geladeira na ponta, pia sob a janela, cooktop com coifa e
@@ -752,6 +902,32 @@ function montar(atlas, config, grupos, planta) {
     const m1 = obj("mesa_cozinha", L + 44, chao + 100), m2 = obj("mesa_cozinha2", L + 92, chao + 100);
     for (const m of [m1, m2]) if (m) { liga(m, "vagas", vaga(s, m.x + 6, m.y + m.h - 6, "lanche")); liga(m, "vagas", vaga(s, m.x + m.w - 6, m.y + m.h - 6, "lanche")); }
     // placa no alto da parede, logo à esquerda da porta (a bancada é baixa: cabe embaixo dela)
+    const tp = tamanhoPlaca(s), x = s.portas[0] - 20 - tp.total;
+    s.placa = { x, y: s.py + 4, w: tp.w, total: tp.total, max: tp.total };
+    paredeOcupada.push({ x: x - 2, w: tp.total + 4, y: s.py + 4 });
+  }
+  // Banheiro: piso de pastilhas, três cabines na parede do fundo (o vago e o ocupado são do vida.js; app.js: desenharCabines),
+  // a bancada com duas cubas e o espelho, o secador de mãos com a lixeira e um vaso no canto. A porta fica na ponta direita
+  const cabines = [];
+  {
+    const s = wc, chao = s.chao, L = s.px;
+    pintarBanheiro(c, s);
+    for (let i = 0; i < WC_CABINES; i++) {
+      const x = L + 4 + i * CABINE.w;
+      pintarCabine(c, x, chao);
+      cabines.push({ x: x + 1 + CABINE.w / 2, y: chao + CABINE.fundo + 7, px: x, chao, ocupada: false });
+    }
+    pegadas.push({ x: L + 2, y: chao - 2, w: WC_CABINES * CABINE.w + 4, h: CABINE.fundo + 2 });   // cabines
+    paredeOcupada.push({ x: L + 2, w: WC_CABINES * CABINE.w + 4, y: chao - CABINE.alto });
+    const xb = L + 6 + WC_CABINES * CABINE.w;   // secador e lixeira entre as cabines e a bancada
+    pintarSecador(c, xb + 2, chao - 28); paredeOcupada.push({ x: xb, w: 14, y: chao - 28 });
+    pintarLixeiraWc(c, xb + 3, chao + 18); pegadas.push({ x: xb + 2, y: chao + 6, w: 12, h: 12 });
+    const bx = xb + 14, bw = s.portas[0] - 22 - bx;   // a bancada vai até perto da porta
+    pintarBancada(c, bx, chao, bw); pegadas.push({ x: bx, y: chao - 2, w: bw, h: 22 });
+    paredeOcupada.push({ x: bx, w: bw, y: chao - 28 });
+    obj("planta_alta", L + 18, fimB - 4, false);
+    obj("planta_fina", L + s.pw - 16, fimB - 4, false);
+    // placa no alto da parede, logo à esquerda da porta (o espelho fica embaixo dela)
     const tp = tamanhoPlaca(s), x = s.portas[0] - 20 - tp.total;
     s.placa = { x, y: s.py + 4, w: tp.w, total: tp.total, max: tp.total };
     paredeOcupada.push({ x: x - 2, w: tp.total + 4, y: s.py + 4 });
@@ -889,27 +1065,31 @@ function montar(atlas, config, grupos, planta) {
       }, ["tv_parede", "console"]],
       [8, zx => { // ringue da vida social (vida.js): cordas sólidas para o caminho, com a entrada no meio da frente
         if (s.ringue) return false;
-        const { w, h, abertura } = RINGUE, x = zx + T, y = chao + 26, lado = (w - abertura) / 2;
+        const { w, h, abertura } = RINGUE, x = zx + T, y = chao + 26;
         if (colide({ x: x - 4, y: y - 20, w: w + 8, h: h + 32 })) return false;
-        pintarRingue(c, x, y, w, h, abertura, corMarca);
-        objetos.push({ nome: "ringue_tras", x: x - 2, y: y - 18, w: w + 4, h: 20, dx: 0, chave: y, cor: corMarca });
-        objetos.push({ nome: "ringue_frente", x: x - 2, y: y + h - 18, w: w + 4, h: 20, dx: 0, chave: y + h, cor: corMarca, abertura });
-        pegadas.push({ x, y: y - 2, w, h: 3 }, { x, y, w: 3, h }, { x: x + w - 3, y, w: 3, h },   // corda de trás e dos lados
-          { x, y: y + h - 3, w: lado, h: 9 }, { x: x + w - lado, y: y + h - 3, w: lado, h: 9 },     // corda da frente e o avental
-          { x: x + lado, y: y + h, w: abertura, h: 24, livre: true });                               // a frente da entrada fica livre
-        const q = lugarNaParede(QUADRO_PLACAR.w, QUADRO_PLACAR.h, x + w / 2, chao - 3);   // placar na parede do próprio cantinho (as janelas desviam)
-        if (q) { pintarQuadroPlacar(c, q.px, q.py, QUADRO_PLACAR.w, QUADRO_PLACAR.h); quadros.push({ nome: "placar_ringue", x: q.px, y: q.py, w: QUADRO_PLACAR.w, h: QUADRO_PLACAR.h }); }
+        // o ringue só aparece na briga (app.js desenha a arte, as cordas e o placar): no resto do tempo é chão livre, com
+        // a marcação da arena em fita no piso; o espaço fica guardado (nenhum móvel entra) e ninguém esbarra em corda
+        const arte = document.createElement("canvas"); arte.width = w + 8; arte.height = h + 28;
+        const ac = arte.getContext("2d"); ac.imageSmoothingEnabled = false;
+        pintarRingue(ac, 4, 16, w, h, abertura, corMarca);
+        const fita = "rgba(244,234,216,.5)";   // fita creme, discreta: marca o chão sem parecer seleção
+        for (let k = 0; k < w; k += 6) { pintaPx(c, x + k, y, 3, 1, fita); pintaPx(c, x + k, y + h - 1, 3, 1, fita); }
+        for (let k = 0; k < h; k += 6) { pintaPx(c, x, y + k, 1, 3, fita); pintaPx(c, x + w - 1, y + k, 1, 3, fita); }
+        objetos.push({ nome: "ringue_tras", x: x - 2, y: y - 18, w: w + 4, h: 20, dx: 0, chave: y, cor: corMarca, luta: true });
+        objetos.push({ nome: "ringue_frente", x: x - 2, y: y + h - 18, w: w + 4, h: 20, dx: 0, chave: y + h, cor: corMarca, abertura, luta: true });
+        pegadas.push({ x: x - 4, y: y - 4, w: w + 8, h: h + 30, livre: true });   // a arena fica sem móvel
+        const q = lugarNaParede(QUADRO_PLACAR.w, QUADRO_PLACAR.h, x + w / 2, chao - 3);   // o placar na parede do cantinho (só na briga)
         s.ringue = { sala: s, x, y, w, h, pontos: [[Math.round(x + w * 0.3), y + 32], [Math.round(x + w * 0.7), y + 32]],
-          quadro: q ? { x: q.px, y: q.py, w: QUADRO_PLACAR.w, h: QUADRO_PLACAR.h } : null };
+          arte: { cv: arte, x: x - 4, y: y - 16 }, quadro: q ? { x: q.px, y: q.py, w: QUADRO_PLACAR.w, h: QUADRO_PLACAR.h } : null };
       }],
     ].filter(([, , precisa]) => (precisa || []).every(tem));
-    // ordem sorteada por empresa: primeiro o ringue e o painel do logo (cabem até na menor sala comunal, de 40 tiles), depois
+    // ordem: primeiro o ringue e o painel do logo (cabem na menor sala comunal, de 30 tiles); depois, sorteados por empresa,
     // os de jogo (TV, fliperama) e os outros; quando um cantinho não cabe, tenta o próximo (menor) para não sobrar buraco
     let zx = s.px + T, temCopa = false, ultima = -Infinity;
     const limite = s.px + s.pw - T, rc = rng(marca);
     const embaralha = l => { for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(rc() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; } return l; };
     const iRingue = cantos.length - 1;   // o ringue é o último da lista; o painel do logo é o 1
-    const ordem = [...embaralha([iRingue, 1]), ...embaralha([0, 2]), ...embaralha([...cantos.keys()].slice(3, iRingue))];
+    const ordem = [iRingue, 1, ...embaralha([0, 2]), ...embaralha([...cantos.keys()].slice(3, iRingue))];   // o ringue (a arena da briga) sempre cabe
     // portas reservadas antes dos cantinhos; ao lado da primeira, o trecho de parede da placa
     const porta = (z, larg) => { const px = z + 1.5 * T; s.portas.push(px); reservarPorta(s, px); ultima = px; return larg * T; };
     {
@@ -949,6 +1129,29 @@ function montar(atlas, config, grupos, planta) {
       obj("bebedouro", L + 12, fimB - 4);
       obj("vendas", R - 18, fimB - 4); obj(temCopa || !tem("geladeira_bebidas") ? "vendas2" : "geladeira_bebidas", R - 50, fimB - 4);
       obj("lixeiras", R - 82, fimB - 4);
+    }
+    { // vãos de parede que sobraram entre os cantinhos: estante baixa, aparador e vasos no fundo, jardineira e vaso na frente.
+      // Longe da arena do ringue (e da plateia), das portas, dos assentos e do que já está lá; nada sobe na frente de quadro
+      const rg = s.ringue, zona = rg ? { x: rg.x - 30, y: rg.y - 48, w: rg.w + 60, h: rg.h + 96 } : null;
+      const livre = r => !colide(r) && !(zona && sobre(r, zona)) && !reservas.some(q => sobre(r, q))
+        && !vagas.some(v => v.x > r.x - 10 && v.x < r.x + r.w + 10 && v.y > r.y - 14 && v.y < r.y + r.h + 14)
+        && objetos.every(o => o.chave < 0 || !o.w || !sobre(r, o));
+      if (rg) { // a arena fora da briga: um tapete no meio (some na luta, app.js)
+        const t = obj("tapete", rg.x + rg.w / 2, rg.y + rg.h - 8, false); if (t) t.semLuta = true;
+      }
+      const FUNDO = ["estante_baixa", "planta_alta", "aparador_baixo", "planta_g3"], FRENTE = ["jardineira", "planta_g1"];
+      for (const [lista, base] of [[FUNDO, chao + 12], [FRENTE, fim - 4]]) {
+        let k = 0;
+        for (let x = s.px + T; x < s.px + s.pw - T - 30; x += 4) {
+          const nome = lista[k % lista.length], sp = nome === "jardineira" ? [0, 0, 30, 9] : sprite(atlas, nome);
+          if (!sp) { k++; continue; }
+          const w = sp[2], h = sp[3];
+          if (x + w > s.px + s.pw - T || !livre({ x: x - 6, y: base - h, w: w + 12, h }) || (base - h < chao && !paredeLivreEm(x - 2, x + w + 2, chao))) continue;
+          if (nome === "jardineira") { objetos.push({ nome, x, y: base - h, w, h, dx: 0, chave: base }); pegadas.push({ x, y: base - h, w, h }); }
+          else if (!obj(nome, x + w / 2, base, false)) continue;
+          k++; x += w + 3 * T;
+        }
+      }
     }
     // corredor de passagem: a linha com menos móveis no caminho
     let melhor = s.faixa, menor = Infinity;
@@ -1085,56 +1288,50 @@ function montar(atlas, config, grupos, planta) {
       && outros.every(o => x + j.w + 2 < o.x || x - 2 > o.x + o.w) && (s.portas || []).every(p => x > p + 20 || x + j.w < p - 20));
     if (x === undefined) janelas.splice(i, 1); else j.x = x;
   }
-  // ---------------- corredor: passadeira, luminárias de teto e, encostados na parede de baixo (longe da linha
+  // ---------------- corredores: passadeira, luminárias de teto e, encostados na parede de baixo do principal (longe da linha
   // por onde se anda e fora da frente das portas), banco, quadro de avisos, vasos e bebedouro
-  const luzesTeto = [];
-  let banheiro = null;
-  {
-    const cT = cT0, cB = cB0, x0 = cx0, x1 = cx1, corP = corMarca;
-    const ry = Math.round(corredorY) - 8, rx0 = x0 + 10, rw = x1 - 10 - rx0;
-    const filete = mistura(corP, "#fff1d6", 0.2);
+  const luzesTeto = [], luzesTeto2 = [];   // as do principal (a zeladoria troca a lâmpada) e as dos corredores de baixo
+  const corP = corMarca, filete = mistura(corP, "#fff1d6", 0.2);
+  // nc: o corredor de cada sala (0, o principal); as de porta embaixo ficam em cima dele, as de porta em cima, embaixo
+  const doCorredor = i => [...salas, ...baixo].filter(q => (q.nc || 0) === i);
+  const ligacao = { px: conX0 + 3, pw: conX1 - conX0 - 6 };   // a abertura do corredor de ligação (sem parede)
+  const detalhar = (k, i) => {
+    const cT = k.topo, cB = k.topo + k.alt, x0 = cx0, x1 = cx1, cy = k.y;
+    const ry = Math.round(cy) - 8, rx0 = x0 + 10, rw = x1 - 10 - rx0;
     pintaPx(c, rx0, ry, rw, 16, mistura(corP, "#2a1620", 0.66));
     pintaPx(c, rx0, ry, rw, 1, mistura(corP, "#2a1620", 0.8)); pintaPx(c, rx0, ry + 15, rw, 1, mistura(corP, "#2a1620", 0.8));
     pintaPx(c, rx0 + 2, ry + 2, rw - 4, 1, filete); pintaPx(c, rx0 + 2, ry + 13, rw - 4, 1, filete);
     for (let x = rx0 + 10; x < rx0 + rw - 10; x += 16) pontosPx(c, x, ry + 8, [[0, -2], [-1, -1], [1, -1], [-2, 0], [2, 0], [-1, 1], [1, 1], [0, 2]], filete);   // losangos
     pintaPx(c, rx0, ry + 16, rw, 1, "rgba(0,0,0,.18)");
     for (const x of [rx0 - 2, rx0 + rw]) for (let y = ry + 1; y < ry + 15; y += 2) pintaPx(c, x, y, 2, 1, "#e9dcc0");   // franjas
-    const portasCima = salas.filter(s => !s.emCima).map(s => s.porta.x);
-    const portasBaixo = [...baixo, ...salas.filter(s => s.emCima)].flatMap(s => s.portas).sort((a, b) => a - b);
+    const daqui = doCorredor(i), cima = daqui.filter(q => !q.emCima && !q.portas), embaixo = daqui.filter(q => q.emCima || q.portas);
+    const portasCima = cima.map(q => q.porta.x), portasBaixo = embaixo.flatMap(q => q.portas).sort((a, b) => a - b);
     // parede fina nos vãos entre as salas (o corredor termina nelas), rodapé dos dois lados e soleira em cada porta
     const vaos = (lista, y) => {
       let cur = x0 - 3;
-      for (const [a, b] of lista.map(s => [s.px - 3, s.px + s.pw + 3]).sort((p, q) => p[0] - q[0])) { if (a > cur) pintaPx(c, cur, y, a - cur, 3, "#23212f"); cur = Math.max(cur, b); }
+      for (const [a, b] of lista.map(q => [q.px - 3, q.px + q.pw + 3]).sort((p, q) => p[0] - q[0])) { if (a > cur) pintaPx(c, cur, y, a - cur, 3, "#23212f"); cur = Math.max(cur, b); }
       if (cur < x1 + 3) pintaPx(c, cur, y, x1 + 3 - cur, 3, "#23212f");
     };
-    vaos(salas.filter(s => !s.emCima), cT); vaos([...baixo, ...salas.filter(s => s.emCima)], cB - 3);
+    const abertoCima = i > 0 ? [ligacao] : [], abertoBaixo = i < corredores.length - 1 ? [ligacao] : [];
+    vaos([...cima, ...abertoCima], cT); vaos([...embaixo, ...abertoBaixo], cB - 3);
     pintaPx(c, x0, cT + 3, x1 - x0, 2, "#a89f90"); pintaPx(c, x0, cB - 5, x1 - x0, 2, "#a89f90"); pintaPx(c, x0, cT + 5, x1 - x0, 1, "rgba(36,20,8,.1)");
     for (const p of portasCima) { pintaPx(c, p - 14, cT, 28, 5, "#d6cfbf"); pintaPx(c, p - 14, cT + 5, 28, 1, "#b5ad9c"); }
     for (const p of portasBaixo) pintaPx(c, p - 16, cB - 5, 32, 2, "#d6cfbf");
     // luminárias de teto a cada ~6 tiles, fora da frente das portas e das placas de cima (à noite acendem: app.js)
-    const placasCima = salas.filter(s => !s.emCima && s.placa).map(s => [s.placa.x - 4, s.placa.x + Math.min(s.placa.total, s.placa.max) + 4]);
-    // a porta do banheiro (Firmópolis): na parede de cima, o trecho livre mais perto da ponta direita, sem porta, placa,
-    // mesa nem móvel, com a plaquinha WC em cima (pintada depois dos contornos). A fila dos terminais fica na frente (vida.js)
-    const wc = sprite(atlas, "banheiro_porta");
-    if (wc) {
-      const w = wc[2], topo = cT + 4 - wc[3] - 9;
-      const cheios = [...objetos, ...animados].filter(o => o.w && o.h).map(o => [o.x, o.x + o.w, o.y, o.y + o.h])
-        .concat(salas.filter(s => !s.emCima && s.placa).map(s => [s.placa.x, s.placa.x + Math.min(s.placa.total, s.placa.max), s.placa.y, s.placa.y + PLACA_H]))
-        .concat(salas.flatMap(s => s.mesas.map(q => [q.x - 18, q.x + 18, q.topo - 26, q.topo + 16])));
-      const cabe = x => portasCima.every(p => x + w < p - 20 || x > p + 20) && cheios.every(([a, b, ya, yb]) => x + w + 3 < a || x - 3 > b || yb < topo || ya > cT + 4);
-      let x = x1 - 10 - w;
-      while (x > x0 + 40 && !cabe(x)) x -= 2;
-      // parede de cima toda tomada (muitos times): a porta vai no fundo do corredor, na ponta direita, só desviando das portas
-      if (x <= x0 + 40) { x = x1 - 10 - w; while (x > x0 + 40 && !portasCima.every(p => x + w < p - 20 || x > p + 20)) x -= 2; }
-      if (x > x0 + 40) { banheiro = { x: x + w / 2, y: corredorY, px: x, sp: wc }; placasCima.push([x - 4, x + w + 4]); }
-    }
-    const tetoLivre = x => portasCima.every(p => Math.abs(p - x) > 16) && placasCima.every(([a, b]) => x < a - 4 || x > b + 4);
+    const placasCima = cima.filter(q => q.placa).map(q => [q.placa.x - 4, q.placa.x + Math.min(q.placa.total, q.placa.max) + 4]);
+    const tetoLivre = x => portasCima.every(p => Math.abs(p - x) > 16) && placasCima.every(([a, b]) => x < a - 4 || x > b + 4) && (i === 0 || x > conX1 + 8);
     for (let x = x0 + 40; x < x1 - 24; x += 6 * T) {
       const lx = [0, 8, -8, 16, -16, 24, -24].map(d => x + d).find(tetoLivre); if (lx === undefined) continue;
-      luzesTeto.push({ x: lx, y: cT + 3 });
+      (i ? luzesTeto2 : luzesTeto).push({ x: lx, y: cT + 3 });
       pintaPx(c, lx, cT, 1, 3, "#3a3a46"); pintaPx(c, lx - 4, cT + 3, 9, 3, "#3a3a46"); pintaPx(c, lx - 3, cT + 3, 7, 1, "#6b6b78");   // fio e cúpula
       pintaPx(c, lx - 2, cT + 6, 5, 1, "#d9d2c0"); pintaPx(c, lx - 4, cT + 10, 9, 1, "rgba(0,0,0,.14)");                                 // lâmpada e sombra
     }
+    return { portasCima, portasBaixo, placasCima };
+  };
+  corredores.slice(1).forEach((k, i) => detalhar(k, i + 1));
+  {
+    const cT = cT0, cB = cB0, x0 = cx0, x1 = cx1;
+    const { portasCima, portasBaixo, placasCima } = detalhar(corredor, 0);
     const base = cB - 2, ocupado = [];
     const portas = [...portasBaixo, ...portasCima];
     const encosta = (nome, cx) => { // desvia da frente de todas as portas e das outras peças
@@ -1169,23 +1366,15 @@ function montar(atlas, config, grupos, planta) {
     for (const px of s.portas) { // vão da porta: soleira de pedra em cima e, na passagem pela parede, o piso da própria sala
       c.drawImage(atlas.img, ps[0], ps[1], 2 * T, 32, px - T, s.py + 1, 2 * T, 32);
       c.drawImage(atlas.img, ps[0], ps[1], 2 * T, 15, px - T, s.py + 33, 2 * T, 15);
-      if (PISOS_DO_TIME.has(s.piso)) { c.save(); c.globalCompositeOperation = "multiply"; c.globalAlpha = 0.55; pintaPx(c, px - T, s.py + 1, 2 * T, 47, s.cor || CORES_CARPETE[semente(s.nome) % CORES_CARPETE.length]); c.restore(); }
+      if (PISOS_DO_TIME.has(s.piso) && s.tipo !== "cozinha") { c.save(); c.globalCompositeOperation = "multiply"; c.globalAlpha = 0.55; pintaPx(c, px - T, s.py + 1, 2 * T, 47, s.cor || CORES_CARPETE[semente(s.nome) % CORES_CARPETE.length]); c.restore(); }
       pintaPx(c, px - T, s.py - 3, 2 * T, 4, "#d6cfbf"); pintaPx(c, px - T, s.py + 1, 2 * T, 1, "#b5ad9c"); pintaPx(c, px - T, s.py + 2, 2 * T, 2, "rgba(36,20,8,.16)");
       portas.push({ tipo: s.tipo === "cozinha" ? "vaivem" : "vidro", x: px - T, y: s.py - 3, w: 2 * T, h: PAREDE * T + 3, abre: 0 });
     }
   }
-  if (banheiro) { // a porta do banheiro sobre a parede de cima e a plaquinha azul "WC" em cima dela
-    const { px, sp } = banheiro, y = cT0 + 5 - sp[3], pw = 11, qx = Math.round(px + sp[2] / 2 - pw / 2), qy = y - 9;
-    c.drawImage(atlas.img, sp[0], sp[1], sp[2], sp[3], px, y, sp[2], sp[3]);
-    pintaPx(c, px - 1, cT0 + 5, sp[2] + 2, 1, "rgba(36,20,8,.25)");
-    pintaPx(c, qx, qy, pw, 7, "#2f5fb3"); pintaPx(c, qx, qy + 7, pw, 1, "#1d3c75");
-    pontosPx(c, qx + 1, qy + 1, [[0, 0], [0, 1], [0, 2], [0, 3], [1, 4], [2, 2], [2, 3], [3, 4], [4, 0], [4, 1], [4, 2], [4, 3],   // W
-      [7, 0], [8, 0], [6, 1], [6, 2], [6, 3], [7, 4], [8, 4]], "#ffffff");   // C
-    delete banheiro.px; delete banheiro.sp;
-  }
   // F) mural de cada sala (1.6, só com o store: config.equipe.mural), no trecho de parede que sobrou livre, da direita
   // para a esquerda, sem mexer em mais nada. A recepção mostra o canal "geral" (no saguão, o mural do prédio)
   if (config.equipe && config.equipe.mural) for (const s of [...salas, ...baixo]) {
+    if (s.tipo === "banheiro") continue;   // o banheiro não é canal de conversa (o servidor não tem essa sala)
     const { w, h } = MURAL;
     const ocupados = [...janelas, ...quadros, ...reservas, ...paredeOcupada.map(o => ({ ...o, h: 20 })), ...objetos.filter(o => o.w && o.h),
       ...animados.filter(a => a.w && a.h), s.placaLogo, s.logo, s.placa && { x: s.placa.x, y: s.placa.y, w: s.placa.total, h: PLACA_H }];
@@ -1200,6 +1389,8 @@ function montar(atlas, config, grupos, planta) {
     s.mural = { ...lugar, w, h, canal: s.tipo === "recepcao" ? "geral" : "sala:" + s.chave };
     paredeOcupada.push({ x: lugar.x - 4, w: w + 8, y: lugar.y });
   }
+  // o banheiro para o vida.js e a zeladoria: a porta (no corredor, onde a fila se forma), a sala e a frente de cada cabine
+  const banheiro = { x: wc.portas[0], y: corredorY, sala: wc, cabines };
   // caminho da entrada lateral até a calçada fica livre (nenhuma árvore ou banco no meio)
   pegadas.push({ x: predioRet.x - 46, y: corredor.ty * T - 10, w: 62, h: predioRet.y + predioRet.h + 24 - corredor.ty * T, livre: true });
   const externos = montarExterior(atlas, (n, x, y) => obj(n, x, y, true, true), W, H, predioRet, marca, corredor.ty * T);
@@ -1209,7 +1400,8 @@ function montar(atlas, config, grupos, planta) {
   const solidos = [...pegadas.filter(q => !q.livre), ...salas.flatMap(s => s.mesas.map(m => ({ x: m.x - 16, y: m.topo, w: 32, h: 13 })))];
   const livre = (x, y) => {
     const naSala = [...salas, ...baixo].some(s => x >= s.px + 5 && x <= s.px + s.pw - 5 && y >= s.chao + 5 && y <= s.py + s.ph - 3);
-    const noCorredor = x >= predioRet.x + T && x <= predioRet.x + predioRet.w - T && y >= corredor.ty * T + 5 && y <= (corredor.ty + corredor.h) * T - 3;
+    const noCorredor = corredores.some(k => x >= predioRet.x + T && x <= predioRet.x + predioRet.w - T && y >= k.topo + 5 && y <= k.topo + k.alt - 3)
+      || (corredores.length > 1 && x >= conX0 + 5 && x <= conX1 - 5 && y >= cB0 - 3 && y <= ultimo.topo + 5);   // a ligação
     return (naSala || noCorredor) && !solidos.some(q => x > q.x - 5 && x < q.x + q.w + 5 && y > q.y - 5 && y < q.y + q.h + 5);
   };
   // plateia do ringue: chão livre em duas voltas por fora das cordas, sem tapar a entrada (o vida.js ainda confere o alcance)
@@ -1223,7 +1415,7 @@ function montar(atlas, config, grupos, planta) {
     }
     ringue.plateia = pts.filter(([px, py]) => livre(px, py) && !(py > y + h && Math.abs(px - meio) < RINGUE.abertura / 2 + 6));
   }
-  return { livre, W, H, fundo, salas, baixo, lounge, ringue, corredorY, objetos, animados, vagas, janelas, portas, quadros, predioRet, externos, entrada, luzesTeto, banheiro, corredorTopo: corredor.ty * T, corredorAlt: corredor.h * T, planta: resumoPlanta };
+  return { livre, W, H, fundo, salas, baixo, lounge, ringue, corredorY, objetos, animados, vagas, janelas, portas, quadros, predioRet, externos, entrada, luzesTeto, luzesTeto2, banheiro, corredorTopo: corredor.ty * T, corredorAlt: corredor.h * T, corredores, rotulos, planta: resumoPlanta };
 }
 
 // Área externa: grama, calçada em volta do prédio e rua embaixo, com os detalhes sorteados por empresa.
@@ -1244,34 +1436,29 @@ function pintarExterior(c, atlas, W, H, p, marca) {
   c.fillStyle = "#a7a49c";
   for (let x = p.x - m; x < p.x + p.w + m; x += 8) { c.fillRect(x, p.y - m, 1, m); c.fillRect(x, p.y + p.h, 1, m); }
   for (let y = p.y - m; y < p.y + p.h + m; y += 8) { c.fillRect(p.x - m, y, m, 1); c.fillRect(p.x + p.w, y, m, 1); }
+  c.fillStyle = "#8f8578"; c.fillRect(p.x, p.y, p.w, p.h);   // a estrutura do prédio: entre as salas, parede grossa
   // sombra do prédio (embaixo, a fachada faz a sombra)
   c.fillStyle = "rgba(0,0,0,.22)"; c.fillRect(p.x + p.w, p.y + 4, 5, p.h + FACHADA);
   pintarFachada(c, atlas, p, r);
-  // rua: meio-fio, asfalto e faixas
-  const yRua = p.y + p.h + FACHADA + 84, alt = 44;
-  c.fillStyle = "#d7d4cc"; c.fillRect(0, yRua - 4, W, 4);
+  // calçada da rua, logo embaixo da fachada, com rachaduras e tufos de grama no meio-fio
+  const yRua = ruaY(p), alt = RUA_ALT, y0 = p.y + p.h + FACHADA;
+  c.fillStyle = "#b9b6ae"; c.fillRect(0, y0, W, yRua - 3 - y0);
+  c.fillStyle = "#a7a49c"; for (let x = 0; x < W; x += 8) c.fillRect(x, y0, 1, yRua - 3 - y0);
+  for (let y = y0 + 8; y < yRua - 3; y += 8) c.fillRect(0, y, W, 1);
+  c.fillStyle = "rgba(0,0,0,.18)"; c.fillRect(p.x, y0, p.w, 2);   // sombra da fachada na calçada
+  c.fillStyle = "#8f8c84";
+  for (let i = 0; i < W / 120; i++) { const x = Math.floor(r() * W), y = y0 + 4 + Math.floor(r() * (CALCADA - 8)); c.fillRect(x, y, 2, 1); c.fillRect(x + 2, y + 1, 2, 1); c.fillRect(x + 4, y + 1, 1, 2); }
+  // rua: meio-fio, uma faixa de asfalto com a linha do meio e o meio-fio do outro lado
+  c.fillStyle = "#d7d4cc"; c.fillRect(0, yRua - 3, W, 3);
   c.fillStyle = "#3d3f46"; c.fillRect(0, yRua, W, alt);
   for (let i = 0; i < W * alt / 30; i++) { c.fillStyle = r() < 0.5 ? "#45474f" : "#36383f"; c.fillRect(Math.floor(r() * W), yRua + Math.floor(r() * alt), 1, 1); }
-  for (let i = 0; i < W / 260; i++) { // manchas de óleo e remendos no asfalto
-    const x = Math.floor(r() * W), y = yRua + 6 + Math.floor(r() * (alt - 14));
-    c.fillStyle = r() < 0.5 ? "rgba(20,20,26,.35)" : "#46484f"; c.fillRect(x, y, 6 + Math.floor(r() * 6), 3); c.fillRect(x + 2, y - 1, 4, 5);
-  }
-  c.fillStyle = "#f2d16b"; for (let x = 4; x < W; x += 20) c.fillRect(x, yRua + alt / 2 - 1, 10, 2);
-  c.fillStyle = "#d7d4cc"; c.fillRect(0, yRua + alt, W, 4);
-  for (let x = 40 + Math.floor(r() * 60); x < W - 10; x += 170 + Math.floor(r() * 80)) { // bueiros no meio-fio e tampas no asfalto
+  c.fillStyle = "#f2d16b"; for (let x = 4; x < W; x += 20) c.fillRect(x, yRua + alt / 2 - 1, 10, 1);
+  c.fillStyle = "#d7d4cc"; c.fillRect(0, yRua + alt, W, 3);
+  for (let x = 40 + Math.floor(r() * 60); x < W - 10; x += 170 + Math.floor(r() * 80)) { // bueiros no meio-fio
     c.fillStyle = "#26272d"; c.fillRect(x, yRua - 3, 9, 3); c.fillStyle = "#5b5d66"; for (let k = 1; k < 9; k += 2) c.fillRect(x + k, yRua - 3, 1, 3);
-    const tx = x + 60 + Math.floor(r() * 40), ty = yRua + (r() < 0.5 ? 9 : alt - 12);
-    c.fillStyle = "#2c2d33"; c.fillRect(tx, ty, 7, 4); c.fillRect(tx + 1, ty - 1, 5, 6); c.fillStyle = "#55575f"; c.fillRect(tx + 2, ty + 1, 3, 2);
   }
-  // faixa de pedestre na frente da entrada
-  c.fillStyle = "#ecebe6"; for (let x = p.x - 40; x < p.x - 4; x += 6) c.fillRect(x, yRua + 3, 3, alt - 6);
-  // calçada da rua, com rachaduras e o caminho da entrada até ela
-  c.fillStyle = "#b9b6ae"; c.fillRect(0, yRua - 16, W, 12);
-  c.fillStyle = "#a7a49c"; for (let x = 0; x < W; x += 8) c.fillRect(x, yRua - 16, 1, 12);
-  c.fillRect(p.x - 26, p.y + p.h + m, 16, yRua - 16 - (p.y + p.h + m));
-  c.fillStyle = "#8f8c84";
-  for (let i = 0; i < W / 120; i++) { const x = Math.floor(r() * W), y = yRua - 14 + Math.floor(r() * 8); c.fillRect(x, y, 2, 1); c.fillRect(x + 2, y + 1, 2, 1); c.fillRect(x + 4, y + 1, 1, 2); }
-  c.fillStyle = "#4f8a3c"; for (let i = 0; i < W / 40; i++) c.fillRect(Math.floor(r() * W), yRua - 17, 1, 2);   // tufos de grama no meio-fio
+  c.fillStyle = "#ecebe6"; for (let x = p.x - 40; x < p.x - 4; x += 6) c.fillRect(x, yRua + 3, 3, alt - 6);   // faixa de pedestre na frente da entrada
+  c.fillStyle = "#4f8a3c"; for (let i = 0; i < W / 40; i++) c.fillRect(Math.floor(r() * W), yRua - 4, 1, 1);
 }
 
 // A frente do prédio, vista de frente, numa faixa embaixo da planta: reboco, cornija, rodapé de pedra, janelas, a porta de
@@ -1288,69 +1475,36 @@ function pintarFachada(c, atlas, p, r) {
   for (let x = x0 + 20; x < x1 - 10; x += 40) if (Math.abs(x - porta) > 30) peca("fachada_janela", x, y0 + h - 3);
   peca("fachada_porta", porta, y0 + h - 2);
   for (const x of [porta - 18, porta + 18]) peca("fachada_arandela", x, y0 + 22);
-  // calçadinha na frente da fachada e floreiras entre as janelas
-  c.fillStyle = "#b9b6ae"; c.fillRect(x0, y0 + h, p.w, 6); c.fillStyle = "#a7a49c"; for (let x = x0; x < x1; x += 8) c.fillRect(x, y0 + h, 1, 6);
-  c.fillStyle = "rgba(0,0,0,.18)"; c.fillRect(x0, y0 + h, p.w, 2);
+  // floreiras entre as janelas, na calçada
   for (let x = x0 + 40; x < x1 - 20; x += 160) if (!fora.some(f => Math.abs(f - x) < 40)) peca("fachada_floreira", x, y0 + h + 8);
 }
 // onde ficam as arandelas da fachada (acendem à noite, com os postes)
 const arandelas = p => { const porta = Math.round(p.x + p.w / 2); return [porta - 18, porta + 18].map(x => ({ x, y: p.y + p.h + 8 })); };
 
 function montarExterior(atlas, obj0, W, H, p, marca, portaY) {
-  const r = rng(marca ^ 11), ext = { carros: [], postes: [], ruaY: p.y + p.h + FACHADA + 84, ruaAlt: 44 };
-  const tem = n => !!sprite(atlas, n), alto = n => sprite(atlas, n)[3], larg = n => sprite(atlas, n)[2];
-  // planta e árvore saem espelhadas metade das vezes (pixel art não escala sem borrar: a variação vem do espelho e do deslocamento)
-  // fora: árvores e plantas daqui balançam com o vento do clima (efeitos.js)
-  const obj = (n, x, y) => { const o = obj0(n, x, y); if (o && /^(arvore|arbusto|palmeira|planta)/.test(n)) { o.fora = true; if (r() < 0.5) o.espelho = true; } return o; };
-  // entrada lateral: vaso ao lado da porta; no gramado, à direita do caminho de pedra e perto da rua, a placa de loja com o
-  // expediente (aberto/fechado, desenhada no efeitos.js) e, depois dela, o bicicletário. A placa vem antes de tudo do gramado
-  // (os outros desviam dela) e fica fora da rota de quem sai: pelo caminho até a calçada e de lá para a esquerda (vida.js)
+  const r = rng(marca ^ 11), ext = { carros: [], postes: [], ruaY: ruaY(p), ruaAlt: RUA_ALT };
+  const tem = n => !!sprite(atlas, n);
+  // planta sai espelhada metade das vezes; fora: balança com o vento do clima (efeitos.js). Sem árvore enfeitando o
+  // topo nem a rua: a cor do mapa vem dos times
+  const obj = (n, x, y) => { const o = obj0(n, x, y); if (o && /^(arbusto|planta)/.test(n)) { o.fora = true; if (r() < 0.5) o.espelho = true; } return o; };
+  // entrada lateral: vaso ao lado da porta; na calçada, à direita do caminho de pedra, a placa de loja com o expediente
+  // (aberto/fechado, desenhada no efeitos.js) e o bicicletário, fora da rota de quem sai (pelo caminho e para a esquerda)
+  const meioFio = ext.ruaY - 5;
   obj("planta2", p.x - 14, portaY - 12);
-  obj("placa_expediente", p.x + 26, p.y + p.h + FACHADA + 59); obj("bicicletario", p.x + 84, p.y + p.h + FACHADA + 40);
-  // cada empresa ganha sua rua: 3 espécies de árvore sorteadas (as outras aparecem de vez em quando) e seu ritmo
-  const especies = ["arvore1", "arvore2", "arvore3", "arvore_ipe", "arvore_jacaranda"].filter(tem);
-  for (let i = especies.length - 1; i > 0; i--) { const k = Math.floor(r() * (i + 1)); [especies[i], especies[k]] = [especies[k], especies[i]]; }
-  const arvore = () => (r() < 0.85 ? escolhe(r, especies.slice(0, 3)) : escolhe(r, especies));
-  const arbustos = ["arbusto1", "arbusto2", "canteiro"].filter(tem), ritmo = 0.75 + r() * 0.6;
-  // topo: grupos de 2 a 3 árvores de espécies misturadas, em alturas diferentes, com arbustos e clareiras entre eles
-  for (let x = 12 + r() * 40 * ritmo; x < W - 16;) {
-    if (!especies.length || r() < 0.3) { const n = escolhe(r, arbustos); if (n) obj(n, x, p.y - 12 - Math.floor(r() * 4)); x += (26 + r() * 30) * ritmo; continue; }
-    let gx = x, ant = null;
-    for (let k = 0, n = r() < 0.5 ? 2 : 3; k < n && gx < W - 16; k++) {
-      let e = arvore(); if (e === ant && especies.length > 1) e = especies[(especies.indexOf(e) + 1) % especies.length];   // vizinhas de espécies diferentes
-      obj(e, gx, p.y - 9 - Math.floor(r() * 9)); ant = e;
-      gx += larg(e) * (0.55 + r() * 0.2);
-    }
-    x = gx + (16 + r() * 56) * ritmo;
-  }
-  // laterais: o espaço é estreito, então arbustos, palmeiras e árvores alternam sem encavalar as copas
-  for (const lado of [p.x - 32, p.x + p.w + 32]) {
-    for (let y = p.y + 30; y < (lado < p.x ? portaY - 14 : p.y + p.h);) {   // à esquerda, só até a entrada (dali para baixo é o caminho)
-      const n = r() < 0.5 && especies.length ? arvore() : r() < 0.4 && tem("palmeira") ? "palmeira" : escolhe(r, arbustos);
-      if (n) obj(n, lado + (r() - 0.5) * 8, y);
-      y += (n ? alto(n) * 0.9 : 30) + 6 + r() * 12;
-    }
-  }
-  // calçada da rua: postes num passo próprio da empresa (com um pouco de folga para cada um) e mobiliário urbano sorteado
-  const meioFio = ext.ruaY - 5, passo = 190 + r() * 80;
-  for (let x = 30 + r() * 70; x < W - 20; x += passo + (r() - 0.5) * 40) {
+  obj("placa_expediente", p.x + 44, meioFio); obj("bicicletario", p.x + 110, meioFio);
+  // calçada da rua: postes num passo próprio da empresa e mobiliário baixo sorteado (o alto cobriria a fachada)
+  const passo = 190 + r() * 80;
+  for (let x = 160 + r() * 70; x < W - 20; x += passo + (r() - 0.5) * 40) {
     const o = obj("poste", x, meioFio); if (o) ext.postes.push({ x: o.x + o.w / 2, y: o.y + 4 });
   }
   ext.postes.push(...arandelas(p));
   obj("caixa_correio", p.x - 6, meioFio);
-  const urbano = ["banco", "banco", "lixeira_rua", "lixeira_rua", "hidrante", "hidrante", "orelhao", "ponto_onibus", "banca_jornal"].filter(tem);
-  const vagasRua = Math.max(4, Math.floor((W - p.x - 40) / 130));
+  const urbano = ["banco", "banco", "lixeira_rua", "lixeira_rua", "hidrante"].filter(tem);
+  const vagasRua = Math.max(3, Math.floor((W - p.x - 200) / 220));
   for (let i = 0; i < vagasRua; i++) {
     const n = urbano.length ? urbano.splice(Math.floor(r() * urbano.length), 1)[0] : null; if (!n) break;
-    const x = p.x + 40 + (i + 0.2 + r() * 0.6) * ((W - p.x - 60) / vagasRua);
+    const x = p.x + 180 + (i + 0.2 + r() * 0.6) * ((W - p.x - 200) / vagasRua);
     obj(n, x, n === "banco" ? meioFio - 2 : meioFio, true);
-  }
-  // gramado entre o prédio e a rua: uma pracinha (mesa de piquenique e árvore) e canteiros espalhados
-  const yGrama = p.y + p.h + FACHADA + 44, praca = p.x + 120 + Math.floor(r() * Math.max(1, p.w - 300));
-  if (tem("mesa_piquenique")) { obj("mesa_piquenique", praca, yGrama + 8, true); if (especies.length) obj(arvore(), praca + 44, yGrama + 2, true); }
-  for (let x = p.x + 30; x < p.x + p.w - 20; x += 64 + Math.floor(r() * 34)) {
-    if (ext.postes.some(q => Math.abs(q.x - x) < 34) || Math.abs(x - praca) < 70) continue;   // nada atrás de poste nem em cima da praça
-    const n = escolhe(r, ["canteiro", "arbusto1", "arbusto2", "canteiro"].filter(tem)); if (n) obj(n, x, yGrama + r() * 10, true);
   }
   // carros passando
   const carros = ["carro1", "carro2", "carro3", "carro4"].filter(tem);
@@ -1410,6 +1564,6 @@ function desenharPlacaReuniao(c, s) {
   c.restore();
 }
 
-return { iconeStatus, desenharStatus, placaReuniao, desenharPlacaReuniao, nomePlaca, montarPredio, desenharMesa, lampadaX, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
+return { pintarQuadroPlacar, desenharCabines, iconeStatus, desenharStatus, placaReuniao, desenharPlacaReuniao, nomePlaca, montarPredio, desenharMesa, lampadaX, desenharCadeira, mistura, hex6, cor, rgb, T, TELAS, PLACA_FONTE, PLACA_H, CATALOGO, FIXOS, SEM_ESPELHO, tamanho };
 })();
 window.Mapa = Mapa;

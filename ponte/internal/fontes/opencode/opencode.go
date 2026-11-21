@@ -80,7 +80,7 @@ func NormalizarOpenCode(corpo []byte, terminalID string) ([]mundo.Sinal, error) 
 		case tipo == "permission.asked":
 			s.Estado = mundo.EsperandoPermissao
 		case tipo == "question.asked":
-			s.Estado = mundo.EsperandoResposta
+			s.Estado, s.Espera, s.AceitaTexto = mundo.EsperandoResposta, "opencode:question", true // o plugin só abre a pergunta de texto livre
 		case tipo == "permission.replied", tipo == "question.replied", tipo == "question.rejected":
 			s.Estado = mundo.Ocupado
 		default:
@@ -108,7 +108,7 @@ func NormalizarOpenCode(corpo []byte, terminalID string) ([]mundo.Sinal, error) 
 	case "permission.asked":
 		s.Estado = mundo.EsperandoPermissao
 	case "question.asked":
-		s.Estado = mundo.EsperandoResposta
+		s.Estado, s.Espera, s.AceitaTexto = mundo.EsperandoResposta, "opencode:question", true
 	case "permission.replied", "question.replied", "question.rejected":
 		s.Estado = mundo.Ocupado // respondido: o agente segue (se parar, vem session.idle)
 	case "session.error":
