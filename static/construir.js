@@ -105,7 +105,7 @@
     fechadas = Planta.semPassagem(predio);
     ignorados = (predio.planta && Array.isArray(predio.planta.ignorados)) ? predio.planta.ignorados : [];
     salas = new Map();
-    for (const s of [...predio.salas, ...predio.baixo]) if (s.chave) salas.set(s.chave, s);
+    for (const s of [...predio.salas, ...predio.baixo]) if (s.chave && s.tipo !== "banheiro") salas.set(s.chave, s);   // o banheiro é todo desenhado em código: fora da planta
     pecas = new Map();
     for (const o of predio.objetos) if (typeof o.id === "string" && o.salaChave && salas.has(o.salaChave)) pecas.set(o.id, o);
     if (sel && !pecas.has(sel)) sel = null;

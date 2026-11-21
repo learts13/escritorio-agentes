@@ -43,7 +43,11 @@
     }
     return cv;
   }
-  function sombra(c, x, pes, w) { c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(x, pes, w, 1); c.fillRect(x + 1, pes + 1, w - 2, 1); }
+  // sombra de contato: uma elipse achatada sob os pés (a linha do meio é a mais larga; a de cima fica atrás dos pés)
+  function sombra(c, x, pes, w) {
+    c.fillStyle = 'rgba(0,0,0,.26)';
+    c.fillRect(x + 2, pes - 1, w - 4, 1); c.fillRect(x, pes, w, 1); c.fillRect(x + 2, pes + 1, w - 4, 1);
+  }
   function trocar(linha, j, ch) { return linha.slice(0, j) + ch + linha.slice(j + 1); }
 
   /* ---------- Gente (você e as visitas): chibi de cabeção, no traço dos bichinhos ----------
@@ -166,6 +170,30 @@
     parado:   ['.abbbbbyyba.', '.abbbbbbbba.', '.kbbbbbbbbk.', '...PPPPPP...', '...PP..PP...', '..zzz..zzz..'],
     acenar:   ['.abbbbbyybak', '.abbbbbbbb..', '.kbbbbbbbb..', '...PPPPPP...', '...PP..PP...', '..zzz..zzz..']};
   var MOLDURAS = ['#e8794a', '#5fa8ff', '#9be15d', '#c38bff', '#ffd166'];
+  // a cor do programa (o provedor da ponte.js): dá para saber quem é quem só pela cor
+  var PROGRAMAS = { 'Claude Code': '#e8794a', Codex: '#d9dde6', OpenCode: '#9be15d', agy: '#5fa8ff', MiniMax: '#ff6fa8', Terminal: '#b48cff' };
+  // o papel sai do campo papel da ponte ou do nome do Maestri ("Papel · Modelo"); o gerente sem papel conhecido é o Maestro
+  function papelDe(quem) {
+    var n = ((quem.papel || '') + ' ' + String(quem.nome || '').split(' · ')[0]).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (/maestro/.test(n)) return 'maestro';
+    if (/auditor/.test(n)) return 'auditor';
+    if (/bracal|implementador/.test(n)) return 'bracal';
+    return quem.gerente ? 'maestro' : '';
+  }
+  // acessórios por cima do monitor (linhas a mais no topo do sprite): coroa do Maestro e capacete do Braçal
+  var CHAPEUS = {
+    maestro: ['..Y..YY..Y..', '..YYRYYQYY..', '..jjjjjjjj..'],
+    bracal:  ['....HhHH....', '..HHHhHHHH..', '.HHHHhHHHHH.', 'JJJJJJJJJJJJ']};
+  // os óculos do Auditor, por cima da cara na telinha (8x6): aro nas duas lentes e a ponte no meio
+  function oculos(cara) {
+    return cara.map(function (l, i) {
+      if (i === 0 || i === 3) return '.oo..oo.'.split('').map(function (ch, j) { return ch === 'o' ? 'o' : l[j]; }).join('');
+      if (i === 1 || i === 2) return 'o' + l.slice(1, 3) + 'oo' + l.slice(5, 7) + 'o';
+      return l;
+    });
+  }
+  // a lupa do Auditor, na mão de quem está parado: o aro com o vidro nas linhas 8 a 10, à direita, e o cabo descendo até a mão
+  var LUPA = { 8: 'mmm', 9: 'mlm', 10: 'mmm' };
   // linhas de código que sobem na telinha quando o terminal está "digitando" (parado pensando)
   function telaDigitando(t) {
     var r = ['rS######'], base = Math.floor(t / 260);
@@ -177,16 +205,20 @@
     return r;
   }
   // acao: 'andar' | 'parar' (digitando) | 'acenar' (carinha feliz) | 'esperar' (! âmbar) | 'dormir' (tela apagada, parado)
-  function terminal(c, x, pes, f, esquerda, v, agora, acao) {
+  // quem (opcional): { provedor, nome, papel, gerente } do terminal (ponte.js). Com ele, a cor é a do programa e o papel
+  // ganha o acessório (coroa, óculos ou capacete); sem ele, a cor sai da semente v, como antes
+  function terminal(c, x, pes, f, esquerda, v, agora, acao, quem) {
     acao = acao || 'andar'; agora = agora || 0;
-    var g = MOLDURAS[v % 5], t = agora + v * 997;
+    var g = quem ? PROGRAMAS[quem.provedor] || PROGRAMAS.Terminal : MOLDURAS[v % 5], t = agora + v * 997, papel = quem ? papelDe(quem) : '';
     var piscando = (t % 3600) < 140, cursor = Math.floor(t / 420) % 2;
     var tela = '#0b1a12', verde = '#4ade80';
-    var cores = paleta('t' + (v % 5) + piscando + cursor, function () { return { G: clarear(g), g: g, d: escurecer(g), '#': tela, x: '#10261a', r: '#c8ffd9', S: '#5f8f70',
+    var cores = paleta('t' + g + piscando + cursor, function () { return { G: clarear(g), g: g, d: escurecer(g), '#': tela, x: '#10261a', r: '#c8ffd9', S: '#5f8f70',
       E: piscando ? tela : verde, e: verde, u: cursor ? verde : tela, w: '#f5b83d', k: '#7a8196', K: '#b5bccc',
-      b: escurecer(g), B: g, y: '#fff4dc', a: escurecer(escurecer(g)), P: '#3b3b47', p: '#2b2b35', z: '#14131f' }; });
+      b: escurecer(g), B: g, y: '#fff4dc', a: escurecer(escurecer(g)), P: '#3b3b47', p: '#2b2b35', z: '#14131f',
+      Y: '#ffc94a', j: '#b9791c', R: '#e8574a', Q: '#5fa8ff', H: '#ffd23f', h: '#fff1a8', J: '#c98a12', o: '#f4ead2', m: '#c9a227', l: '#bfe6ff', n: '#6b4a2c' }; });
     var cara = acao === 'acenar' ? TELAS.feliz : acao === 'esperar' ? TELAS.espera : acao === 'dormir' ? TELAS.apagada : acao === 'parar' ? telaDigitando(t)
       : (t % 6000) > 5200 ? TELAS.olhaLado : TELAS.olhos;
+    if (papel === 'auditor') cara = oculos(cara);
     var monitor = MONITOR.map(function (l, i) { return i >= 1 && i <= 6 ? l.slice(0, 2) + cara[i - 1] + l.slice(10) : l; });
     var corpo, sobe = 0;
     if (acao === 'andar') { corpo = CORPO_T[CICLO[f % 4]]; sobe = f % 2; }
@@ -197,10 +229,18 @@
       monitor[8] = trocar(monitor[8], 11, 'B'); monitor[7] = trocar(monitor[7], 12, 'B'); monitor[6] = trocar(monitor[6], 12, 'B');
       monitor[5] = trocar(monitor[5], 12, 'B'); monitor[4] = trocar(monitor[4], 12 + alto, 'K'); monitor[3] = trocar(monitor[3], 12 + alto, 'K');
     } else corpo = CORPO_T.parado;
-    var linhas = monitor.concat(corpo), topo = pes - linhas.length - sobe;
+    var linhas = monitor.concat(corpo), extra = 0;
+    if (papel === 'auditor' && acao !== 'andar' && acao !== 'acenar') {
+      extra = 3;
+      linhas = linhas.map(function (l, i) { return (l + '............').slice(0, 12) + (LUPA[i] || '...'); });
+      linhas[11] = trocar(linhas[11], 12, 'n'); linhas[12] = trocar(linhas[12], 11, 'n');
+    }
+    var chapeu = (CHAPEUS[papel] || []).map(function (l) { return (l + '....').slice(0, linhas[0].length); });
+    linhas = chapeu.concat(linhas);
+    var topo = pes - linhas.length - sobe;
     sombra(c, x + 1, pes, 11);
     cabo(c, x, pes, esquerda, agora, acao === 'andar');
-    sprite(c, linhas, cores, x, topo, esquerda);
+    sprite(c, linhas, cores, x - (esquerda ? extra : 0), topo, esquerda);   // a lupa sai para o lado da mão: o corpo não pula ao virar
   }
   // o cabo de força arrastando atrás, ondulando no passo
   function cabo(c, x, pes, esquerda, agora, andando) {

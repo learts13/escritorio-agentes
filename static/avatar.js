@@ -255,9 +255,10 @@ const Avatar = (() => {
   function boneco(c, b, t, S) {
     const { pose, olha, f, oy, piscando } = estado(b, t);
     const x = Math.round(b.x - TAM / 2), y = Math.round(b.y - TAM + 1 - oy);
-    if (!b.sentado) { // sombra no chão (encolhe no pulo)
-      const w = oy > 2 ? 8 : 10;
-      c.fillStyle = "rgba(0,0,0,.22)"; c.fillRect((Math.round(b.x) - w / 2) * S, Math.round(b.y) * S, w * S, 2 * S);
+    if (!b.sentado) { // sombra de contato no chão, uma elipse achatada (encolhe no pulo)
+      const w = oy > 2 ? 8 : 12, sx = Math.round(b.x) - w / 2, sy = Math.round(b.y);
+      c.fillStyle = "rgba(0,0,0,.24)";
+      c.fillRect((sx + 2) * S, (sy - 1) * S, (w - 4) * S, S); c.fillRect(sx * S, sy * S, w * S, S); c.fillRect((sx + 2) * S, (sy + 1) * S, (w - 4) * S, S);
     }
     c.drawImage(quadro(b.ap, pose, olha, f, piscando), x * S, y * S, TAM * S, TAM * S);
     return { x, y };

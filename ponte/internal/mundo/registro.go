@@ -171,9 +171,18 @@ func (r *Registro) Aplicar(s Sinal) (mudou *Morador, saiu string) {
 	}
 
 	if !atrasado {
-		if s.Estado != "" && s.Estado != novo.Estado && !(s.ExcetoOcioso && novo.Estado == Ocioso) {
-			novo.Estado = s.Estado
-			novo.Desde = s.TS
+		if s.EsperaFraca && s.Estado == novo.Estado {
+			s.Espera, s.AceitaTexto = novo.Espera, novo.AceitaTexto // mesmo estado: fica a espera de quem sabe (o hook)
+		}
+		if s.Estado != "" && (s.Estado != novo.Estado || s.Espera != novo.Espera) && !(s.ExcetoOcioso && novo.Estado == Ocioso) {
+			if s.Estado != novo.Estado {
+				novo.Desde = s.TS
+			}
+			novo.Estado, novo.Espera = s.Estado, s.Espera
+			novo.Geracao++
+		}
+		if s.Estado != "" && novo.Estado == s.Estado && novo.Espera == s.Espera {
+			novo.AceitaTexto = s.AceitaTexto && s.Estado == EsperandoResposta
 		}
 		switch {
 		case s.Ferramenta != "":
@@ -258,6 +267,14 @@ func (r *Registro) idDe(terminalID, chave string) string {
 		return id
 	}
 	return chave
+}
+
+// IDDe diz qual morador é (ou vai ser) a sessão da fonte: a regra do idDe, para o pedido
+// de permissão aparecer no morador certo.
+func (r *Registro) IDDe(terminalID, fonte, sessao string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.idDe(terminalID, fonte+":"+sessao)
 }
 
 // encerrar marca a sessão e poda as marcas vencidas.

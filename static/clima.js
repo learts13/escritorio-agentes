@@ -65,22 +65,23 @@ const Clima = (() => {
       ctx.restore();
     }
     if (chove()) {
-      const alvo = k === "garoa" ? 120 : k === "tempestade" ? 520 : 320, vel = k === "garoa" ? 160 : 300;
+      // chuva leve, de fundo: poucas gotas e traço fraco, para não disputar o olho com o "!" e o "?" do mapa
+      const alvo = k === "garoa" ? 60 : k === "tempestade" ? 260 : 150, vel = k === "garoa" ? 160 : 300;
       while (gotas.length < alvo) gotas.push({ x: Math.random() * W, y: Math.random() * H, v: vel * (0.8 + Math.random() * 0.4) });
       gotas.length = Math.min(gotas.length, alvo);
       ctx.save(); clipFora(ctx, p);
-      ctx.fillStyle = "rgba(30,40,70,.12)"; ctx.fillRect(0, 0, W, H);                // chão molhado
+      ctx.fillStyle = "rgba(30,40,70,.1)"; ctx.fillRect(0, 0, W, H);                 // chão molhado
       // o traço tem pelo menos 1 px na tela: com o mapa afastado (escala < 1), a chuva sumia
       const tr = ctx.getTransform && ctx.getTransform(), escala = tr && tr.a > 0 ? tr.a : 1;
-      ctx.strokeStyle = "rgba(190,210,255,.55)"; ctx.lineWidth = Math.max(1, 1 / escala); ctx.beginPath();
+      ctx.strokeStyle = "rgba(190,210,255,.28)"; ctx.lineWidth = Math.max(1, 1 / escala); ctx.beginPath();
       const inclina = 0.18 + vento * 0.8;   // a chuva deita com o vento
       for (const g of gotas) {
         g.y += g.v * dt; g.x -= g.v * dt * inclina;
-        if (g.y > H || g.x < 0) { if (fora(p, g.x, g.y) && Math.random() < 0.3) respingos.push({ x: g.x, y: Math.min(g.y, H - 2), v: 0 }); g.y = -4; g.x = Math.random() * (W + 40 + inclina * H); }
+        if (g.y > H || g.x < 0) { if (fora(p, g.x, g.y) && Math.random() < 0.15) respingos.push({ x: g.x, y: Math.min(g.y, H - 2), v: 0 }); g.y = -4; g.x = Math.random() * (W + 40 + inclina * H); }
         ctx.moveTo(g.x, g.y); ctx.lineTo(g.x + 1.5 + (inclina - 0.18) * 5, g.y - 5);
       }
       ctx.stroke();
-      for (const r of respingos) { r.v += dt; ctx.fillStyle = `rgba(200,220,255,${0.6 - r.v * 2})`; ctx.fillRect(r.x - 1 - r.v * 6, r.y, 1, 1); ctx.fillRect(r.x + 1 + r.v * 6, r.y, 1, 1); }
+      for (const r of respingos) { r.v += dt; ctx.fillStyle = `rgba(200,220,255,${0.35 - r.v})`; ctx.fillRect(r.x - 1 - r.v * 6, r.y, 1, 1); ctx.fillRect(r.x + 1 + r.v * 6, r.y, 1, 1); }
       respingos = respingos.filter(r => r.v < 0.3);
       ctx.restore();
       if (som) som.chuva(k === "garoa" ? 0.25 : k === "tempestade" ? 0.9 : 0.55);

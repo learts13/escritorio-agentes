@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"firmopolis/ponte/internal/decisao"
 	"firmopolis/ponte/internal/servidor"
 )
 
@@ -202,7 +203,11 @@ func repassaComPIDDoPai(t *testing.T, rota string) {
 	if got.rota != "/evento/"+rota || string(got.corpo) != corpo {
 		t.Fatalf("rota ou corpo errado: %s %q", got.rota, got.corpo)
 	}
-	if got.header.Get("X-Ponte-Token") != tokenTeste || got.header.Get("X-Maestri-Terminal-Id") != "T9" {
+	// o token não viaja: vai o nonce e o HMAC dele sobre o nonce e o corpo
+	nonce := got.header.Get("X-Ponte-Nonce")
+	if got.header.Get("X-Ponte-Token") != "" || len(nonce) != 32 ||
+		!decisao.ConfereAssinatura(tokenTeste, got.header.Get("X-Ponte-Assinatura"), []byte(nonce), decisao.Soma(got.corpo)) ||
+		got.header.Get("X-Maestri-Terminal-Id") != "T9" {
 		t.Fatalf("headers: %v", got.header)
 	}
 	// O pai do ponte.exe é quem rodou o hook (aqui, o próprio teste): a ponte sobe dele

@@ -400,7 +400,9 @@ async function montar(lista, eu = "eu", globais = {}) {
       assert.ok(salas(sem).every(s => !s.mural) && salas(nulo).every(s => !s.mural), "sem store, sem mural");
       assert.equal(resumo(nulo), resumo(sem));
       assert.equal(resumo(com), resumo(sem), "o mural não mexe em mais nada do prédio");
-      assert.ok(salas(com).filter(s => s.mural).length >= salas(com).length - 1, "no máximo uma sala sem lugar na parede");
+      assert.ok(salas(com).every(s => s.tipo !== "banheiro" || !s.mural), "o banheiro não tem mural (não é canal)");
+      const comMural = salas(com).filter(s => s.tipo !== "banheiro");
+      assert.ok(comMural.filter(s => s.mural).length >= comMural.length - 1, "no máximo uma sala sem lugar na parede");
       for (const s of salas(com)) {
         const q = s.mural;
         if (!q) { assert.notEqual(s.tipo, "recepcao", "a recepção sempre tem o mural"); continue; }   // parede cheia (a cozinha): sem quadro

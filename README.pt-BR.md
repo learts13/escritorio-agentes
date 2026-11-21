@@ -52,8 +52,9 @@ Ele **não chama nenhum modelo de IA** e não gasta tokens. Aprovar é sempre no
 
 ## Recursos
 
-- 🏢 **Prédio montado pelos seus times:** recepção com o seu logo, uma sala por time (cresce com o número de agentes), corredor, sala de reunião, sala comunal e cozinha. Agente novo ganha mesa na sala "Novos".
-- 🖥️ **Terminais deste computador:** com a ponte local, cada terminal vira um terminalzinho no mapa. Ocupado, trabalha na sala do time (com o Maestri, cada workspace em uso ganha a sua sala sozinho); quando espera você, vai para a recepção com o "!" ou o "?"; livre, toma café e conversa no corredor com outro terminal livre. Terminais de outra máquina chegam pelo espelho, sem túnel (veja [Ponte local](#ponte-local-os-terminais-deste-computador)).
+- 🏢 **Prédio montado pelos seus times:** recepção com o seu logo, uma sala por time (cresce com o número de agentes), corredor, sala de reunião, sala comunal, cozinha e banheiro. Agente novo ganha mesa na sala "Novos". São no máximo 6 salas por fileira: os times a mais e as salas do Maestri descem para blocos mais abaixo, com as salas de projeto juntas sob a placa "Projetos".
+- 🖥️ **Terminais deste computador:** com a ponte local, cada terminal vira um terminalzinho no mapa. Ocupado, trabalha na sala do time (com o Maestri, cada workspace em uso ganha a sua sala sozinho); quando espera você, vai para a recepção com o "!" ou o "?"; livre, toma café e conversa no corredor com outro terminal livre. A cor diz o programa e o acessório diz o papel (coroa no Maestro, óculos e lupa no Auditor, capacete no Braçal). Terminais de outra máquina chegam pelo espelho, sem túnel (veja [Ponte local](#ponte-local-os-terminais-deste-computador)).
+- ✅ **Responder pelo escritório:** os pedidos de permissão do Claude Code, do Codex e do OpenCode ganham **Permitir** e **Negar** no cartão do terminal, e as perguntas dos terminais do Maestri e do OpenCode ganham um campo **Responder**, também no celular (veja [Responder pelo escritório](#responder-pelo-escritório-permitir-ou-negar-de-qualquer-lugar)).
 - 📻 **Rádio da firma:** três estações compostas na hora pelo navegador, sem arquivo de áudio, e uma rádio da internet opcional (veja [Rádio da firma](#rádio-da-firma)).
 - 🧹 **Zeladoria:** o banheiro suja e é interditado, a faxineira limpa, o zelador conserta o que quebra e o porteiro cuida da entrada (veja [Zeladoria](#zeladoria)).
 - 🧑‍💻 **Mapa vivo:** os agentes vão para a mesa e digitam quando recebem tarefa. Livres, jogam sozinhos fliperama, videogame, sinuca, pebolim, pingue-pongue, xadrez, dardos e basquete, tocam piano ou violão, tomam café ou conversam em dupla. Chegam de manhã e vão embora à noite pela porta da frente.
@@ -78,7 +79,7 @@ Ele **não chama nenhum modelo de IA** e não gasta tokens. Aprovar é sempre no
 - 🎞️ **Time-lapse do dia:** o dia do escritório num vídeo de uns 30 s, gravado só no seu navegador (veja [Time-lapse](#time-lapse)).
 - 📸 **Modo foto:** esconde a interface e salva um PNG do escritório.
 - 🧪 **Modo demonstração:** `?demo=1` mostra agentes fictícios e um dia acelerado, com ringue e greve, sem mandar nem ler nada do servidor. Bom para experimentar e para capturas de tela.
-- 🎥 **Câmera:** zoom com a roda ou a pinça, arrastar, duplo clique para focar uma sala, "Ir para…" um agente (`/` ou `Ctrl+K`) e atalhos (`+`, `-`, `0`).
+- 🎥 **Câmera:** zoom em degraus inteiros (1x, 2x, 3x...) com a roda, a pinça ou os botões, arrastar, duplo clique para focar uma sala, "Ir para…" um agente (`/` ou `Ctrl+K`) e atalhos (`+`, `-`, `0`).
 - 📱 **Funciona no celular**, com objetos clicáveis que também respondem ao teclado e ao toque.
 - 🔒 **Login** com usuário e senha, publicado **só na sua rede Tailscale**.
 
@@ -89,12 +90,12 @@ Todas as capturas saem do **modo demonstração** ou de uma prévia com **dados 
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/02-esperando-voce.png"><img src="./docs/screenshots/02-esperando-voce.png" alt="Aprovações num relance: um '!' sobre a Hana, que espera aprovação, e um '?' sobre a Cacau, que tem uma pergunta; a lista 'Esperando você' mostra os dois pedidos com os botões Revisar e Responder" width="100%"></a>
+      <a href="./docs/screenshots/02-esperando-voce.png"><img src="./docs/screenshots/02-esperando-voce.png" alt="Aprovações num relance, no modo demonstração: o prédio inteiro de dia, com um '!' sobre a Flora, que espera aprovação, e um '?' sobre o Gael, que tem uma pergunta, na sala Marketing; a lista 'Esperando você' mostra os dois pedidos com os botões Responder e Revisar" width="100%"></a>
       <p><em>Aprovações num relance: "!" e "?" no mapa e a lista "Esperando você".</em></p>
     </td>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/03-noite-chuva.png"><img src="./docs/screenshots/03-noite-chuva.png" alt="O escritório à noite na chuva: salas de time escuras e vazias, postes acesos e quase todo o time conversando e jogando na sala comunal e na sala de reunião" width="100%"></a>
-      <p><em>Noite e chuva: as luzes apagam nas salas vazias e os postes acendem.</em></p>
+      <a href="./docs/screenshots/03-noite-chuva.png"><img src="./docs/screenshots/03-noite-chuva.png" alt="O escritório às 18h48 na chuva: as salas Marketing e Ops acesas, com gente trabalhando, as outras salas de time escuras, postes e arandelas acesos e o resto do time na sala de reunião e na cozinha" width="100%"></a>
+      <p><em>Noite e chuva: só acende a sala com trabalho de verdade, e os postes acendem.</em></p>
     </td>
   </tr>
   <tr>
@@ -158,7 +159,7 @@ Todas as capturas saem do **modo demonstração** ou de uma prévia com **dados 
 </table>
 
 <p align="center">
-  <img src="./docs/screenshots/09-celular.png" alt="O escritório no celular: o mapa no topo, com agentes e balões de fala, e a lista 'Esperando você' com os botões Revisar e Responder embaixo" width="300">
+  <img src="./docs/screenshots/09-celular.png" alt="O escritório no celular: logo abaixo do título, o mapa alto, com a pílula da hora e do tempo em cima e a barra da câmera (−, 1x, +, Ver tudo e o menu ⋯) embaixo à esquerda; os filtros vêm depois do mapa" width="300">
 </p>
 
 ## Instalar
@@ -341,7 +342,7 @@ Uma camada de diversão sorteada pelo servidor. Os agentes livres fazem amizades
 - **Reclamações, sugestões e fofoca:** de vez em quando, um agente livre reclama do ar-condicionado ou sugere a sexta do bolo num balão, e dois livres vão cochichar no café sobre um terceiro ("Psiu…"), sem nome no balão.
 - **Greve:** no máximo uma por dia. Ela começa quando há pelo menos 4 livres insatisfeitos entre si, ou depois de 5 reclamações no dia. Até 8 livres sentam no chão na frente do ringue, com plaquinhas ("MAIS CAFÉ", "PUFE JÁ!"). Quem pega uma tarefa sai da greve na hora. Ela acaba sozinha em até 30 minutos ("Por hoje chega…") ou quando alguém clica na plaquinha ou no aviso **Atender o pedido**, e aí os grevistas ficam mais amigos ("Obrigado, chefe!") e o pedido chega, igual em todas as telas: o motoboy traz a pizza pela recepção e a turma come na frente do ringue, o entregador traz o café novo e todo mundo vai tomar um, alguém acerta o ar no 23 ("Ahh, agora sim"), sobe a faixa "Sexta livre aprovada!" com festinha... Uns 20 segundos depois, cada um volta para o seu canto.
 - **Melhores amigos e rivais:** a ficha mostra até 3 de cada, com o valor de 0 a 100, e a última briga do dia.
-- **Placar do ringue:** vitórias, derrotas e sequência de cada agente na semana (segunda a domingo, no horário de Brasília), com o top 3 num quadro na parede do ringue, o ranking completo ao clicar nele e o campeão da semana passada. As brigas automáticas e as mandadas contam; a cancelada antes do fim não conta. O vencedor aparece numa faixa acima do ringue.
+- **Placar do ringue:** vitórias, derrotas e sequência de cada agente na semana (segunda a domingo, no horário de Brasília), com o top 3 num quadro na parede do ringue e o campeão da semana passada. O ringue e o quadro só aparecem durante a briga; no resto do tempo a arena é chão livre, e clicar nela abre o ranking completo. As brigas automáticas e as mandadas contam; a cancelada antes do fim não conta. O vencedor aparece numa faixa acima do ringue.
 - **Modo sério:** a caixa no **Personalizar** pausa a camada inteira, sem eventos, brigas nem greve; a cena em curso some em até 10 s em todas as telas. Bom para apresentar.
 - **Demonstração e Simulação:** no modo demonstração (`?demo=1`), o ringue, a greve, o placar e o **Mandar pro ringue** também rodam, no próprio navegador, sem servidor: a primeira briga sai em cerca de um minuto, e a greve, um pouco depois. Os parâmetros da Simulação (`?hora=`, `?data=`, `?clima=`) desligam a vida social naquela aba.
 - **Recomeça ao reiniciar, menos o placar:** amizades, rivalidades e eventos ficam só na memória do serviço; reiniciar volta todo mundo ao ponto de partida, o mesmo para todos. Só o placar da semana vai para o disco, em `dados/placar.json` (até 64 KB e 500 agentes, gravado de forma atômica quando muda). Se o arquivo estiver ilegível, o placar recomeça vazio, com um aviso no log; a troca de conta no agentes.chat também o esvazia.
@@ -355,7 +356,7 @@ O prédio também tem quem cuide dele, e o banheiro pode ficar podre. Tudo roda 
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/26-banheiro-interditado.png"><img src="./docs/screenshots/26-banheiro-interditado.png" alt="O banheiro interditado no fim do corredor: a placa na porta WC, o balão 'Interditado' e dois terminaizinhos, Gil e Ivo, esperando na fila com o alerta" width="100%"></a>
+      <a href="./docs/screenshots/26-banheiro-interditado.png"><img src="./docs/screenshots/26-banheiro-interditado.png" alt="O banheiro, a sala da fileira de baixo ao lado da cozinha: três cabines, a bancada com duas cubas e espelho, papel e poças no chão; no corredor, na frente da porta, o cone, o balão 'Interditado' e dois terminaizinhos, Ivo e Rui, esperando na fila" width="100%"></a>
       <p><em>Interditado: a fila espera e, depois de um tempo, desiste.</em></p>
     </td>
     <td width="50%" align="center">
@@ -366,11 +367,11 @@ O prédio também tem quem cuide dele, e o banheiro pode ficar podre. Tudo roda 
 </table>
 
 <p align="center">
-  <a href="./docs/screenshots/27-faxineira-zelador.png"><img src="./docs/screenshots/27-faxineira-zelador.png" alt="Em cima, a faxineira Dona Rosa limpando a porta do banheiro com balde e rodo; embaixo, a zeladora Dona Neide com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'" width="900"></a>
+  <a href="./docs/screenshots/27-faxineira-zelador.png"><img src="./docs/screenshots/27-faxineira-zelador.png" alt="A mesma vista do banheiro e da cozinha: o faxineiro Seu Bené passando o rodo dentro do banheiro, entre as poças, e o zelador Seu Tião com a caixa de ferramentas na cozinha, ao lado da cafeteira com o balão 'Quebrada!'" width="900"></a>
 </p>
-<p align="center"><em>A faxineira no banheiro e a zeladora consertando a cafeteira.</em></p>
+<p align="center"><em>A faxina dentro do banheiro e o zelador consertando a cafeteira.</em></p>
 
-- **Sujeira:** cada ida ao banheiro suja um pouco, e o terminal apertado e quem furou a fila sujam mais. Acima de 60, aparecem moscas e linhas de fedor na porta WC, e quem sai mostra o balão "eca". Acima de 90, o banheiro fica **interditado**, com placa: ninguém entra, a fila espera com o alerta e, depois de um tempo, desiste. Depois do café e do lanche, sobram copos e migalhas no chão.
+- **Sujeira:** cada ida ao banheiro suja um pouco, e o terminal apertado e quem furou a fila sujam mais. A sujeira aparece no chão do banheiro (papel, poças, o papel higiênico saindo da cabine). Acima de 60, aparecem moscas e linhas de fedor nas cabines, e quem sai mostra o balão "eca". Acima de 90, o banheiro fica **interditado**, com o cone de piso molhado e a placa na porta: ninguém entra, a fila espera com o alerta e, depois de um tempo, desiste. Depois do café e do lanche, sobram copos e migalhas no chão.
 - **Faxina:** quando a sujeira passa de 60, ou numa ronda (mais frequente à noite), a faxineira entra pela rua com balde e rodo, limpa o banheiro com brilho, recolhe copos e migalhas e vai embora.
 - **Manutenção:** de vez em quando algo quebra. Com a cafeteira quebrada, ninguém toma café (agentes, roda e terminais desistem, com o alerta). Com uma luminária do corredor quebrada, ela pisca. O zelador vem com a caixa de ferramentas, conserta com faíscas e vai embora.
 - **Portaria:** no expediente, o porteiro fica na entrada, lê o jornal, toma café e cumprimenta quem chega. Fora do expediente, o vigia assume com a lanterna e faz a ronda.
@@ -406,14 +407,14 @@ Para deixar o escritório numa TV na parede ou num segundo monitor. Abra pelo bo
 
 ## Modo apresentação
 
-Para mostrar a tela numa chamada com cliente ou postar um print sem vazar nada. Ligue pelo botão na barra da câmera ou com `Alt+Shift+P`; ele fica lembrado na aba até fechá-la.
+Para mostrar a tela numa chamada com cliente ou postar um print sem vazar nada. Ligue pelo menu "⋯" da barra da câmera ou com `Alt+Shift+P`; ele fica lembrado na aba até fechá-la.
 
 - **O que muda:** os bonecos ficam, mas os nomes viram "Agente 1", "Pessoa 2" e "Você", numerados na ordem em que aparecem; os balões somem; e a tela esconde o que mostra nome de gente ou de agente, título de tarefa, conversa, chat da sala, mural, recado de status, placar, as páginas Conversas, Aprovações e Jornal, o título e os convidados das reuniões e os links das salas no **Personalizar** (o link do Zoom pode levar a senha em `?pwd=`). O aviso de 5 minutos da reunião diz só "Uma reunião começa em breve".
 - **Só tela, não é controle de acesso:** o modo só esconde o que aparece nesta tela. Quem tem a sessão continua lendo tudo pela API e pelo DevTools do navegador, e o servidor responde igual. Não entregue um navegador logado a quem não deve ver os dados.
 
 ## Rádio da firma
 
-Um rádio na parede da Sala comunal. Clique nele (ou chegue nele com `Tab` e aperte `Enter`), ou no botão de rádio da barra da câmera, para abrir o controle: ligar e desligar, a estação e o volume. Não há nada para instalar nem configurar.
+Um rádio na parede da Sala comunal. Clique nele (ou chegue nele com `Tab` e aperte `Enter`), ou em "Rádio da firma", no menu "⋯" da barra da câmera, para abrir o controle: ligar e desligar, a estação e o volume. Não há nada para instalar nem configurar.
 
 <p align="center">
   <a href="./docs/screenshots/29-radio.png"><img src="./docs/screenshots/29-radio.png" alt="O controle da Rádio Firmópolis aberto em cima da sala comunal: o botão Desligar o rádio, as estações Lo-fi da firma (escolhida), Chiptune do fliperama e Jazz da cafeteria, o volume e 'Tocando: Lo-fi da firma'" width="900"></a>
@@ -553,18 +554,18 @@ Os terminais rodam numa VM ou em outra máquina? Pule estes passos e use o [espe
 <table>
   <tr>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/24-terminais-salas-maestri.png"><img src="./docs/screenshots/24-terminais-salas-maestri.png" alt="O prédio com terminaizinhos de vários programas, todos fictícios: Nina · Codex na recepção esperando aprovação, Ada · Claude Code +2 na sala de reunião, Gil · Claude Code na sala comunal e Lin · Codex, Rui · OpenCode, Bea · agy e Zé · MiniMax nas salas Loja e Front, criadas sozinhas para o Maestri" width="100%"></a>
-      <p><em>Terminais de cinco programas e as salas automáticas do Maestri.</em></p>
+      <a href="./docs/screenshots/35-planta-blocos.png"><img src="./docs/screenshots/35-planta-blocos.png" alt="O prédio inteiro em tela cheia, com dados fictícios: em cima, a recepção e as salas Diretoria, Ops, Produto e Vendas; no meio, a sala de reunião, a sala comunal, a cozinha e o banheiro; embaixo, num bloco com corredor próprio, as salas Loja Online, App Mobile e Site Novo, criadas sozinhas para os workspaces do Maestri sob a placa Projetos" width="100%"></a>
+      <p><em>A planta em blocos: as salas do Maestri juntas, sob "Projetos".</em></p>
     </td>
     <td width="50%" align="center">
-      <a href="./docs/screenshots/25-cartao-terminal.png"><img src="./docs/screenshots/25-cartao-terminal.png" alt="O cartão do terminal Ada, o Maestro de coroa, na sala de reunião: Claude Code, Trabalhando, projeto, o que está fazendo, workspace, 2 ajudantes, desde quando, as necessidades em barras e o dia de hoje" width="100%"></a>
-      <p><em>O cartão do terminal: o Maestro, de coroa, com as necessidades e o dia dele.</em></p>
+      <a href="./docs/screenshots/36-terminais-papeis.png"><img src="./docs/screenshots/36-terminais-papeis.png" alt="Seis terminaizinhos fictícios lado a lado na sala Loja Online, no zoom 3x, com o nome curto: Maestro de coroa, Auditor de óculos e lupa, Braçal e Implementador de capacete (este com o '!'), Gemini azul do agy e Docs rosa do MiniMax" width="100%"></a>
+      <p><em>A cor diz o programa; o acessório, o papel.</em></p>
     </td>
   </tr>
 </table>
 
 
-- **No mapa:** cada terminal entra pela rua com o nome e o programa na etiqueta ("Ada · Codex"). Ocupado, trabalha na sala do time dele (com o Maestri, a sala do workspace). Quando espera a sua aprovação ou resposta, ou deu erro, vai para a recepção com o "!" ou o "?". Livre, fica na sala comunal ou na cozinha.
+- **No mapa:** cada terminal entra pela rua. A cor diz o programa (Claude Code laranja, Codex prata, OpenCode verde, agy azul, MiniMax rosa, outros lilás) e o papel, lido do nome do Maestri ("Papel · Modelo"), ganha um acessório: coroa no Maestro, óculos e lupa no Auditor, capacete no Braçal e no Implementador. Na vista geral, só os bonecos e os selos "!"/"?"; de 2x para cima, o nome curto ("Maestro"); o nome completo fica no cartão. Ocupado, trabalha na sala do time dele (com o Maestri, a sala do workspace). Quando espera a sua aprovação ou resposta, ou deu erro, vai para a recepção com o "!" ou o "?". Livre, fica na sala comunal ou na cozinha.
 - **Café e conversa:** cada terminal tem as duas necessidades, que caem mais depressa enquanto ele trabalha. Livre, depois de uma pausa, vai à cafeteira ou chama outro terminal livre para um papo no corredor. É só cosmético, e o estado real manda: se o terminal volta a trabalhar, larga o café na hora.
 - **Segurança:** a ponte só escuta em 127.0.0.1 e só aceita o WebSocket de uma origem da lista com o token certo. O navegador recebe uma versão reduzida: sem o alvo da atividade (arquivo ou comando) e sem o histórico do dia.
 - **Sem a ponte:** o app tenta de novo, com espera crescente até 1 minuto, e não mostra erro na tela. No Chrome, a primeira conexão pode pedir a permissão de acesso à rede local. O Safari pode recusar `ws://` vindo de uma página https.
@@ -582,6 +583,49 @@ Se os terminais rodam numa máquina (uma VM, por exemplo) e você abre o Firmóp
 - **Em que andar aparece:** no modo clássico, no andar principal. No modo saguão, o saguão nunca recebe o espelho; defina `ESCRITORIO_PONTE_ANDAR` com o id do andar da empresa que deve ver os terminais.
 - **Como funciona:** a ponte manda um `POST /api/ponte/espelho` com a chave no `Authorization: Bearer`, só por https, uns 2 s depois de cada mudança e, no mínimo, a cada 30 s. Se o servidor não responde, ela espera mais a cada falha, até 5 minutos, sem travar. O servidor guarda só na memória, e o app lê `GET /api/ponte` a cada 3 s. Passados 90 s sem nada, o espelho conta como desligado. A ponte local deste computador, se estiver ligada, tem prioridade.
 - **Segurança:** com o espelho ligado, **os nomes dos terminais, dos projetos, dos workspaces e das bands passam a ir ao servidor**, com os estados e o nome das ferramentas. Nunca vai o alvo (arquivo ou comando) nem os membros das bands. O servidor confere tudo com os mesmos limites do app (48 terminais, nomes de até 40 letras, 32 workspaces, 200 eventos do dia por terminal) e aceita até 256 KB por envio, no máximo um por segundo. Só quem é do andar lê; o saguão, as visitas e quem não entrou não recebem nada. A chave fica no `espelho.json` da pasta da ponte (só o seu usuário lê) e em `dados/ponte-espelho.chave` no servidor (0600). Ela nunca vai ao log. Gerar outra chave faz a anterior parar de valer na hora.
+
+### Responder pelo escritório: Permitir ou Negar de qualquer lugar
+
+Quando um terminal do Claude Code, do Codex ou do OpenCode pede permissão (o "!" na recepção), quem decide vê no cartão do terminal e no aviso "Esperando você" a ferramenta, um resumo do pedido e quanto tempo falta, com os botões **Permitir** e **Negar**. Vale no navegador deste PC (pela ponte local) e no celular ou em outra máquina (pelo espelho). O diálogo do terminal continua na tela: quem responder primeiro, lá ou no Firmópolis, leva. Quando o terminal faz uma pergunta (o "?"), dá para responder com um texto curto (veja abaixo).
+
+- **Quais programas:** Permitir/Negar vale no Claude Code, no Codex e no OpenCode; responder uma pergunta, nos terminais do Maestri e no OpenCode. O agy e o MiniMax soltos só mostram o estado (o "!" ou o "?" no mapa): responda no terminal.
+- **Para ligar, em resumo:** na máquina dos terminais, `ponte setup --aplicar` (ou `ponte conectar <endereço>`) já liga no navegador deste PC. Para decidir pelo celular, acrescente `--decidir-remoto`. No Codex, rode `/hooks` e aprove de novo os hooks do `ponte`. Quem decide é o admin do prédio (e quem estiver em `ESCRITORIO_PONTE_DECISORES`).
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/37-cartao-permitir.png"><img src="./docs/screenshots/37-cartao-permitir.png" alt="O cartão do terminal fictício Implementador · Sonnet, de capacete, que pede aprovação: o pedido 'Bash · npm test -- --watch=false', 'vence em 98 s', os botões Permitir e Negar e a nota do que passa pelo servidor; no mapa, o Implementador com o '!' ao lado do Maestro, do Auditor e do Braçal" width="100%"></a>
+      <p><em>Um pedido de permissão: Permitir ou Negar no cartão.</em></p>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/screenshots/38-cartao-responder.png"><img src="./docs/screenshots/38-cartao-responder.png" alt="O cartão do terminal fictício Revisor · Codex, que tem uma pergunta: 'Pergunta · o texto dela está no terminal', o campo com 'Pode usar a branch nova', o botão Responder e a nota 'O texto é digitado no terminal, seguido de Enter'; no mapa, o Revisor com o '?' na recepção" width="100%"></a>
+      <p><em>Uma pergunta: o texto vai para o terminal, com Enter.</em></p>
+    </td>
+  </tr>
+</table>
+
+
+- **Quem decide:** o admin do prédio e, além dele, os logins da variável `ESCRITORIO_PONTE_DECISORES` (separados por vírgula). Membro comum só vê. Só no andar da ponte (o mesmo do espelho), nunca no saguão nem na prévia.
+- **Como liga:** `ponte setup --aplicar` (ou `ponte conectar`) instala, além dos hooks de estado, um hook síncrono só no `PermissionRequest` do Claude Code e do Codex (`ponte decidir`), e o plugin do OpenCode passa a esperar a decisão. No Codex, rode `/hooks` e aprove de novo os hooks do `ponte`. Assim já vale no navegador deste PC.
+- **Pelo celular é opt-in, na máquina dos terminais:** `ponte conectar <endereço> --decidir-remoto` ou, com o espelho já ligado, `ponte setup --aplicar --decidir-remoto` (`--sem-decidir-remoto` desliga). Sem isso, nenhum pedido vai ao servidor e a ponte nem pergunta por decisões lá. Fica em `decidir_remoto` no `espelho.json`.
+- **Sem atraso para quem está no terminal:** a ponte só segura o pedido se alguém que decide está com o Firmópolis aberto (a página visível neste PC, ou o mapa aberto no celular, pelo servidor). Sem ninguém, o hook volta na hora e o terminal mostra o diálogo de sempre. O pedido espera até 2 minutos no Claude Code e no OpenCode, e 25 s no Codex; sem resposta, o terminal segue com o diálogo dele. No Claude Code, o diálogo aparece enquanto o hook espera (conferido no 2.1.327).
+- **O que vai ao servidor (só com o `--decidir-remoto` e alguém que decide com o mapa aberto):** a ferramenta e um resumo do pedido, **mascarado** (tokens, senhas, chaves e prompts passados a outros agentes viram `***`) e cortado em **300 caracteres**: o comando, o arquivo relativo à pasta do projeto ou a URL sem credenciais. Nunca a entrada inteira da ferramenta, a pasta completa, as sugestões de permissão nem a conversa. Só quem decide recebe os pedidos; o servidor guarda tudo só na memória.
+- **Na dúvida, só Negar:** de longe, só dá para permitir um comando do Bash (com as chaves de sempre: o comando, a descrição, o prazo e o segundo plano) ou uma busca de URL sem query; escrita de arquivo (Write, Edit, MultiEdit, NotebookEdit, o "edit" do OpenCode), ferramenta de MCP e qualquer chave fora dessa lista ficam só com Negar. Também fica só com Negar se o resumo foi cortado, está vazio, a ferramenta tem nome comprido demais ou o arquivo está fora do projeto (a tela mostra "fora do projeto: …/.ssh/authorized_keys"), o pedido fica marcado como incompleto e, de longe, só dá para negar; para permitir, responda no terminal. Caracteres invisíveis ou que invertem o texto (controle, bidi, largura zero) aparecem como uma marca, como `‹U+202E›`. Perguntas (`AskUserQuestion`) e planos (`ExitPlanMode`) seguem só no terminal.
+- **Como funciona:** cada pedido tem um id de 128 bits, vale uma decisão só e vence no prazo. Pelo celular, a decisão vai por `POST /api/ponte/decidir` (com a sessão, só da origem do próprio site, até 20 por minuto por pessoa) e a ponte a busca por long-poll, `GET /api/ponte/decisoes`, com a mesma chave do espelho. **A ponte nunca abre porta:** ela só faz pedidos de dentro para fora, e segue ouvindo só em `127.0.0.1`. O hook não manda o token: manda um nonce e o HMAC do token sobre ele e o pedido, e só aceita a resposta assinada pela ponte, para outro programa na porta não decidir no lugar dela. Os eventos de estado (`ponte hook` e o plugin do OpenCode) também vão assinados, sem o token. Na transição, a ponte ainda aceita o token puro nos eventos, para o plugin do OpenCode de uma versão anterior, até o próximo `ponte setup --aplicar`.
+- **Risco aceito:** o navegador deste PC ainda leva o token (no `localStorage`, para abrir o `/ws`). A ponte supõe uma máquina de uma pessoa só: quem usa a mesma conta do sistema, ou consegue rodar código na página, já tem o token.
+- **Celular pela Tailscale:** com o app da Tailscale ligado no celular, ele abre o escritório normalmente (`https://<sua-máquina>.<sua-tailnet>.ts.net/`) e os botões aparecem para quem decide. Não é preciso porta pública nem túnel para a ponte.
+- **Segurança:** quem consegue rodar código na página do Firmópolis (um XSS) poderia aprovar um comando. Por isso a página só aceita scripts do próprio site (CSP `script-src 'self'`, sem `unsafe-inline`), os dados da ponte vão para a tela só como texto, e o servidor confere a origem, o papel, o andar e o formato de cada decisão. O log guarda quem decidiu, o id (cortado), a ação, a ferramenta e a espera; nunca o resumo, o cookie ou a chave.
+
+#### Responder uma pergunta
+
+Quando o terminal espera a sua resposta (o "?"), o cartão dele ganha um campo e o botão **Responder** (no aviso "Esperando você", o botão abre o cartão). **O texto é digitado no terminal e enviado com Enter**, como se você o escrevesse lá. As regras de quem decide, do andar e do `--decidir-remoto` são as mesmas do Permitir/Negar.
+
+- **Onde vale:** nos terminais do Maestri (Claude Code, Codex, agy e MiniMax Code), a ponte digita o texto pelo `maestri ask "<terminal>" --raw "<texto>\n"`, sem shell. No OpenCode, o plugin responde pela API de perguntas dele (`POST /question/{id}/reply`), só quando é uma pergunta só que aceita texto livre, e o cartão mostra o texto da pergunta, mascarado. Fora do Maestri (Claude, Codex e agy soltos), não há botão: responda no terminal.
+- **Só quando a espera aceita texto:** no Claude Code, quem decide é o hook: o formulário de elicitação do MCP (`elicitation_dialog`) e, do `agent_needs_input`, só a pergunta escrita ("Your cloud session needs an answer before it can start"). O "input needed" do arquivo de sessão vale para toda elicitação, inclusive a de link, então ele nunca liga o botão sozinho nem desfaz o que o hook disse. Diálogos de opções (o pedido de rede do sandbox, a troca de modo, créditos de uso, Remote Control, a proposta de objetivo, o link de elicitação, o "Teammate setup" de iTerm2 ou tmux e os avisos do modo auto) e qualquer tipo ou mensagem desconhecidos não ganham botão: lá, texto e Enter confirmariam a opção padrão.
+- **O texto:** uma linha só, até 1000 caracteres, sem começar com hífen, sem barra invertida e sem caracteres invisíveis (quebra de linha, tab, ESC, controle, bidi, largura zero). Esses textos são **recusados**, nunca trocados: a quebra de linha mandaria a resposta pela metade, e o `maestri --raw` lê `\n`, `\e` e `\xNN` como teclas. A ponte põe um único Enter no fim. O navegador, o servidor e a ponte conferem a mesma regra.
+- **Só na pergunta, uma vez:** a resposta só é entregue se o terminal está na pergunta naquela hora e o pedido é dessa pergunta (senão, 409 ou 410). Nunca vai para um terminal na aprovação: lá, o texto viraria tecla no diálogo de permissão. Na hora de digitar, a ponte confere de novo que a espera é a mesma (qualquer mudança de estado ou de tipo de espera muda a "geração" do terminal) e resolve o terminal de novo; se algo mudou, não digita. Se o `maestri` falhar, a pergunta não reabre, para não responder duas vezes. Cada pergunta vale uma resposta, fica aberta 5 minutos (vencida com o terminal ainda na pergunta, a ponte abre outra) e espera mesmo sem ninguém com o mapa aberto. Até 20 tentativas por minuto.
+- **Como a ponte acha o terminal:** o `maestri` só funciona com o socket do app e um terminal de quem chama, e só alcança os terminais conectados a quem chama (um terminal não alcança a si mesmo). O serviço da ponte acha o socket sozinho (o `/tmp/maestri-*/maestri.sock` mais novo, só do próprio usuário e com a pasta fechada) e o binário (`MAESTRI_CLI`, o `PATH` ou `/opt/maestri-box/resources/cli/maestri`), roda `maestri list` como o terminal da pergunta e chama como um terminal conectado a ele, do mesmo workspace (o Maestro primeiro). O binário precisa ser do root ou do próprio usuário, sem escrita para grupo e outros. Sem o binário, sem o socket, sem ninguém conectado, com o nome do terminal repetido em outro workspace (sem diferença de maiúsculas) ou começando com hífen, o botão não aparece. No Windows, só com o `MAESTRI_SOCKET` no ambiente da ponte.
+- **O que fica registrado:** a ponte e o servidor guardam só o tamanho do texto, nunca o conteúdo. Pelo celular, o texto passa pelo servidor (na memória) até a ponte buscá-lo.
 
 ## Jornal
 

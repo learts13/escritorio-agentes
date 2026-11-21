@@ -100,6 +100,49 @@ func TestNotificacoes(t *testing.T) {
 	nenhum(t, hook("Notification", `"notification_type":"auth_success","message":"x"`))
 }
 
+// Só a espera que pede uma resposta escrita aceita texto digitado; diálogo de opções nunca.
+func TestAceitaTextoSoNaListaPositiva(t *testing.T) {
+	notif := map[string]bool{"elicitation_dialog": true, "elicitation_url_dialog": false, "permission_prompt": false}
+	for tipo, aceita := range notif {
+		s := um(t, hook("Notification", `"notification_type":"`+tipo+`","message":"x"`))
+		if s.AceitaTexto != aceita || aceita && s.Espera != "notificacao:"+tipo {
+			t.Errorf("%s: %+v", tipo, s)
+		}
+	}
+	// agent_needs_input: só a pergunta escrita; o "Teammate setup" (iTerm2 ou tmux), os avisos do
+	// modo auto e o desconhecido são diálogos de opções
+	mensagens := map[string]bool{
+		"Your cloud session needs an answer before it can start":              true,
+		"Teammate setup needs your input":                                     false,
+		"Auto mode has a classifier billing notice to acknowledge":            false,
+		"Auto mode can't check actions in this session and needs your choice": false,
+		"Builder needs your input: pick a branch":                             false,
+		"": false,
+	}
+	esperas := map[string]bool{}
+	for msg, aceita := range mensagens {
+		s := um(t, hook("Notification", `"notification_type":"agent_needs_input","message":"`+msg+`"`))
+		if s.Estado != mundo.EsperandoResposta || s.AceitaTexto != aceita {
+			t.Errorf("agent_needs_input %q: %+v", msg, s)
+		}
+		esperas[s.Espera] = true
+	}
+	if len(esperas) != len(mensagens) {
+		t.Error("cada mensagem é uma espera diferente (a troca muda a geração)")
+	}
+	// o arquivo nunca liga o AceitaTexto (o "input needed" vale também para a elicitação de link);
+	// o "input needed" é fraco: não troca a espera que o hook pôs
+	arquivo := map[string]bool{"input needed": true, "Input Needed": true, "dialog open": false, "sandbox request": false,
+		"goal proposal": false, "algo novo": false, "": false}
+	for w, fraca := range arquivo {
+		sinais := Reconciliar(nil, map[string]Sessao{"s": {SessionID: "s", Status: "waiting", WaitingFor: w, PID: 1}},
+			func(int, uint64) bool { return true })
+		if len(sinais) != 1 || sinais[0].AceitaTexto || sinais[0].EsperaFraca != fraca {
+			t.Errorf("waitingFor %q: %+v", w, sinais)
+		}
+	}
+}
+
 func TestPermissionRequestEsperandoPermissao(t *testing.T) {
 	s := um(t, hook("PermissionRequest", `"tool_name":"Bash","tool_input":{"command":"rm -rf build"}`))
 	if s.Estado != mundo.EsperandoPermissao {

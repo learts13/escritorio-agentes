@@ -54,7 +54,7 @@ class Validacao(unittest.TestCase):
         self.assertLessEqual(len({d["morador_id"] for d in v["dia"]}), 200)
 
     def test_formato_errado(self):
-        for ruim in (None, [], {"v": 2, "moradores": []}, {"v": 1}, {"v": 1, "moradores": {}}):
+        for ruim in (None, [], {"v": 3, "moradores": []}, {"v": 1}, {"v": 1, "moradores": {}}):
             with self.assertRaises(ValueError):
                 pe.validar(ruim)
 
@@ -169,7 +169,7 @@ class Http(unittest.TestCase):
         pasta = tempfile.mkdtemp(prefix="espelho-http-")
         self.addCleanup(shutil.rmtree, pasta, True)
         self.srv.espelho_ponte = pe.Espelho(None, os.path.join(pasta, "ponte-espelho.chave"))
-        self.assertEqual(self.ler(self.dono)[1], {"ativo": False, "espelho": ""})
+        self.assertEqual(self.ler(self.dono)[1], {"ativo": False, "espelho": "", "decidir": True})
         ana = self.membro("anachave")
         self.assertEqual(self.post("/api/ponte/chave", {"acao": "gerar"}, ana)[0], 403, "só o admin do prédio")
         self.assertEqual(self.post("/api/ponte/chave", {"acao": "gerar"}, self.dono, origem="https://outro.exemplo")[0], 403)

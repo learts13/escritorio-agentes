@@ -39,7 +39,7 @@ const Brincar = (() => {
       else if (a.tipo === "gato") add("gato", "Gato", "fazer carinho", a, a);
     }
     for (const q of P.quadros || []) { const d = DO_QUADRO[q.nome]; if (d) add(d[0], d[1], d[2], q, q); }
-    if (P.ringue) add("placar", "Placar do ringue", "ver o ranking", P.ringue.quadro || P.ringue, P.ringue);   // sem quadro, o próprio ringue abre o ranking
+    if (P.ringue) add("placar", "Placar do ringue", "ver o ranking", P.ringue, P.ringue);   // a arena (o ringue e o quadro só aparecem na briga) abre o ranking
     itens.sort((a, b) => a.y - b.y || a.x - b.x);   // ordem de leitura para o Tab
     montarCamada();
   }
@@ -272,7 +272,7 @@ const Brincar = (() => {
       document.querySelector(".barra-foto")?.remove();
       corpo.classList.remove("modo-foto", "moldura");
       if (foto.ligouCheio) telaCheia(false); else ajustarEscala();
-      foto = null; document.getElementById("modo-foto")?.focus();
+      foto = null; const bt = document.getElementById("modo-foto"); if (window.focarOuMenu) focarOuMenu(bt); else bt?.focus();
     }
   }
   function salvarFoto() {

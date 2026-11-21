@@ -108,25 +108,48 @@ func TestConectarServicoNoLinux(t *testing.T) {
 func TestSetupEspelho(t *testing.T) {
 	dir := t.TempDir()
 	var saida strings.Builder
-	if err := setupEspelho(dir, "https://firmo.exemplo.com", chaveConectar, false, &saida); err != nil {
+	if err := setupEspelho(dir, "https://firmo.exemplo.com", chaveConectar, false, false, &saida); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := servidor.LerEspelho(dir); ok {
 		t.Fatal("o --plano não grava")
 	}
-	if err := setupEspelho(dir, "https://firmo.exemplo.com", chaveConectar, true, &saida); err != nil {
+	if err := setupEspelho(dir, "https://firmo.exemplo.com", chaveConectar, false, true, &saida); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := servidor.LerEspelho(dir); !ok || strings.Contains(saida.String(), chaveConectar) {
 		t.Fatalf("grava e nunca mostra a chave:\n%s", saida.String())
 	}
-	if err := setupEspelho(dir, "", "", true, &saida); err != nil {
+	if err := setupEspelho(dir, "", "", false, true, &saida); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := servidor.LerEspelho(dir); ok {
 		t.Fatal("o --sem-espelho apaga")
 	}
+	// a decisão pelo servidor é opt-in: desligada por padrão, ligada só com --decidir-remoto
+	if err := setupEspelho(dir, "https://firmo.exemplo.com", chaveConectar, false, true, &saida); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := servidor.LerEspelho(dir); c.DecidirRemoto {
+		t.Fatal("decidir remoto vem desligado")
+	}
+	if err := setupDecidirRemoto(dir, true, true, &saida); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := servidor.LerEspelho(dir); !c.DecidirRemoto {
+		t.Fatal("--decidir-remoto liga")
+	}
+	if err := setupDecidirRemoto(dir, false, true, &saida); err != nil {
+		t.Fatal(err)
+	}
+	if c, ok := servidor.LerEspelho(dir); !ok || c.DecidirRemoto {
+		t.Fatal("--sem-decidir-remoto desliga e mantém o espelho")
+	}
+	if err := setupDecidirRemoto(t.TempDir(), true, true, &saida); err == nil {
+		t.Fatal("sem espelho, não liga")
+	}
 	for _, args := range [][]string{{"--aplicar", "--espelho", "https://x.com"}, {"--aplicar", "--sem-espelho", "--espelho", "https://x.com", "--chave-espelho", chaveConectar},
+		{"--aplicar", "--decidir-remoto", "--sem-decidir-remoto"}, {"--aplicar", "--sem-espelho", "--decidir-remoto"},
 		{"--espelho", "https://x.com", "--chave-espelho", chaveConectar}} {
 		if err := setup(args, io.Discard); err == nil {
 			t.Fatalf("%v deveria dar o uso", args)

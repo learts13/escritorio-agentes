@@ -45,7 +45,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import andares as mod_andares  # noqa: E402
 from andares import PRINCIPAL as ANDAR_PRINCIPAL, Andares, AndaresIlegiveis  # noqa: E402
 from acesso import (ARQ_CODIGO, ARQ_USUARIOS, Acesso, ContaExiste, ConviteInvalido, ConvitesDemais, NaoGravou,  # noqa: E402
-                    TentativasDemais, UltimoAdmin, UsuariosIlegiveis, gravar, ler_codigo, ler_usuarios)
+                    TentativasDemais, UltimoAdmin, UsuariosIlegiveis, _normalizar_usuario, gravar, ler_codigo,
+                    ler_usuarios)
 import ajustes  # noqa: E402
 import vapid  # noqa: E402
 from ajustes import (ACESSORIOS, CLIMA_BYTES, CORES, EQUIPE_BYTES, FESTAS_BYTES, HANDLE_OK, ICONES_OK, OLHOS,  # noqa: E402
@@ -64,7 +65,7 @@ from visitas_sala import Salas, LimiteRequisicoes  # noqa: E402
 from presenca import Limite as LimitePresenca, Presenca  # noqa: E402
 import ponte_espelho  # noqa: E402
 
-VERSAO = "2.1.0"
+VERSAO = "2.2.0"
 AGENTES_PADRAO = "https://app.agentes.chat"
 # a nuvem ou a sua instalação self-host (o PUBLIC_URL dela): o main() confere (erro_agentes)
 AGENTES = os.environ.get("AGENTES_URL", "").strip().rstrip("/") or AGENTES_PADRAO
@@ -102,6 +103,9 @@ MAX_TEXTO_VISITA = 1000
 # saguão é de todo o prédio)
 PONTE_CHAVE_BRUTA = os.environ.get("ESCRITORIO_PONTE_CHAVE", "").strip()
 PONTE_ANDAR = os.environ.get("ESCRITORIO_PONTE_ANDAR", "").strip()
+# responder pelo escritório (Permitir/Negar dos pedidos de permissão da ponte): o admin do prédio e, além dele, os logins
+# desta lista (separados por vírgula). Só no andar da ponte, nunca no saguão nem na prévia
+PONTE_DECISORES = frozenset(_normalizar_usuario(u) for u in os.environ.get("ESCRITORIO_PONTE_DECISORES", "").split(",") if u.strip())
 ROTAS_ADMIN_VISITAS = ("/api/visitas/criar", "/api/visitas/revogar", "/api/visitas/anfitrioes",
                        "/api/visitas/recepcionista")
 ORG = os.environ.get("AGENTES_ORG", "").strip().lower()  # id da organização no agentes.chat; obrigatório no main()
@@ -2917,8 +2921,10 @@ EQUIPE_GET, EQUIPE_POST = EQUIPE_GET | REUNIAO_GET, EQUIPE_POST | REUNIAO_POST
 MEMBRO_GET = frozenset({"/", "", "/api/estado", "/api/config", "/api/social", "/api/social/placar", "/api/jornal",
                         "/api/linha", "/api/fora", "/api/novidades", "/api/avisos", "/api/push/chave", "/api/perfil", "/api/ao-vivo",
                         "/api/ponte"}) | EQUIPE_GET
+# o /api/ponte/decidir passa pela guarda para quem é do andar: a rota confere se a pessoa decide (admin do prédio ou
+# ESCRITORIO_PONTE_DECISORES); membro comum só vê
 MEMBRO_POST = frozenset({"/sair", "/api/sair-todos", "/api/push/assinar", "/api/push/sair", "/api/perfil",
-                         "/api/presenca", "/api/sala/enviar"}) | EQUIPE_POST
+                         "/api/presenca", "/api/sala/enviar", "/api/ponte/decidir"}) | EQUIPE_POST
 # 1.6: a guarda decide pelo papel NO ANDAR do pedido (?andar=). Do prédio, para toda conta com pelo menos 1 andar: a
 # própria conta, o push e as novidades. O admin da empresa, só no andar dele: o do membro, mais marca, logo, times,
 # planta, membros e convites, a conexão OAuth, as conversas e o modo resposta. A pessoa do prédio (modo saguão), só no
@@ -3658,6 +3664,8 @@ class Pagina(BaseHTTPRequestHandler):
                 if t and len(dados) <= LOGO_MAX:
                     return self._envia(200, dados, t, cache="private, max-age=86400")
             return self._estatico("logo.png")
+        if rota == "/api/ponte/decisoes":   # a ponte, com o Bearer do espelho (sem sessão)
+            return self._get_decisoes_ponte(caminho)
         usuario = self._usuario()
         if not usuario:
             if rota.startswith("/api/"):
@@ -4176,11 +4184,112 @@ class Pagina(BaseHTTPRequestHandler):
             return self._sem_andar()
         espelho = getattr(self.server, "espelho_ponte", None)
         resposta = {"ativo": False}
-        if espelho is not None and not andar.saguao and andar.id == (PONTE_ANDAR or ANDAR_PRINCIPAL):
-            resposta = espelho.ler()
+        decide = self._decide_pela_ponte(andar)
+        if espelho is not None and self._andar_da_ponte(andar):
+            resposta = espelho.ler(decide)   # os pedidos de permissão, só para quem decide
         if self._admin_do_predio():   # a tela mostra o gerar/desligar só a quem pode; a chave nunca volta aqui
             resposta["espelho"] = espelho.origem() if espelho is not None else ""
+        if decide:
+            resposta["decidir"] = True
         return self._json(200, resposta)
+
+    @staticmethod
+    def _andar_da_ponte(andar):
+        return not andar.saguao and andar.id == (PONTE_ANDAR or ANDAR_PRINCIPAL)
+
+    def _decide_pela_ponte(self, andar):
+        """Responde os pedidos de permissão da ponte: o admin do prédio ou um ESCRITORIO_PONTE_DECISORES, só no andar
+        da ponte e nunca na prévia (calculado aqui, nunca no cliente)."""
+        if self._previa() or andar is None or not self._andar_da_ponte(andar):
+            return False
+        papel = getattr(self.server.acesso, "papel", None)
+        if papel is None:   # sem papéis no acesso, ninguém decide pela ponte (falha fechada)
+            return False
+        usuario = self._usuario()
+        return papel(usuario, ANDAR_PRINCIPAL) == "admin" or _normalizar_usuario(usuario) in PONTE_DECISORES
+
+    def _post_decidir_ponte(self, rota):
+        """Permitir ou Negar um pedido de permissão da ponte pelo servidor (o celular, outra máquina): {"id", "acao"};
+        ou responder uma pergunta: {"id", "acao": "responder", "texto"} (ponte_espelho.texto_resposta). JSON de até 8 KiB,
+        só quem decide, 20 por minuto por pessoa. A decisão vai para a fila que a ponte busca (GET /api/ponte/decisoes).
+        410: o pedido não existe, venceu ou já foi decidido; 409: tipo errado, resumo incompleto ou o terminal saiu da
+        pergunta. O log leva quem, o id, a ação, a ferramenta, o tamanho do texto e a espera; nunca o resumo, o texto, o
+        cookie nem o Bearer."""
+        if not self._mesma_origem():
+            log(evento="http", rota=rota[:40], resultado="origem_recusada")
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if self._previa():
+            return self._json(*erro(403, "previa", "Na prévia não se responde pelo escritório."))
+        usuario = self._usuario()
+        if not usuario:
+            return self._json(401, {"erro": "entre de novo"})
+        andar = self._andar()
+        if andar is None:
+            return self._sem_andar()
+        if not self._decide_pela_ponte(andar):
+            return self._json(*erro(403, "decisor", "Só quem administra o prédio responde pelo escritório."))
+        espelho = getattr(self.server, "espelho_ponte", None)
+        if espelho is None or not espelho.ligado():
+            return self._json(*erro(404, "espelho", "O espelho da ponte está desligado."))
+        if not espelho.limite_decisao(usuario):
+            return self._json(*erro(429, "limite", "Respostas demais; espere um pouco."))
+        tam = self.headers.get("Content-Length", "")
+        if not re.fullmatch(r"[0-9]{1,7}", tam) or int(tam) > 8192:
+            return self._json(*erro(413, "tamanho", "Pedido grande demais."))
+        dados = self._json_pedido(8192)
+        if dados is False:
+            return self._json(*erro(415, "tipo", "Mande JSON."))
+        responder = isinstance(dados, dict) and dados.get("acao") == ponte_espelho.RESPONDER
+        if not dados or set(dados) != ({"id", "acao", "texto"} if responder else {"id", "acao"}) \
+                or not (responder or dados["acao"] in ponte_espelho.ACOES) or not ponte_espelho.id_valido(dados["id"]):
+            return self._json(*erro(400, "pedido", "Pedido inválido."))
+        texto_ = ponte_espelho.texto_resposta(dados["texto"]) if responder else None
+        if responder and texto_ is None:
+            return self._json(*erro(400, "texto", "A resposta vai numa linha só, até 1000 caracteres, sem começar com hífen, sem barra invertida nem caracteres invisíveis."))
+        extra = {"tamanho": len(texto_)} if responder else {}   # do texto, só o tamanho
+        inicio = time.monotonic()
+        try:
+            p = espelho.decidir(dados["id"], dados["acao"], texto_)
+        except ponte_espelho.Encerrado:
+            log(evento="ponte_decisao", resultado="encerrado", usuario=usuario, id=dados["id"][:8], acao=dados["acao"], **extra)
+            return self._json(*erro(410, "encerrado", "Esse pedido já foi respondido ou venceu."))
+        except ponte_espelho.Incompleto:
+            log(evento="ponte_decisao", resultado="incompleto", usuario=usuario, id=dados["id"][:8], acao=dados["acao"])
+            return self._json(*erro(409, "incompleto", "O resumo não mostra o pedido inteiro: só dá para negar daqui; para permitir, responda no terminal."))
+        except ponte_espelho.TipoErrado:
+            log(evento="ponte_decisao", resultado="tipo", usuario=usuario, id=dados["id"][:8], acao=dados["acao"])
+            return self._json(*erro(409, "tipo", "Esse pedido não aceita essa resposta."))
+        except ponte_espelho.ForaDaPergunta:
+            log(evento="ponte_decisao", resultado="fora_da_pergunta", usuario=usuario, id=dados["id"][:8], acao=dados["acao"], **extra)
+            return self._json(*erro(409, "estado", "O terminal não está mais esperando uma resposta."))
+        log(evento="ponte_decisao", resultado="aceita", usuario=usuario, id=dados["id"][:8], acao=dados["acao"],
+            ferramenta=p["ferramenta"], tipo=p["tipo"], origem="remoto", latencia_ms=int((time.monotonic() - inicio) * 1000), **extra)
+        return self._json(200, {"ok": True})
+
+    def _get_decisoes_ponte(self, caminho):
+        """O long-poll da ponte (Bearer do espelho, sem sessão): até 25 s, 200 {"decisoes": [...]} ou 204, e no
+        X-Ponte-Atendendo se alguém que decide está com o mapa aberto. Cada decisão sai uma vez só."""
+        espelho = getattr(self.server, "espelho_ponte", None)
+        if espelho is None or not espelho.ligado():
+            return self._json(404, {"erro": "nao_encontrado"})
+        try:
+            origem = origem_visita(self.client_address[0], self.headers, self.server.proxy_visitas,
+                                   getattr(self.server, "cabecalho_visitas", "X-Real-IP"))
+            self.server.salas_visitas.limitar_origem(origem, publica=True)
+        except LimiteRequisicoes:
+            return self._json(*erro(429, "limite", "Pedidos demais; espere um pouco."))
+        except ValueError:
+            return self._json(*erro(403, "origem", "Origem não permitida."))
+        if not espelho.autorizado(self.headers.get("Authorization")):
+            log(evento="ponte_decisoes", resultado="chave_recusada")
+            return self._json(*erro(401, "chave", "Chave da ponte recusada."))
+        bruto = urllib.parse.parse_qs(caminho.query).get("espera", ["0"])[0]
+        espera = min(int(bruto), ponte_espelho.ESPERA_MAX_S) if re.fullmatch(r"[0-9]{1,3}", bruto) else 0
+        decisoes, atendendo = espelho.esperar_decisoes(espera)
+        extra = {"X-Ponte-Atendendo": "1" if atendendo else "0"}
+        if not decisoes:
+            return self._envia(204, b"", extra=extra)
+        return self._json(200, {"decisoes": decisoes, "atendendo": atendendo}, extra=extra)
 
     def _post_chave_ponte(self, rota):
         """Personalizar > Ponte local, só o admin do prédio (a guarda nega o resto): {"acao": "gerar"} cria uma chave
@@ -5247,6 +5356,8 @@ class Pagina(BaseHTTPRequestHandler):
             return self._post_espelho_ponte(rota)
         if rota == "/api/ponte/chave":
             return self._post_chave_ponte(rota)
+        if rota == "/api/ponte/decidir":
+            return self._post_decidir_ponte(rota)
         if rota in ("/convite/ver", "/convite/aceitar"):
             return self._post_convite(rota)
         if rota == "/api/perfil":
@@ -5619,7 +5730,7 @@ def main():
     if BIND == "0.0.0.0":
         log(evento="inicio", aviso="use só em container, atrás de um proxy HTTPS")
     log(evento="inicio", versao=VERSAO, onde=f"{BIND}:{PORTA}", base=BASE, terreo="saguao" if registro.saguao else "classico",
-        espelho_ponte=srv.espelho_ponte.origem() or "desligado")   # a chave nunca vai ao log
+        espelho_ponte=srv.espelho_ponte.origem() or "desligado", ponte_decisores=len(PONTE_DECISORES))   # a chave nunca vai ao log
     srv.serve_forever()
 
 

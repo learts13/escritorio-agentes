@@ -106,6 +106,9 @@ func Reconciliar(antes, agora map[string]Sessao, vivo Vivo) []mundo.Sinal {
 			s.Fim, s.TS = true, time.Time{}
 		} else {
 			s.Estado, s.ExcetoOcioso = estadoDoArquivo(x.Status, x.WaitingFor)
+			if s.Estado == mundo.EsperandoResposta {
+				s.Espera, s.EsperaFraca = esperaDoArquivo(x.WaitingFor)
+			}
 		}
 		sinais = append(sinais, s)
 	}
@@ -128,6 +131,16 @@ func ordenadas(sess map[string]Sessao) []string {
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+// esperaDoArquivo é o tipo da espera ("arquivo:<waitingFor>"). O arquivo nunca liga o
+// AceitaTexto: o "input needed" vale para toda elicitação, inclusive a de abrir um link (um
+// diálogo de opções), e só o hook distingue. Por isso o "input needed" é fraco (fraca=true): com
+// o morador já esperando resposta, a espera que o hook pôs fica. Os outros valores ("dialog
+// open", "sandbox request", "goal proposal"...) trocam a espera e desligam o AceitaTexto.
+func esperaDoArquivo(waitingFor string) (espera string, fraca bool) {
+	w := strings.ToLower(strings.TrimSpace(waitingFor))
+	return "arquivo:" + w, w == "input needed"
 }
 
 // estadoDoArquivo traduz status e waitingFor. Espera que fala de permissão é esperando

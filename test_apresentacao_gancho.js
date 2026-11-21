@@ -14,7 +14,8 @@ assert.match(html, /<script src="vida\.js\?v=\d+"><\/script>\s*<script src="apre
 const cena = /\nfunction desenharCena\([\s\S]*?\n\}\n/.exec(app)[0];
 const baloes = cena.split("\n").filter(l => l.includes("desenharBalao("));
 assert.equal(baloes.length, 3);
-assert.match(cena, /const baloes = !\(window\.Apresentacao && Apresentacao\.ligado\(\)\);/);
+// (e só de 2x para cima: na vista geral ficam o boneco e o selo)
+assert.match(cena, /const baloes = !\(window\.Apresentacao && Apresentacao\.ligado\(\)\) && cam\.k \/ dpr >= 2;/);
 for (const l of baloes) assert.match(l, /^\s*if \(baloes\) /, l.trim());
 // (3) a placa "em reunião" na porta (mapa.js), logo depois das portas, nas coordenadas do mundo
 assert.match(cena, /\n  desenharPortas\(t\);\n  for \(const s of \[\.\.\.predio\.salas, \.\.\.predio\.baixo\]\) if \(Vida\.emReuniao\(s\.chave\)\) Mapa\.desenharPlacaReuniao\(ctx, s\);.*\n/);

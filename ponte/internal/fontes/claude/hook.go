@@ -22,6 +22,7 @@ type evento struct {
 	ToolName         string         `json:"tool_name"`
 	ToolInput        map[string]any `json:"tool_input"`
 	NotificationType string         `json:"notification_type"`
+	Message          string         `json:"message"`
 	BackgroundTasks  []tarefa       `json:"background_tasks"`
 	AgentID          string         `json:"agent_id"`
 	Reason           string         `json:"reason"`
@@ -30,6 +31,22 @@ type evento struct {
 type tarefa struct {
 	Type   string `json:"type"`
 	Status string `json:"status"`
+}
+
+// mensagensDeTexto são as mensagens do agent_needs_input que pedem uma resposta escrita (lidas
+// no Claude Code 2.1.329: o diálogo com needs "answer: ..."). As outras ("Teammate setup needs
+// your input", "Auto mode has a classifier billing notice to acknowledge", "Auto mode can't
+// check actions in this session and needs your choice", "<agente> needs your input...") são
+// diálogos de opções ou de outra sessão: sem texto.
+var mensagensDeTexto = map[string]bool{"Your cloud session needs an answer before it can start": true}
+
+// cortarMensagem guarda da mensagem só o bastante para distinguir uma espera de outra.
+func cortarMensagem(m string) string {
+	r := []rune(strings.TrimSpace(m))
+	if len(r) > 80 {
+		r = r[:80]
+	}
+	return string(r)
 }
 
 // NormalizarHook traduz o stdin de um hook do Claude Code. terminalID é o
@@ -91,8 +108,18 @@ func NormalizarComo(corpo []byte, terminalID, fonte string) ([]mundo.Sinal, erro
 			s.Estado = mundo.EsperandoPermissao
 		case "idle_prompt":
 			s.Estado = mundo.Ocioso
-		case "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input":
-			s.Estado = mundo.EsperandoResposta
+		case "elicitation_dialog":
+			// o formulário de elicitação do MCP: pede uma resposta escrita
+			s.Estado, s.Espera, s.AceitaTexto = mundo.EsperandoResposta, "notificacao:"+e.NotificationType, true
+		case "agent_needs_input":
+			// o mesmo tipo serve a diálogos de opções ("Teammate setup needs your input", os dois
+			// avisos do modo auto, em que Enter confirma a opção padrão) e a perguntas escritas: só a
+			// mensagem distingue, e só as da lista aceitam texto. A mensagem entra na Espera, para a
+			// troca de uma por outra mudar a geração.
+			s.Estado, s.Espera = mundo.EsperandoResposta, "notificacao:"+e.NotificationType+":"+cortarMensagem(e.Message)
+			s.AceitaTexto = mensagensDeTexto[strings.TrimSpace(e.Message)]
+		case "elicitation_url_dialog":
+			s.Estado, s.Espera = mundo.EsperandoResposta, "notificacao:"+e.NotificationType
 		default:
 			return nil, nil
 		}

@@ -18,7 +18,8 @@ const usoSetup = `uso: ponte setup --plano | --aplicar | --desfazer [--autostart
      ponte setup --plano | --aplicar --cidade NOME [--escolha N] [--pais XX]
      ponte setup --plano | --aplicar --sem-cidade
      ponte setup --plano | --aplicar --origem URL | --sem-origem URL
-     ponte setup --plano | --aplicar --espelho URL --chave-espelho CHAVE | --sem-espelho
+     ponte setup --plano | --aplicar --espelho URL --chave-espelho CHAVE [--decidir-remoto] | --sem-espelho
+     ponte setup --plano | --aplicar --decidir-remoto | --sem-decidir-remoto
 
   --plano      mostra o que muda em cada arquivo, sem mudar nada
   --aplicar    mostra o plano e instala (backup com data de cada arquivo de terceiros)
@@ -73,18 +74,31 @@ func setup(args []string, saida io.Writer) error {
 	espelho := fs.String("espelho", "", "")
 	chaveEspelho := fs.String("chave-espelho", "", "")
 	semEspelho := fs.Bool("sem-espelho", false, "")
+	decidirRemoto := fs.Bool("decidir-remoto", false, "")
+	semDecidirRemoto := fs.Bool("sem-decidir-remoto", false, "")
 	err := fs.Parse(args)
-	if err == nil && (*espelho != "" || *chaveEspelho != "" || *semEspelho) {
+	if err == nil && *espelho == "" && *chaveEspelho == "" && !*semEspelho && (*decidirRemoto || *semDecidirRemoto) {
 		if fs.NArg() > 0 || contar(*plano, *aplicar) != 1 || *desfazer || *autostart || *home != "" || *cidade != "" || *semCidade ||
-			*escolha != 0 || *pais != "" || *origem != "" || *semOrigem != "" || *semEspelho == (*espelho != "") ||
-			(*espelho != "") != (*chaveEspelho != "") {
+			*escolha != 0 || *pais != "" || *origem != "" || *semOrigem != "" || *decidirRemoto == *semDecidirRemoto {
 			return errors.New(usoSetup)
 		}
 		dir, err := servidor.DirConfig()
 		if err != nil {
 			return err
 		}
-		return setupEspelho(dir, *espelho, *chaveEspelho, *aplicar, saida)
+		return setupDecidirRemoto(dir, *decidirRemoto, *aplicar, saida)
+	}
+	if err == nil && (*espelho != "" || *chaveEspelho != "" || *semEspelho) {
+		if fs.NArg() > 0 || contar(*plano, *aplicar) != 1 || *desfazer || *autostart || *home != "" || *cidade != "" || *semCidade ||
+			*escolha != 0 || *pais != "" || *origem != "" || *semOrigem != "" || *semEspelho == (*espelho != "") ||
+			(*espelho != "") != (*chaveEspelho != "") || *semDecidirRemoto || *decidirRemoto && *semEspelho {
+			return errors.New(usoSetup)
+		}
+		dir, err := servidor.DirConfig()
+		if err != nil {
+			return err
+		}
+		return setupEspelho(dir, *espelho, *chaveEspelho, *decidirRemoto, *aplicar, saida)
 	}
 	if err == nil && (*origem != "" || *semOrigem != "") {
 		if fs.NArg() > 0 || contar(*plano, *aplicar) != 1 || *desfazer || *autostart || *home != "" || *cidade != "" || *semCidade ||
@@ -327,7 +341,7 @@ func setupOrigem(dir, origem, semOrigem string, aplicar bool, saida io.Writer) e
 }
 
 // setupEspelho grava ou apaga o espelho.json. A chave nunca é mostrada.
-func setupEspelho(dir, endereco, chave string, aplicar bool, saida io.Writer) error {
+func setupEspelho(dir, endereco, chave string, decidirRemoto, aplicar bool, saida io.Writer) error {
 	if endereco == "" {
 		if _, ok := servidor.LerEspelho(dir); !ok {
 			fmt.Fprintln(saida, "Espelho: já está desligado; nada a tirar.")
@@ -348,10 +362,39 @@ func setupEspelho(dir, endereco, chave string, aplicar bool, saida io.Writer) er
 	if err != nil {
 		return err
 	}
+	c.DecidirRemoto = decidirRemoto
 	fmt.Fprintln(saida, "Espelho: a ponte passa a enviar a "+c.URL+" os nomes dos terminais e dos projetos, os estados e")
 	fmt.Fprintln(saida, "as ferramentas (nunca arquivo, comando ou alvo). Fica em "+servidor.ArquivoEspelho+", que só você lê.")
+	fmt.Fprintln(saida, textoDecidirRemoto(decidirRemoto))
 	if !aplicar {
 		fmt.Fprintln(saida, "\nNada foi alterado. Para gravar: ponte setup --aplicar --espelho "+c.URL+" --chave-espelho <chave>")
+		return nil
+	}
+	if err := servidor.GravarEspelho(dir, c); err != nil {
+		return err
+	}
+	fmt.Fprintln(saida, "\nPronto. Vale na hora, sem reiniciar a ponte.")
+	return nil
+}
+
+func textoDecidirRemoto(ligado bool) string {
+	if ligado {
+		return "Responder pelo celular: LIGADO. Com alguém que decide atendendo pelo servidor, vão também a ferramenta e um\n" +
+			"resumo mascarado (até 300 caracteres) de cada pedido de permissão, e a ponte aceita Permitir/Negar de lá."
+	}
+	return "Responder pelo celular: desligado (só no navegador deste PC). Para ligar: --decidir-remoto."
+}
+
+// setupDecidirRemoto liga ou desliga só a decisão pelo servidor, no espelho já gravado.
+func setupDecidirRemoto(dir string, ligar, aplicar bool, saida io.Writer) error {
+	c, ok := servidor.LerEspelho(dir)
+	if !ok {
+		return errors.New("o espelho está desligado; ligue antes com ponte conectar URL (ou --espelho URL --chave-espelho CHAVE)")
+	}
+	c.DecidirRemoto = ligar
+	fmt.Fprintln(saida, textoDecidirRemoto(ligar))
+	if !aplicar {
+		fmt.Fprintln(saida, "\nNada foi alterado. Para gravar, rode de novo com --aplicar.")
 		return nil
 	}
 	if err := servidor.GravarEspelho(dir, c); err != nil {

@@ -61,6 +61,13 @@ type Morador struct {
 	Ajudantes   int        `json:"ajudantes"`
 	Desde       time.Time  `json:"desde"`
 
+	// Só na ponte (nunca no JSON): o tipo exato da espera (o waitingFor do arquivo do Claude, a
+	// notificação do hook...), se ela aceita texto digitado (AceitaTexto, positivo e só para os
+	// tipos da lista do normalizador) e a Geracao, que sobe a cada mudança do estado ou da Espera.
+	Espera      string `json:"-"`
+	AceitaTexto bool   `json:"-"`
+	Geracao     uint64 `json:"-"`
+
 	projetoCwd string    // projeto do cwd da sessão (pacote projeto); o da meta vale só sem ele
 	sessao     string    // chave (fonte:sessão) da sessão que hoje é este morador
 	visto      time.Time // TS do sinal mais novo já aplicado a essa sessão
@@ -110,9 +117,18 @@ func (m *Morador) copia() *Morador {
 //   - Fim sem Ajudante encerra a sessão. Sessão encerrada (ou substituída por outra
 //     no mesmo terminal) fica marcada por 1 h e seus eventos atrasados são ignorados;
 //     só um sinal com Inicio (a sessão abriu ou foi retomada agora) a traz de volta.
+//   - Espera e AceitaTexto acompanham o Estado (valem só com ele): o tipo exato da espera e se
+//     ela aceita uma resposta digitada. AceitaTexto é uma lista positiva no normalizador; na
+//     dúvida (tipo desconhecido, diálogo de opções), falso. EsperaFraca: o sinal só vale para
+//     o estado; com o morador já nesse estado, a Espera e o AceitaTexto dele ficam (o
+//     "input needed" do arquivo do Claude, que vale para toda elicitação, inclusive a de link:
+//     só o hook, que distingue, liga o AceitaTexto).
 type Sinal struct {
 	Fonte, SessaoID, TerminalID string
 	Estado                      Estado
+	Espera                      string
+	AceitaTexto                 bool
+	EsperaFraca                 bool // não troca a Espera nem o AceitaTexto de quem já está no mesmo estado
 	ExcetoOcioso                bool
 	Ferramenta, Alvo            string
 	Cwd                         string

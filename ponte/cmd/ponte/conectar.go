@@ -18,8 +18,8 @@ import (
 	"firmopolis/ponte/internal/servidor"
 )
 
-const usoConectar = `uso: ponte conectar URL [--servico]          (a chave é pedida em seguida)
-     ponte conectar URL CHAVE [--servico]    (para scripts: a chave fica no histórico)
+const usoConectar = `uso: ponte conectar URL [--servico] [--decidir-remoto]        (a chave é pedida em seguida)
+     ponte conectar URL CHAVE [--servico] [--decidir-remoto]  (para scripts: a chave fica no histórico)
 
   Liga esta máquina ao Firmópolis de uma vez: testa a chave, instala os hooks dos
   agentes e grava o espelho. Os terminais daqui aparecem no mapa de qualquer navegador.
@@ -28,6 +28,8 @@ const usoConectar = `uso: ponte conectar URL [--servico]          (a chave é pe
 
   --servico    no Linux, cria o serviço systemd do usuário (firmopolis-ponte), que sobe
                a ponte no login e a reinicia se cair
+  --decidir-remoto  deixa responder os pedidos de permissão pelo servidor (o celular): a
+               ferramenta e um resumo mascarado de até 300 caracteres vão ao servidor
 `
 
 // nomeServico é a unit systemd do usuário que o --servico cria.
@@ -72,11 +74,13 @@ func lerChave(saida io.Writer) (string, error) {
 // instala os hooks e grava o espelho, e diz o próximo passo.
 func conectar(args []string, saida io.Writer) error {
 	var pos []string
-	servico := false
+	servico, decidirRemoto := false, false
 	for _, a := range args {
 		switch a {
 		case "--servico", "-servico":
 			servico = true
+		case "--decidir-remoto", "-decidir-remoto":
+			decidirRemoto = true
 		default:
 			if strings.HasPrefix(a, "-") {
 				return errors.New(usoConectar)
@@ -101,6 +105,7 @@ func conectar(args []string, saida io.Writer) error {
 	if err != nil {
 		return err
 	}
+	c.DecidirRemoto = decidirRemoto
 	dir, err := servidor.DirConfig()
 	if err != nil {
 		return err
@@ -127,6 +132,7 @@ func conectar(args []string, saida io.Writer) error {
 	fmt.Fprintln(saida, "\nDeu certo! Esta máquina está ligada ao Firmópolis em "+c.URL+".")
 	fmt.Fprintln(saida, "Vão ao servidor só os nomes dos terminais e dos projetos, os estados e as ferramentas;")
 	fmt.Fprintln(saida, "nunca arquivo, comando ou alvo. Para parar: ponte setup --aplicar --sem-espelho")
+	fmt.Fprintln(saida, textoDecidirRemoto(decidirRemoto))
 	return proximoPasso(saida, servico)
 }
 

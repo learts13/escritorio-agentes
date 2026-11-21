@@ -8,6 +8,7 @@
 //	ponte setup --plano | --aplicar --espelho URL --chave-espelho CHAVE | --sem-espelho
 //	ponte conectar URL CHAVE [--servico]
 //	ponte hook <claude|agy|codex|mcode>
+//	ponte decidir <claude|codex>
 //
 // Lê os agentes (hooks, plugins, ~/.claude/sessions, ~/.codex/sessions e ~/.maestri),
 // guarda o histórico do dia e fala com o jogo e com o Firmópolis no navegador por WebSocket. Com --demo, mostra 10
@@ -50,6 +51,9 @@ func main() {
 		switch os.Args[1] {
 		case "hook":
 			hook(os.Args[2:])
+			os.Exit(0)
+		case "decidir":
+			decidir(os.Args[2:], os.Stdout)
 			os.Exit(0)
 		case "conectar":
 			if err := conectar(os.Args[2:], os.Stdout); err != nil {
